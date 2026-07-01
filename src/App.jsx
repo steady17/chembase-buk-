@@ -151,6 +151,57 @@ async function fileToBase64(file) {
   });
 }
 
+const GEMINI_KEY = "AQ.Ab8RN6LN9t-fig7OHlKZ_G0wLMFJ4qYjp1uVPLrzubjuZHyEcg";
+
+async function askGemini(history) {
+  const contents = history.map(m => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }]
+  }));
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`,
+    {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GEMINI_KEY}`
+      },
+      body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: `You are ChemBot, the official AI study assistant for NSCHE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.` }]
+        },
+        contents,
+        generationConfig: { maxOutputTokens: 1024, temperature: 0.3 }
+      })
+    }
+  );
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that. Please try again.";
+}
+
+function renderInline(text, baseKey) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={`${baseKey}-${idx}`} style={{ fontWeight: 800 }}>{part.slice(2, -2)}</strong>;
+    }
+    return <span key={`${baseKey}-${idx}`}>{part}</span>;
+  });
+}
+
+function formatMessage(text) {
+  return text.split("\n").map((line, i) => {
+    const t = line.trim();
+    if (/^#{1,3}\s+/.test(t)) return <div key={i} style={{ fontWeight: 900, fontSize: 15, marginTop: 10, marginBottom: 2 }}>{renderInline(t.replace(/^#{1,3}\s+/, ""), i)}</div>;
+    if (/^-{3,}$/.test(t)) return <div key={i} style={{ borderTop: "1px solid currentColor", opacity: 0.2, margin: "8px 0" }} />;
+    if (/^\d+\.\s/.test(t)) return <div key={i} style={{ paddingLeft: 8, marginTop: 4 }}>{renderInline(t, i)}</div>;
+    if (t.startsWith("- ") || t.startsWith("* ")) return <div key={i} style={{ paddingLeft: 12, marginTop: 2 }}>• {renderInline(t.slice(2), i)}</div>;
+    if (line.match(/^(Given:|Find:|Solution:|Answer:|Note:)/)) return <div key={i} style={{ fontWeight: 700, marginTop: 8, color: "#0e7a3c" }}>{renderInline(line, i)}</div>;
+    if (t === "") return <div key={i} style={{ height: 6 }} />;
+    return <div key={i}>{renderInline(line, i)}</div>;
+  });
+}
+
 export default function ChemBaseBUK() {
   const [tab, setTab] = useState("home");
   const [dark, setDark] = useState(false);
@@ -160,6 +211,16 @@ export default function ChemBaseBUK() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
   const [expandedExco, setExpandedExco] = useState("2025/2026");
+  const chatRef = useRef(null);
+
+  // ChemBot state
+  const [chatHistory, setChatHistory] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+
+  useEffect(() => {
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+  }, [chatHistory, chatLoading]);
   const C = dark ? DARK : LIGHT;
 
   // GPA calculator state
@@ -338,10 +399,27 @@ export default function ChemBaseBUK() {
     }
   };
 
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userText = chatInput.trim();
+    const newHistory = [...chatHistory, { role: "user", content: userText }];
+    setChatHistory(newHistory);
+    setChatInput("");
+    setChatLoading(true);
+    try {
+      const reply = await askGemini(newHistory);
+      setChatHistory(prev => [...prev, { role: "assistant", content: reply }]);
+    } catch {
+      setChatHistory(prev => [...prev, { role: "assistant", content: "Network error. Please check your connection and try again." }]);
+    }
+    setChatLoading(false);
+  };
+
   const navItems = [
     { id: "home", label: "Home", icon: "🏠" },
     { id: "pq", label: "PQs", icon: "📂" },
-    { id: "help", label: "Academic Help", icon: "🙋" },
+    { id: "ai", label: "ChemBot", icon: "🤖" },
+    { id: "help", label: "Help", icon: "🙋" },
     { id: "gpa", label: "GPA", icon: "🧮" },
     { id: "legacy", label: "Legacy", icon: "🏆" },
   ];
@@ -426,9 +504,9 @@ export default function ChemBaseBUK() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {[
                   { icon: "📂", title: "Past Questions", desc: "100L – 300L courses", action: () => setTab("pq"), color: C.green },
-                  { icon: "🙋", title: "Academic Help", desc: "Ask & get solutions", action: () => setTab("help"), color: "#1565c0" },
-                  { icon: "🧮", title: "GPA Calculator", desc: "Compute your GPA", action: () => setTab("gpa"), color: "#b8860b" },
-                  { icon: "🏆", title: "Legacy", desc: "Past NSCHE BUK Excos", action: () => setTab("legacy"), color: "#6a1b9a" },
+                  { icon: "🤖", title: "ChemBot AI", desc: "Free AI study assistant", action: () => setTab("ai"), color: "#1565c0" },
+                  { icon: "🙋", title: "Academic Help", desc: "Ask & get solutions", action: () => setTab("help"), color: "#b8860b" },
+                  { icon: "🧮", title: "GPA Calculator", desc: "Compute your GPA", action: () => setTab("gpa"), color: "#6a1b9a" },
                 ].map((card, i) => (
                   <div key={i} onClick={card.action} style={{ ...s.card, padding: "16px 14px", cursor: "pointer" }}>
                     <div style={{ fontSize: 26, marginBottom: 8 }}>{card.icon}</div>
@@ -513,6 +591,61 @@ export default function ChemBaseBUK() {
                 <div style={{ fontWeight: 600 }}>No courses match your search</div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* CHEMBOT */}
+      {tab === "ai" && (
+        <div style={{ maxWidth: 700, margin: "0 auto", padding: "20px 16px", display: "flex", flexDirection: "column", height: "calc(100vh - 140px)" }}>
+          <div style={{ marginBottom: 12 }}>
+            <h2 style={{ margin: "0 0 2px", fontWeight: 900, fontSize: 20 }}>🤖 ChemBot</h2>
+            <p style={{ margin: 0, color: C.muted, fontSize: 13 }}>Free AI study assistant — powered by Google Gemini.</p>
+          </div>
+          <div ref={chatRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, padding: 14, background: C.card, borderRadius: 14, border: `1.5px solid ${C.border}`, marginBottom: 12 }}>
+            {chatHistory.length === 0 && (
+              <div style={{ textAlign: "center", padding: "24px 16px", color: C.muted }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>🧪</div>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: C.ink }}>Ask me anything ChE</div>
+                <div style={{ fontSize: 13, marginBottom: 16 }}>Step-by-step solutions for any problem.</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {["Solve heat conduction through a composite wall", "Explain Raoult's Law with an example", "What is the Seebeck effect in thermocouples?"].map(q => (
+                    <button key={q} onClick={() => setChatInput(q)} style={{ background: C.greenLight, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer", color: C.green, fontWeight: 600, textAlign: "left" }}>{q}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {chatHistory.map((m, i) => (
+              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 8, flexDirection: m.role === "user" ? "row-reverse" : "row" }}>
+                  {m.role === "assistant" && (
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.green, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 13 }}>🤖</div>
+                  )}
+                  <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: m.role === "user" ? C.green : C.greenLight, color: m.role === "user" ? "#fff" : C.ink, fontSize: 14, lineHeight: 1.7 }}>
+                    {m.role === "assistant" ? formatMessage(m.content) : m.content}
+                  </div>
+                </div>
+                {m.role === "assistant" && (
+                  <button onClick={() => { const msg = encodeURIComponent("ChemBot (ChemBase BUK):\n\n" + m.content); window.open(`https://wa.me/?text=${msg}`, "_blank"); }}
+                    style={{ marginLeft: 36, background: "#25d366", border: "none", borderRadius: 8, padding: "4px 10px", fontSize: 11, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                    Share on WhatsApp
+                  </button>
+                )}
+              </div>
+            ))}
+            {chatLoading && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.green, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>🤖</div>
+                <div style={{ padding: "10px 14px", background: C.greenLight, borderRadius: "16px 16px 16px 4px", color: C.muted, fontSize: 14 }}>Thinking...</div>
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleChatSend()}
+              placeholder="Ask a ChE question..."
+              style={{ flex: 1, padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 14, outline: "none", background: C.card, color: C.ink }} />
+            <button onClick={handleChatSend} disabled={chatLoading || !chatInput.trim()} style={{ background: C.green, color: "#fff", border: "none", padding: "11px 18px", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: chatLoading ? "not-allowed" : "pointer", opacity: chatLoading || !chatInput.trim() ? 0.5 : 1 }}>Send</button>
           </div>
         </div>
       )}
