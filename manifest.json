@@ -1,0 +1,22 @@
+{
+  "name": "ChemBase BUK",
+  "short_name": "ChemBase",
+  "description": "Official academic resource hub for NSCHE BUK",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#085c2c",
+  "theme_color": "#0e7a3c",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/nsche-logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/nsche-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
