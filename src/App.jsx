@@ -151,7 +151,7 @@ async function fileToBase64(file) {
   });
 }
 
-const GEMINI_KEY = "AQ.Ab8RN6LN9t-fig7OHlKZ_G0wLMFJ4qYjp1uVPLrzubjuZHyEcg";
+const GEMINI_KEY = "AQ.Ab8RN6J8AgdWygttymgSrSrm4Te34paZouolNZpTQ0oi8mnrLw";
 
 async function askGemini(history) {
   const contents = history.map(m => ({
@@ -159,13 +159,10 @@ async function askGemini(history) {
     parts: [{ text: m.content }]
   }));
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
     {
       method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GEMINI_KEY}`
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         system_instruction: {
           parts: [{ text: `You are ChemBot, the official AI study assistant for NSCHE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.` }]
@@ -175,6 +172,11 @@ async function askGemini(history) {
       })
     }
   );
+  if (!res.ok) {
+    const err = await res.json();
+    console.error("Gemini error:", err);
+    throw new Error("API error");
+  }
   const data = await res.json();
   return data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't process that. Please try again.";
 }
@@ -217,6 +219,8 @@ export default function ChemBaseBUK() {
   const [chatHistory, setChatHistory] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatFile, setChatFile] = useState(null);
+  const chatFileRef = useRef(null);
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -399,12 +403,33 @@ export default function ChemBaseBUK() {
     }
   };
 
+  const handleChatFileSelect = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert("File too large. Max 5MB."); return; }
+    try {
+      const base64 = await fileToBase64(file);
+      setChatFile({ name: file.name, type: file.type, base64 });
+    } catch { alert("Couldn't read file."); }
+    e.target.value = "";
+  };
+
   const handleChatSend = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const userText = chatInput.trim();
-    const newHistory = [...chatHistory, { role: "user", content: userText }];
+    if ((!chatInput.trim() && !chatFile) || chatLoading) return;
+    const userText = chatInput.trim() || `[Uploaded: ${chatFile?.name}]`;
+    let userContent;
+    if (chatFile && chatFile.type.startsWith("image/")) {
+      userContent = [
+        { inlineData: { mimeType: chatFile.type, data: chatFile.base64 } },
+        { text: chatInput.trim() || "Please analyze this image and help me understand it for my ChE studies." }
+      ];
+    } else {
+      userContent = chatInput.trim();
+    }
+    const newHistory = [...chatHistory, { role: "user", content: userContent, display: userText }];
     setChatHistory(newHistory);
     setChatInput("");
+    setChatFile(null);
     setChatLoading(true);
     try {
       const reply = await askGemini(newHistory);
@@ -518,7 +543,7 @@ export default function ChemBaseBUK() {
               <div style={{ marginTop: 16, marginBottom: 8, padding: "14px 16px", background: C.greenLight, borderRadius: 12, borderLeft: `4px solid ${C.green}` }}>
                 <div style={{ fontWeight: 700, color: C.green, fontSize: 13 }}>📢 Welcome to ChemBase BUK</div>
                 <p style={{ margin: "6px 0 0", color: C.muted, fontSize: 13, lineHeight: 1.6 }}>
-                  Your official NSCHE BUK academic resource hub. Browse past questions, ask for help on tough problems, calculate your GPA, and explore the society's legacy.
+                  Your official NSCHE BUK academic resource hub. Browse past questions, get instant answers from ChemBot AI (upload notes, images or PDFs), ask for academic help, calculate your GPA, and explore the society's legacy.
                 </p>
               </div>
             </div>
@@ -622,7 +647,7 @@ export default function ChemBaseBUK() {
                     <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.green, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 13 }}>🤖</div>
                   )}
                   <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: m.role === "user" ? C.green : C.greenLight, color: m.role === "user" ? "#fff" : C.ink, fontSize: 14, lineHeight: 1.7 }}>
-                    {m.role === "assistant" ? formatMessage(m.content) : m.content}
+                    {m.role === "assistant" ? formatMessage(m.content) : (m.display || (typeof m.content === "string" ? m.content : m.display))}
                   </div>
                 </div>
                 {m.role === "assistant" && (
@@ -640,12 +665,20 @@ export default function ChemBaseBUK() {
               </div>
             )}
           </div>
+          {chatFile && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: C.greenLight, border: `1.5px solid ${C.green}`, borderRadius: 10, padding: "8px 12px", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: C.green }}>📎 {chatFile.name}</span>
+              <button onClick={() => setChatFile(null)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 16 }}>✕</button>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 10 }}>
+            <input type="file" ref={chatFileRef} accept="image/*,application/pdf" onChange={handleChatFileSelect} style={{ display: "none" }} />
+            <button onClick={() => chatFileRef.current?.click()} title="Upload image or PDF" style={{ background: C.greenLight, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "11px 14px", fontSize: 16, cursor: "pointer", color: C.green }}>📎</button>
             <input value={chatInput} onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleChatSend()}
-              placeholder="Ask a ChE question..."
+              placeholder={chatFile ? "Add a message (optional)..." : "Ask a ChE question..."}
               style={{ flex: 1, padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 14, outline: "none", background: C.card, color: C.ink }} />
-            <button onClick={handleChatSend} disabled={chatLoading || !chatInput.trim()} style={{ background: C.green, color: "#fff", border: "none", padding: "11px 18px", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: chatLoading ? "not-allowed" : "pointer", opacity: chatLoading || !chatInput.trim() ? 0.5 : 1 }}>Send</button>
+            <button onClick={handleChatSend} disabled={chatLoading || (!chatInput.trim() && !chatFile)} style={{ background: C.green, color: "#fff", border: "none", padding: "11px 18px", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: chatLoading ? "not-allowed" : "pointer", opacity: chatLoading || (!chatInput.trim() && !chatFile) ? 0.5 : 1 }}>Send</button>
           </div>
         </div>
       )}
