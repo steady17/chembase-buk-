@@ -171,7 +171,7 @@ async function askDeepSeek(history) {
         "X-Title":"ChemBase BUK" 
       },
       body: JSON.stringify({
-        model:"qwen/qwen3-235b-a22b:free",
+        model:"nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
         messages:[
           { role:"system", content:`You are ChemBot, the official AI study assistant for NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano chapter). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.` },
           ...messages
