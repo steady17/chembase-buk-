@@ -165,7 +165,7 @@ async function askDeepSeek(history) {
     method:"POST",
     headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${GROQ_KEY}`, "HTTP-Referer":"https://chembase-buk-qmxr.vercel.app", "X-Title":"ChemBase BUK" },
     body: JSON.stringify({
-      model:"meta-llama/llama-3.1-70b-instruct:free",
+      model:"meta-llama/llama-3.1-8b-instruct:free",
       messages:[
         { role:"system", content:`You are ChemBot, the official AI study assistant for NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano chapter). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.` },
         ...messages
@@ -175,7 +175,7 @@ async function askDeepSeek(history) {
       stream:false
     })
   });
-  if(!res.ok) throw new Error("API error");
+  if(!res.ok) throw new Error(`API error ${res.status}`);
   const data = await res.json();
   return data.choices?.[0]?.message?.content || "Sorry, I couldn't process that. Please try again.";
 }
@@ -303,7 +303,7 @@ export default function ChemBaseBUK() {
     const newHistory = [...chatHistory,{role:"user",content:chatInput.trim()||userText,display:userText}];
     setChatHistory(newHistory); setChatInput(""); setChatFile(null); setChatLoading(true);
     try{ const r=await askDeepSeek(newHistory); setChatHistory(p=>[...p,{role:"assistant",content:r}]); }
-    catch{ setChatHistory(p=>[...p,{role:"assistant",content:"Network error. Please try again."}]); }
+    catch(e){ setChatHistory(p=>[...p,{role:"assistant",content:`Error: ${e.message}. Please try again.`}]); }
     setChatLoading(false);
   };
 
