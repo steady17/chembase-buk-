@@ -1,4 +1,4 @@
-aimport { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const LOGO      = "/nsche-logo-buk.png";
 const APP_ICON  = "/chembase-icon.png";
