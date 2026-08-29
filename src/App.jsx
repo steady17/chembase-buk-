@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 const LOGO      = "/nsche-logo-buk.png";
 const APP_ICON  = "/chembase-icon.png";
 
-const GROQ_KEY  = "AQ.Ab8RN6KqkphpHGHcnQvQdZJPocF-EL0rbz4jqdVid9YUunufYg";
+const GROQ_KEY  = "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";
 const SUPA_URL    = "https://naygokwyeuxqgtubakyy.supabase.co";
 const SUPA_ANON   = "sb_publishable_-gpzo9zWopBu9zSF3xf04Q_UC_4QPu6";
 
@@ -158,28 +158,41 @@ async function fileToBase64(file) {
 
 async function askDeepSeek(history) {
   const messages = history.map(m => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: typeof m.content === "string" ? m.content : (m.display || "") }]
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: typeof m.content === "string" ? m.content : (m.display || "")
   }));
 
   const systemPrompt = `You are ChemBot, the official AI study assistant for NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano chapter). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.`;
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GROQ_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: messages,
-          generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
-        })
-      }
-    );
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method:"POST",
+      headers:{ 
+        "Content-Type":"application/json", 
+        "Authorization":`Bearer ${GROQ_KEY}`,
+        "HTTP-Referer":"https://chembase-buk-qmxr.vercel.app",
+        "X-Title":"ChemBase BUK"
+      },
+      body: JSON.stringify({
+        model:"nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
+        messages:[
+          { role:"system", content:`You are ChemBot, the official AI study assistant for NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano chapter). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.` },
+          ...messages
+        ],
+        temperature:0.3,
+        max_tokens:2048,
+        stream:false
+      })
+    });
     const data = await res.json();
     if (!res.ok) return `API Error ${res.status}: ${JSON.stringify(data.error || data)}`;
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    let content = data.choices?.[0]?.message?.content || "";
+    content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    content = content.replace(/,"reasoning_details":\[[\s\S]*/g, "").trim();
+    content = content.replace(/\\n/g, "\n");
+    content = content.replace(/\\\(|\\\)/g, "");
+    content = content.replace(/\$\$(.*?)\$\$/g, "$1");
+    content = content.replace(/\$(.*?)\$/g, "$1");
     return content || "No response received. Please try again.";
   } catch(e) {
     return `Network Error: ${e.message}`;
