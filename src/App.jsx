@@ -183,7 +183,8 @@ async function askDeepSeek(history) {
     });
     const data = await res.json();
     if(!res.ok) return `API Error ${res.status}: ${JSON.stringify(data.error || data)}`;
-    return data.choices?.[0]?.message?.content || "Sorry, I couldn't process that. Please try again.";
+    const content = data.choices?.[0]?.message?.content || data.choices?.[0]?.text || JSON.stringify(data);
+    return content || "No response received. Please try again.";
   } catch(e) {
     return `Network Error: ${e.message}`;
   }
