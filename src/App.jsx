@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+aimport { useState, useRef, useEffect } from "react";
 
 const LOGO      = "/nsche-logo-buk.png";
-const BUK_LOGO  = "/buk-logo.png";
 const APP_ICON  = "/chembase-icon.png";
 
-const GROQ_KEY  = "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";
+const GROQ_KEY  = "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";
 const SUPA_URL    = "https://naygokwyeuxqgtubakyy.supabase.co";
 const SUPA_ANON   = "sb_publishable_-gpzo9zWopBu9zSF3xf04Q_UC_4QPu6";
 
@@ -162,11 +161,11 @@ async function askDeepSeek(history) {
     role: m.role === "assistant" ? "assistant" : "user",
     content: typeof m.content === "string" ? m.content : (m.display || "")
   }));
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method:"POST",
-    headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${GROQ_KEY}` },
+    headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${GROQ_KEY}`, "HTTP-Referer":"https://chembase-buk-qmxr.vercel.app", "X-Title":"ChemBase BUK" },
     body: JSON.stringify({
-      model:"llama-3.1-70b-versatile",
+      model:"meta-llama/llama-3.1-70b-instruct:free",
       messages:[
         { role:"system", content:`You are ChemBot, the official AI study assistant for NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano chapter). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.` },
         ...messages
@@ -372,9 +371,7 @@ export default function ChemBaseBUK() {
       {/* TOP NAV — Logo + dark mode only, no tab icons */}
       <nav style={{background:C.greenDark,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,0.3)"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <img src={LOGO} alt="NSChE BUK" style={{width:40,height:40,borderRadius:"50%",objectFit:"cover",border:"2px solid rgba(255,255,255,0.3)"}}/>
-          <div style={{width:"1px",height:32,background:"rgba(255,255,255,0.2)"}}/>
-          <img src={BUK_LOGO} alt="BUK" style={{width:36,height:36,borderRadius:"50%",objectFit:"cover",objectPosition:"center",border:"2px solid rgba(255,255,255,0.3)",background:"#1a9bd4"}}/>
+          <img src={LOGO} alt="NSChE BUK" style={{width:42,height:42,borderRadius:"50%",objectFit:"cover",border:"2px solid rgba(255,255,255,0.3)"}}/>
           <div>
             <div style={{fontWeight:900,fontSize:16,color:"#fff"}}>ChemBase BUK</div>
             <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>NSChE · BUK Chapter</div>
