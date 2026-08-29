@@ -171,19 +171,26 @@ async function askDeepSeek(history) {
         "X-Title":"ChemBase BUK" 
       },
       body: JSON.stringify({
-        model:"openrouter/auto",
+        model:"qwen/qwen3-235b-a22b:free",
         messages:[
           { role:"system", content:`You are ChemBot, the official AI study assistant for NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano chapter). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.` },
           ...messages
         ],
         temperature:0.3,
-        max_tokens:1024,
+        max_tokens:2048,
         stream:false
       })
     });
     const data = await res.json();
     if(!res.ok) return `API Error ${res.status}: ${JSON.stringify(data.error || data)}`;
-    const content = data.choices?.[0]?.message?.content || data.choices?.[0]?.text || JSON.stringify(data);
+    let content = data.choices?.[0]?.message?.content || data.choices?.[0]?.message?.reasoning || data.choices?.[0]?.text || "";
+    // Remove reasoning/thinking blocks and JSON leakage
+    content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    content = content.replace(/,"reasoning_details":\[[\s\S]*/g, "").trim();
+    content = content.replace(/\\n/g, "\n");
+    content = content.replace(/\\\(|\\\)/g, "");
+    content = content.replace(/\$\$(.*?)\$\$/g, "$1");
+    content = content.replace(/\$(.*?)\$/g, "$1");
     return content || "No response received. Please try again.";
   } catch(e) {
     return `Network Error: ${e.message}`;
