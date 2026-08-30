@@ -16,7 +16,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer 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`
       },
       body: JSON.stringify({
-        model: 'meta/llama-3.3-70b-instruct',
+        model: 'meta/llama-4-maverick-17b-128e-instruct',
         messages,
         temperature: 0.3,
         max_tokens: 2048,
