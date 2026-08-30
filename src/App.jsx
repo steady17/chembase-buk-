@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const LOGO      = "/nsche-logo-buk.jpg";
+const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
 
 const GROQ_KEY  = "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";
@@ -194,12 +194,24 @@ async function supabaseRequest(path, method="GET", body=null) {
   return method === "GET" ? res.json() : res;
 }
 
+function renderMath(text, display=false) {
+  try {
+    if(window.katex) {
+      return <span dangerouslySetInnerHTML={{__html: window.katex.renderToString(text, {displayMode:display, throwOnError:false})}}/>;
+    }
+  } catch(e) {}
+  return <span>{text}</span>;
+}
+
 function renderInline(text, k) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((p,i) =>
-    p.startsWith("**") && p.endsWith("**")
-      ? <strong key={`${k}-${i}`} style={{fontWeight:800}}>{p.slice(2,-2)}</strong>
-      : <span key={`${k}-${i}`}>{p}</span>
-  );
+  // Split on LaTeX: \(...\) inline and \[...\] display
+  const parts = text.split(/(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\*\*[^*]+\*\*)/g);
+  return parts.map((p,i) => {
+    if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), true)}</span>;
+    if(p.startsWith('\\(') && p.endsWith('\\)')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
+    if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:800}}>{p.slice(2,-2)}</strong>;
+    return <span key={`${k}-${i}`}>{p}</span>;
+  });
 }
 
 function formatMsg(text) {
@@ -365,7 +377,7 @@ export default function ChemBaseBUK() {
   const card = {background:C.card,borderRadius:14,border:`1.5px solid ${C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"};
 
   return (
-    <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:C.bg,color:C.ink,paddingBottom:80,transition:"background 0.3s,color 0.3s"}}>
+    <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:C.bg,color:C.ink,paddingBottom:tab==="ai"?0:80,overflow:tab==="ai"?"hidden":"auto",transition:"background 0.3s,color 0.3s"}}>
 
       {/* TOP NAV — Logo + dark mode only, no tab icons */}
       <nav style={{background:C.greenDark,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(0,0,0,0.3)"}}>
@@ -521,7 +533,7 @@ export default function ChemBaseBUK() {
 
       {/* CHEMBOT */}
       {tab==="ai" && (
-        <div style={{maxWidth:700,margin:"0 auto",padding:"20px 16px",display:"flex",flexDirection:"column",height:"calc(100vh - 140px)"}}>
+        <div style={{maxWidth:700,margin:"0 auto",padding:"12px 16px 0",display:"flex",flexDirection:"column",height:"calc(100vh - 130px)",boxSizing:"border-box"}}>
           <div style={{marginBottom:12}}>
             <h2 style={{margin:"0 0 2px",fontWeight:900,fontSize:20}}>🤖 ChemBot</h2>
             <p style={{margin:0,color:C.muted,fontSize:13}}>Your free AI study assistant for Chemical Engineering.</p>
@@ -533,7 +545,7 @@ export default function ChemBaseBUK() {
                 <div style={{fontWeight:700,fontSize:15,marginBottom:6,color:C.ink}}>Ask me anything ChE</div>
                 <div style={{fontSize:13,marginBottom:16}}>Step-by-step solutions. Upload images or PDFs too.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {["Solve heat conduction through a composite wall","Explain Raoult's Law with an example","What is the Seebeck effect in thermocouples?"].map(q=>(
+                  {["What is material balance and how do I apply it?","Explain the difference between batch and continuous reactors","How do I calculate GPA on a 5-point scale?"].map(q=>(
                     <button key={q} onClick={()=>setChatInput(q)} style={{background:C.greenLight,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 14px",fontSize:13,cursor:"pointer",color:C.green,fontWeight:600,textAlign:"left"}}>{q}</button>
                   ))}
                 </div>
