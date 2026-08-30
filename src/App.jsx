@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const LOGO      = "/nsche-logo.png";
+const LOGO      = "/nsche-logo.jng";
 const APP_ICON  = "/chembase-icon.png";
 
 const GROQ_KEY  = "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";
