@@ -4,8 +4,8 @@ const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
 
 const GROQ_KEY  = "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";
-const SUPA_URL    = "https://naygokwyeuxqgtubakyy.supabase.com";
-const SUPA_ANON   = "sb_publishable_-gpzo9zWopBu9zSF3xf04Q_UC_4QPu6";
+const SUPA_URL    = "https://naygokwyeuxqgtubakyy.supabase.co";
+const SUPA_ANON   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5heWdva3d5ZXV4cWd0dWJha3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NjMyMTgsImV4cCI6MjEwMzQzOTIxOH0.LJlouGNXypTz5aTrsdbnrfDa7cjNG6hD1kbBkRDsWfA";
 
 const LIGHT = {
   green:"#0e7a3c", greenDark:"#085c2c", greenLight:"#e6f4ed", greenMid:"#c3e6d0",
@@ -533,17 +533,19 @@ export default function ChemBaseBUK() {
 
       {/* CHEMBOT */}
       {tab==="ai" && (
-        <div style={{maxWidth:700,margin:"0 auto",padding:"12px 16px 0",display:"flex",flexDirection:"column",height:"calc(100vh - 130px)",boxSizing:"border-box"}}>
-          <div style={{marginBottom:12}}>
-            <h2 style={{margin:"0 0 2px",fontWeight:900,fontSize:20}}>🤖 ChemBot</h2>
-            <p style={{margin:0,color:C.muted,fontSize:13}}>Your free AI study assistant for Chemical Engineering.</p>
+        <div style={{position:"fixed",top:62,left:0,right:0,bottom:64,display:"flex",flexDirection:"column",background:C.bg}}>
+          {/* Fixed header */}
+          <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,background:C.bg,flexShrink:0}}>
+            <h2 style={{margin:"0 0 1px",fontWeight:900,fontSize:18}}>🤖 ChemBot</h2>
+            <p style={{margin:0,color:C.muted,fontSize:12}}>Your free AI study assistant for Chemical Engineering.</p>
           </div>
-          <div ref={chatRef} style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,padding:14,background:C.card,borderRadius:14,border:`1.5px solid ${C.border}`,marginBottom:12,minHeight:0}}>
+          {/* Scrollable messages */}
+          <div ref={chatRef} style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,padding:"14px 16px"}}>
             {chatHistory.length===0 && (
-              <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",flex:1,padding:"16px"}}>
+              <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",flex:1,padding:"24px 16px"}}>
                 <div style={{fontSize:40,marginBottom:8}}>🧪</div>
                 <div style={{fontWeight:800,fontSize:17,marginBottom:4,color:C.ink,textAlign:"center"}}>Ask me anything ChE</div>
-                <div style={{fontSize:13,color:C.muted,marginBottom:16,textAlign:"center"}}>Step-by-step solutions. Upload images or PDFs too.</div>
+                <div style={{fontSize:13,color:C.muted,marginBottom:20,textAlign:"center"}}>Step-by-step solutions. Upload images or PDFs too.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:10,width:"100%"}}>
                   {["What is material balance and how do I apply it?","Explain the difference between batch and continuous reactors","How do I calculate GPA on a 5-point scale?"].map(q=>(
                     <button key={q} onClick={()=>setChatInput(q)} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:12,padding:"12px 16px",fontSize:14,cursor:"pointer",color:C.green,fontWeight:600,textAlign:"left",width:"100%"}}>{q}</button>
@@ -574,20 +576,23 @@ export default function ChemBaseBUK() {
               </div>
             )}
           </div>
-          {chatFile && (
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.greenLight,border:`1.5px solid ${C.green}`,borderRadius:10,padding:"8px 12px",marginBottom:8}}>
-              <span style={{fontSize:13,color:C.green}}>📎 {chatFile.name}</span>
-              <button onClick={()=>setChatFile(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button>
+          {/* Fixed input bar */}
+          <div style={{padding:"8px 12px",borderTop:`1px solid ${C.border}`,background:C.bg,flexShrink:0}}>
+            {chatFile && (
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.greenLight,border:`1.5px solid ${C.green}`,borderRadius:10,padding:"6px 12px",marginBottom:8}}>
+                <span style={{fontSize:13,color:C.green}}>📎 {chatFile.name}</span>
+                <button onClick={()=>setChatFile(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button>
+              </div>
+            )}
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <input type="file" ref={chatFileRef} accept="image/*,application/pdf" onChange={handleChatFileSelect} style={{display:"none"}}/>
+              <button onClick={()=>chatFileRef.current?.click()} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"10px 13px",fontSize:16,cursor:"pointer",color:C.green,flexShrink:0}}>📎</button>
+              <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
+                placeholder={chatFile?"Add a message (optional)...":"Ask a ChE question..."}
+                style={{flex:1,padding:"10px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.card,color:C.ink,minWidth:0}}/>
+              <button onClick={handleChatSend} disabled={chatLoading||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"10px 16px",borderRadius:10,fontWeight:800,fontSize:14,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||(!chatInput.trim()&&!chatFile)?0.5:1,flexShrink:0}}>Send</button>
             </div>
-          )}
-          <div style={{display:"flex",gap:10}}>
-            <input type="file" ref={chatFileRef} accept="image/*,application/pdf" onChange={handleChatFileSelect} style={{display:"none"}}/>
-            <button onClick={()=>chatFileRef.current?.click()} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"11px 14px",fontSize:16,cursor:"pointer",color:C.green}}>📎</button>
-            <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
-              placeholder={chatFile?"Add a message (optional)...":"Ask a ChE question..."}
-              style={{flex:1,padding:"11px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.card,color:C.ink}}/>
-            <button onClick={handleChatSend} disabled={chatLoading||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"11px 18px",borderRadius:10,fontWeight:800,fontSize:14,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||(!chatInput.trim()&&!chatFile)?0.5:1}}>Send</button>
           </div>
         </div>
       )}
