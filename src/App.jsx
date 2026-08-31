@@ -156,9 +156,32 @@ async function fileToBase64(file) {
   });
 }
 
+async function uploadToStorage(file) {
+  const filename = `${Date.now()}-${file.name}`;
+  const res = await fetch(`${SUPA_URL}/storage/v1/object/academic-files/${filename}`, {
+    method: "POST",
+    headers: {
+      "apikey": SUPA_ANON,
+      "Authorization": `Bearer ${SUPA_ANON}`,
+      "Content-Type": file.type,
+    },
+    body: file
+  });
+  if(!res.ok) throw new Error("Upload failed");
+  return `${SUPA_URL}/storage/v1/object/public/academic-files/${filename}`;
+}
+
 async function askDeepSeek(history) {
   const messages = [
-    { role:"system", content:`You are ChemBot, the official AI study assistant for NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano chapter). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.` },
+    { role:"system", content:`You are ChemBot, the AI study assistant built into ChemBase BUK — the academic platform for Chemical Engineering students at Bayero University Kano (BUK). You help 100–400 level ChE students at BUK only.
+
+Rules:
+- Be a smart, concise tutor. Never write like a textbook.
+- Use Given:/Find:/Solution:/Answer: structure for problems.
+- Use LaTeX for math: inline $...$ and display $$...$$
+- Keep answers short and focused. Number steps clearly.
+- Never say "as an NSChE student" — you are specifically for BUK Chemical Engineering students.
+- If someone uploads an image, analyze it and answer based on what you see.` },
     ...history.map(m => ({
       role: m.role === "assistant" ? "assistant" : "user",
       content: typeof m.content === "string" ? m.content : (m.display || "")
@@ -206,13 +229,17 @@ function renderMath(text, display=false) {
 function renderInline(text, k) {
   const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$]*?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\*\*[^*]+\*\*)/g);
   return parts.map((p,i) => {
-    if(p.startsWith('$$') && p.endsWith('$$')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0"}}>{renderMath(p.slice(2,-2), true)}</span>;
+    if(p.startsWith('$$') && p.endsWith('$$')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",overflowX:"auto",maxWidth:"100%"}}>{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('$') && p.endsWith('$') && p.length>2) return <span key={`${k}-${i}`}>{renderMath(p.slice(1,-1), false)}</span>;
-    if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0"}}>{renderMath(p.slice(2,-2), true)}</span>;
+    if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",overflowX:"auto",maxWidth:"100%"}}>{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('\\(') && p.endsWith('\\)')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
     if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:800}}>{p.slice(2,-2)}</strong>;
     return <span key={`${k}-${i}`}>{p}</span>;
   });
+}
+
+function renderTableCell(cell, idx) {
+  return <span>{renderInline(cell, idx)}</span>;
 }
 
 function renderTable(lines, startIdx) {
@@ -224,13 +251,13 @@ function renderTable(lines, startIdx) {
     i++;
   }
   return { table: (
-    <div key={startIdx} style={{overflowX:"auto",marginTop:8,marginBottom:8}}>
+    <div key={startIdx} style={{overflowX:"auto",marginTop:8,marginBottom:8,maxWidth:"100%"}}>
       <table style={{borderCollapse:"collapse",width:"100%",fontSize:13}}>
         <thead>
-          <tr>{headers.map((h,j)=><th key={j} style={{background:"#0e7a3c",color:"#fff",padding:"6px 10px",textAlign:"left",fontWeight:700,border:"1px solid #cce8d8"}}>{h}</th>)}</tr>
+          <tr>{headers.map((h,j)=><th key={j} style={{background:"#0e7a3c",color:"#fff",padding:"6px 10px",textAlign:"left",fontWeight:700,border:"1px solid #cce8d8"}}>{renderTableCell(h,j)}</th>)}</tr>
         </thead>
         <tbody>
-          {rows.map((row,j)=><tr key={j} style={{background:j%2===0?"rgba(14,122,60,0.05)":"transparent"}}>{row.map((cell,k)=><td key={k} style={{padding:"6px 10px",border:"1px solid #cce8d8",fontSize:13}}>{cell}</td>)}</tr>)}
+          {rows.map((row,j)=><tr key={j} style={{background:j%2===0?"rgba(14,122,60,0.05)":"transparent"}}>{row.map((cell,k)=><td key={k} style={{padding:"6px 10px",border:"1px solid #cce8d8",fontSize:13}}>{renderTableCell(cell,`${j}-${k}`)}</td>)}</tr>)}
         </tbody>
       </table>
     </div>
@@ -346,7 +373,17 @@ export default function ChemBaseBUK() {
   const handleChatSend = async () => {
     if((!chatInput.trim()&&!chatFile)||chatLoading) return;
     const userText = chatInput.trim()||(chatFile?`[Uploaded: ${chatFile.name}]`:"");
-    const newHistory = [...chatHistory,{role:"user",content:chatInput.trim()||userText,display:userText}];
+    // Build content array for image support
+    let userContent;
+    if(chatFile && chatFile.base64) {
+      userContent = [
+        ...(chatInput.trim() ? [{type:"text",text:chatInput.trim()}] : []),
+        {type:"image_url", image_url:{url:`data:${chatFile.type};base64,${chatFile.base64}`}}
+      ];
+    } else {
+      userContent = chatInput.trim() || userText;
+    }
+    const newHistory = [...chatHistory,{role:"user",content:userContent,display:userText}];
     setChatHistory(newHistory); setChatInput(""); setChatFile(null); setChatLoading(true);
     try{ const r=await askDeepSeek(newHistory); setChatHistory(p=>[...p,{role:"assistant",content:r}]); }
     catch(e){ setChatHistory(p=>[...p,{role:"assistant",content:`Error: ${e.message}`}]); }
@@ -368,9 +405,19 @@ export default function ChemBaseBUK() {
   const submitQuestion = async () => {
     if(!newQ.name.trim()||!newQ.course.trim()||!newQ.question.trim()){alert("Fill all fields");return;}
     try{
+      let fileUrl = null;
+      if(newQFile) {
+        const filename = `${Date.now()}-${newQFile.name}`;
+        const uploadRes = await fetch(`${SUPA_URL}/storage/v1/object/academic-files/${filename}`, {
+          method:"POST",
+          headers:{"apikey":SUPA_ANON,"Authorization":`Bearer ${SUPA_ANON}`,"Content-Type":newQFile.type},
+          body:await fetch(`data:${newQFile.type};base64,${newQFile.base64}`).then(r=>r.blob())
+        });
+        if(uploadRes.ok) fileUrl = `${SUPA_URL}/storage/v1/object/public/academic-files/${filename}`;
+      }
       await supabaseRequest("/questions","POST",{
         name:newQ.name.trim(), course:newQ.course.trim(), question:newQ.question.trim(),
-        answer_text:null, answer_file_url:null
+        answer_text:null, answer_file_url:fileUrl
       });
       await loadQuestions();
       setNewQ({name:"",course:"",question:""}); setNewQFile(null); setShowAskForm(false);
@@ -390,14 +437,46 @@ export default function ChemBaseBUK() {
     const file=pendingAnsFile[qId]||null;
     if(!text&&!file){alert("Add text or attach file");return;}
     try{
+      let fileUrl = null;
+      if(file) {
+        const filename = `${Date.now()}-${file.name}`;
+        const uploadRes = await fetch(`${SUPA_URL}/storage/v1/object/academic-files/${filename}`, {
+          method:"POST",
+          headers:{"apikey":SUPA_ANON,"Authorization":`Bearer ${SUPA_ANON}`,"Content-Type":file.type},
+          body:await fetch(`data:${file.type};base64,${file.base64}`).then(r=>r.blob())
+        });
+        if(uploadRes.ok) fileUrl = `${SUPA_URL}/storage/v1/object/public/academic-files/${filename}`;
+      }
       await supabaseRequest(`/questions?id=eq.${qId}`,"PATCH",{
         answer_text:text||null,
-        answer_file_url:file?file.name:null
+        answer_file_url:fileUrl
       });
       await loadQuestions();
       setAnswerDrafts(p=>({...p,[qId]:""}));
       setPendingAnsFile(p=>({...p,[qId]:null}));
     }catch{ alert("Couldn't save answer"); }
+  };
+
+  const deleteQuestion = async qId => {
+    if(!window.confirm("Delete this question?")) return;
+    try{
+      // Get the question first to check for attached file
+      const questions_data = await supabaseRequest(`/questions?id=eq.${qId}`);
+      const q = questions_data?.[0];
+      // Delete file from storage if exists
+      if(q?.answer_file_url) {
+        const filename = q.answer_file_url.split('/academic-files/')[1];
+        if(filename) {
+          await fetch(`${SUPA_URL}/storage/v1/object/academic-files/${filename}`, {
+            method:"DELETE",
+            headers:{"apikey":SUPA_ANON,"Authorization":`Bearer ${SUPA_ANON}`}
+          });
+        }
+      }
+      // Delete question from database
+      await supabaseRequest(`/questions?id=eq.${qId}`,"DELETE");
+      await loadQuestions();
+    }catch{ alert("Couldn't delete. Try again."); }
   };
 
   const navItems = [
@@ -592,7 +671,7 @@ export default function ChemBaseBUK() {
               <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",gap:4}}>
                 <div style={{display:"flex",alignItems:"flex-end",gap:8,flexDirection:m.role==="user"?"row-reverse":"row"}}>
                   {m.role==="assistant" && <div style={{width:28,height:28,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13}}>🤖</div>}
-                  <div style={{maxWidth:"80%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.card,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7,border:m.role==="assistant"?`1px solid ${C.border}`:"none"}}>
+                  <div style={{maxWidth:"85%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.card,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7,border:m.role==="assistant"?`1px solid ${C.border}`:"none",overflowX:"auto",wordBreak:"break-word"}}>
                     {m.role==="assistant"?formatMsg(m.content):(m.display||m.content)}
                   </div>
                 </div>
@@ -731,11 +810,12 @@ export default function ChemBaseBUK() {
                         <span style={{background:C.greenLight,color:C.green,fontWeight:800,fontSize:11,padding:"2px 10px",borderRadius:20}}>{q.course}</span>
                         <span style={{fontSize:11,color:C.muted}}>by {q.name}</span>
                         {(q.answer_text||q.answer_file_url) && <span style={{background:"#e6f4ed",color:C.green,fontWeight:700,fontSize:10,padding:"2px 8px",borderRadius:20}}>✅ Answered</span>}
+                        {adminMode && <button onClick={()=>deleteQuestion(q.id)} style={{marginLeft:"auto",background:"#fee2e2",color:"#c0392b",border:"none",borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑 Delete</button>}
                       </div>
                       <div style={{fontSize:14,color:C.ink,lineHeight:1.5,marginBottom:6}}>{q.question}</div>
                       {q.answer_text && <div style={{background:C.greenLight,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.ink,marginBottom:8,lineHeight:1.6}}><strong style={{color:C.green}}>Answer: </strong>{q.answer_text}</div>}
-                      {q.answer_file_url && <div style={{background:C.greenLight,borderRadius:8,padding:"8px 12px",fontSize:13,color:C.green,fontWeight:700,marginBottom:8}}>📎 {q.answer_file_url}</div>}
-                      {adminMode && !q.answer_text && !q.answer_file_url && (
+                      {q.answer_file_url && <a href={q.answer_file_url} target="_blank" rel="noreferrer" style={{display:"block",background:C.greenLight,borderRadius:8,padding:"8px 12px",fontSize:13,color:C.green,fontWeight:700,marginBottom:8,textDecoration:"none"}}>📎 View Attached File</a>}
+                      {adminMode && (
                         <div style={{borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:4}}>
                           <textarea placeholder="Type your answer..." rows={2} value={answerDrafts[q.id]||""}
                             onChange={e=>setAnswerDrafts(p=>({...p,[q.id]:e.target.value}))}
