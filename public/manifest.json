@@ -4,7 +4,7 @@
   "description": "Official academic resource hub for NSChE BUK",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#085c2c",
+  "background_color": "#ffffff",
   "theme_color": "#0e7a3c",
   "orientation": "portrait",
   "icons": [
