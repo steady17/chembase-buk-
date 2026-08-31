@@ -4,10 +4,10 @@ const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
 
 const GROQ_KEY  = "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";
-const SUPA_URL    = "https://naygokwyeuxqgtubakyy.supabase.com";
-const SUPA_ANON   = "sb_publishable_-gpzo9zWopBu9zSF3xf04Q_UC_4QPu6";
+const SUPA_URL    = "https://naygokwyeuxqgtubakyy.supabase.co";
+const SUPA_ANON   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5heWdva3d5ZXV4cWd0dWJha3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NjMyMTgsImV4cCI6MjEwMzQzOTIxOH0.LJlouGNXypTz5aTrsdbnrfDa7cjNG6hD1kbBkRDsWfA";
 
-const LIGHT = { 
+const LIGHT = {
   green:"#0e7a3c", greenDark:"#085c2c", greenLight:"#e6f4ed", greenMid:"#c3e6d0",
   white:"#ffffff", bg:"#f7fbf9", ink:"#0a1f12", muted:"#5a7a65", border:"#cce8d8",
   card:"#ffffff", navBg:"#ffffff",
@@ -204,27 +204,62 @@ function renderMath(text, display=false) {
 }
 
 function renderInline(text, k) {
-  // Split on LaTeX: \(...\) inline and \[...\] display
-  const parts = text.split(/(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\*\*[^*]+\*\*)/g);
+  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$]*?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\*\*[^*]+\*\*)/g);
   return parts.map((p,i) => {
-    if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), true)}</span>;
+    if(p.startsWith('$$') && p.endsWith('$$')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0"}}>{renderMath(p.slice(2,-2), true)}</span>;
+    if(p.startsWith('$') && p.endsWith('$') && p.length>2) return <span key={`${k}-${i}`}>{renderMath(p.slice(1,-1), false)}</span>;
+    if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0"}}>{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('\\(') && p.endsWith('\\)')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
     if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:800}}>{p.slice(2,-2)}</strong>;
     return <span key={`${k}-${i}`}>{p}</span>;
   });
 }
 
+function renderTable(lines, startIdx) {
+  const headers = lines[startIdx].split('|').filter(c=>c.trim()).map(c=>c.trim());
+  const rows = [];
+  let i = startIdx + 2;
+  while(i < lines.length && lines[i].includes('|')) {
+    rows.push(lines[i].split('|').filter(c=>c.trim()).map(c=>c.trim()));
+    i++;
+  }
+  return { table: (
+    <div key={startIdx} style={{overflowX:"auto",marginTop:8,marginBottom:8}}>
+      <table style={{borderCollapse:"collapse",width:"100%",fontSize:13}}>
+        <thead>
+          <tr>{headers.map((h,j)=><th key={j} style={{background:"#0e7a3c",color:"#fff",padding:"6px 10px",textAlign:"left",fontWeight:700,border:"1px solid #cce8d8"}}>{h}</th>)}</tr>
+        </thead>
+        <tbody>
+          {rows.map((row,j)=><tr key={j} style={{background:j%2===0?"rgba(14,122,60,0.05)":"transparent"}}>{row.map((cell,k)=><td key={k} style={{padding:"6px 10px",border:"1px solid #cce8d8",fontSize:13}}>{cell}</td>)}</tr>)}
+        </tbody>
+      </table>
+    </div>
+  ), nextIdx: i };
+}
+
 function formatMsg(text) {
-  return text.split("\n").map((line,i) => {
+  const lines = text.split("\n");
+  const result = [];
+  let i = 0;
+  while(i < lines.length) {
+    const line = lines[i];
     const t = line.trim();
-    if(/^#{1,3}\s+/.test(t)) return <div key={i} style={{fontWeight:900,fontSize:15,marginTop:10,marginBottom:2}}>{renderInline(t.replace(/^#{1,3}\s+/,""),i)}</div>;
-    if(/^-{3,}$/.test(t)) return <div key={i} style={{borderTop:"1px solid currentColor",opacity:0.2,margin:"8px 0"}}/>;
-    if(/^\d+\.\s/.test(t)) return <div key={i} style={{paddingLeft:8,marginTop:4}}>{renderInline(t,i)}</div>;
-    if(t.startsWith("- ")||t.startsWith("* ")) return <div key={i} style={{paddingLeft:12,marginTop:2}}>• {renderInline(t.slice(2),i)}</div>;
-    if(line.match(/^(Given:|Find:|Solution:|Answer:|Note:)/)) return <div key={i} style={{fontWeight:700,marginTop:8,color:"#0e7a3c"}}>{renderInline(line,i)}</div>;
-    if(t==="") return <div key={i} style={{height:6}}/>;
-    return <div key={i}>{renderInline(line,i)}</div>;
-  });
+    if(t.startsWith('|') && i+1 < lines.length && lines[i+1].includes('---')) {
+      const {table, nextIdx} = renderTable(lines, i);
+      result.push(table);
+      i = nextIdx;
+      continue;
+    }
+    if(/^#{1,3}\s+/.test(t)) result.push(<div key={i} style={{fontWeight:900,fontSize:15,marginTop:10,marginBottom:2}}>{renderInline(t.replace(/^#{1,3}\s+/,""),i)}</div>);
+    else if(/^-{3,}$/.test(t)) result.push(<div key={i} style={{borderTop:"1px solid currentColor",opacity:0.2,margin:"8px 0"}}/>);
+    else if(/^\d+\.\s/.test(t)) result.push(<div key={i} style={{paddingLeft:8,marginTop:4}}>{renderInline(t,i)}</div>);
+    else if(t.startsWith("- ")||t.startsWith("* ")) result.push(<div key={i} style={{paddingLeft:12,marginTop:2}}>• {renderInline(t.slice(2),i)}</div>);
+    else if(line.match(/^(Given:|Find:|Solution:|Answer:|Note:)/)) result.push(<div key={i} style={{fontWeight:700,marginTop:8,color:"#0e7a3c"}}>{renderInline(line,i)}</div>);
+    else if(t==="") result.push(<div key={i} style={{height:6}}/>);
+    else result.push(<div key={i}>{renderInline(line,i)}</div>);
+    i++;
+  }
+  return result;
 }
 
 export default function ChemBaseBUK() {
@@ -533,17 +568,19 @@ export default function ChemBaseBUK() {
 
       {/* CHEMBOT */}
       {tab==="ai" && (
-        <div style={{maxWidth:700,margin:"0 auto",padding:"12px 16px 0",display:"flex",flexDirection:"column",height:"calc(100vh - 130px)",boxSizing:"border-box"}}>
-          <div style={{marginBottom:12}}>
-            <h2 style={{margin:"0 0 2px",fontWeight:900,fontSize:20}}>🤖 ChemBot</h2>
-            <p style={{margin:0,color:C.muted,fontSize:13}}>Your free AI study assistant for Chemical Engineering.</p>
+        <div style={{position:"fixed",top:62,left:0,right:0,bottom:64,display:"flex",flexDirection:"column",background:C.bg,overflow:"hidden"}}>
+          {/* Fixed header */}
+          <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,background:C.bg,flexShrink:0}}>
+            <h2 style={{margin:"0 0 1px",fontWeight:900,fontSize:18}}>🤖 ChemBot</h2>
+            <p style={{margin:0,color:C.muted,fontSize:12}}>Your free AI study assistant for Chemical Engineering.</p>
           </div>
-          <div ref={chatRef} style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,padding:14,background:C.card,borderRadius:14,border:`1.5px solid ${C.border}`,marginBottom:12,minHeight:0}}>
+          {/* Scrollable messages */}
+          <div ref={chatRef} style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,padding:"14px 16px"}}>
             {chatHistory.length===0 && (
-              <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",flex:1,padding:"16px"}}>
+              <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",flex:1,padding:"24px 16px"}}>
                 <div style={{fontSize:40,marginBottom:8}}>🧪</div>
                 <div style={{fontWeight:800,fontSize:17,marginBottom:4,color:C.ink,textAlign:"center"}}>Ask me anything ChE</div>
-                <div style={{fontSize:13,color:C.muted,marginBottom:16,textAlign:"center"}}>Step-by-step solutions. Upload images or PDFs too.</div>
+                <div style={{fontSize:13,color:C.muted,marginBottom:20,textAlign:"center"}}>Step-by-step solutions. Upload images or PDFs too.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:10,width:"100%"}}>
                   {["What is material balance and how do I apply it?","Explain the difference between batch and continuous reactors","How do I calculate GPA on a 5-point scale?"].map(q=>(
                     <button key={q} onClick={()=>setChatInput(q)} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:12,padding:"12px 16px",fontSize:14,cursor:"pointer",color:C.green,fontWeight:600,textAlign:"left",width:"100%"}}>{q}</button>
@@ -555,7 +592,7 @@ export default function ChemBaseBUK() {
               <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",gap:4}}>
                 <div style={{display:"flex",alignItems:"flex-end",gap:8,flexDirection:m.role==="user"?"row-reverse":"row"}}>
                   {m.role==="assistant" && <div style={{width:28,height:28,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13}}>🤖</div>}
-                  <div style={{maxWidth:"80%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.greenLight,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7}}>
+                  <div style={{maxWidth:"80%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.card,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7,border:m.role==="assistant"?`1px solid ${C.border}`:"none"}}>
                     {m.role==="assistant"?formatMsg(m.content):(m.display||m.content)}
                   </div>
                 </div>
@@ -574,20 +611,23 @@ export default function ChemBaseBUK() {
               </div>
             )}
           </div>
-          {chatFile && (
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.greenLight,border:`1.5px solid ${C.green}`,borderRadius:10,padding:"8px 12px",marginBottom:8}}>
-              <span style={{fontSize:13,color:C.green}}>📎 {chatFile.name}</span>
-              <button onClick={()=>setChatFile(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button>
+          {/* Fixed input bar */}
+          <div style={{padding:"8px 10px 8px 10px",borderTop:`1px solid ${C.border}`,background:C.bg,flexShrink:0,boxSizing:"border-box",width:"100%"}}>
+            {chatFile && (
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.greenLight,border:`1.5px solid ${C.green}`,borderRadius:10,padding:"6px 12px",marginBottom:8}}>
+                <span style={{fontSize:13,color:C.green}}>📎 {chatFile.name}</span>
+                <button onClick={()=>setChatFile(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button>
+              </div>
+            )}
+            <div style={{display:"flex",gap:6,alignItems:"center",width:"100%",boxSizing:"border-box",overflow:"hidden"}}>
+              <input type="file" ref={chatFileRef} accept="image/*,application/pdf" onChange={handleChatFileSelect} style={{display:"none"}}/>
+              <button onClick={()=>chatFileRef.current?.click()} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"10px 11px",fontSize:16,cursor:"pointer",color:C.green,flexShrink:0}}>📎</button>
+              <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
+                placeholder={chatFile?"Add message...":"Ask a ChE question..."}
+                style={{flex:1,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.card,color:C.ink,minWidth:0}}/>
+              <button onClick={handleChatSend} disabled={chatLoading||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"10px 14px",borderRadius:10,fontWeight:800,fontSize:13,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||(!chatInput.trim()&&!chatFile)?0.5:1,flexShrink:0}}>Send</button>
             </div>
-          )}
-          <div style={{display:"flex",gap:10}}>
-            <input type="file" ref={chatFileRef} accept="image/*,application/pdf" onChange={handleChatFileSelect} style={{display:"none"}}/>
-            <button onClick={()=>chatFileRef.current?.click()} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"11px 14px",fontSize:16,cursor:"pointer",color:C.green}}>📎</button>
-            <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
-              placeholder={chatFile?"Add a message (optional)...":"Ask a ChE question..."}
-              style={{flex:1,padding:"11px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.card,color:C.ink}}/>
-            <button onClick={handleChatSend} disabled={chatLoading||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"11px 18px",borderRadius:10,fontWeight:800,fontSize:14,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||(!chatInput.trim()&&!chatFile)?0.5:1}}>Send</button>
           </div>
         </div>
       )}
