@@ -19,7 +19,7 @@ export default async function handler(req, res) {
         'X-Title': 'ChemBase BUK'
       },
       body: JSON.stringify({
-        model: 'minimax/minimax-m3:free',
+        model: 'openrouter/free',
         messages,
         temperature: 0.3,
         max_tokens: 1500,
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
           'X-Title': 'ChemBase BUK'
         },
         body: JSON.stringify({
-          model: 'meta-llama/llama-3.1-8b-instruct:free',
+          model: 'openrouter/free',
           messages: messages.map(m => ({...m, content: typeof m.content === 'string' ? m.content : m.content.find?.(c => c.type === 'text')?.text || ''})),
           temperature: 0.3,
           max_tokens: 1500,
