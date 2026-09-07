@@ -40,7 +40,7 @@ export default async function handler(req, res) {
           'X-Title': 'ChemBase BUK'
         },
         body: JSON.stringify({
-          model: 'openrouter/free',
+          model: 'qwen/qwen3-235b-a22b:free',
           messages: messages.map(m => ({...m, content: typeof m.content === 'string' ? m.content : m.content.find?.(c => c.type === 'text')?.text || ''})),
           temperature: 0.3,
           max_tokens: 1500,
