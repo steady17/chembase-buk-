@@ -119,7 +119,7 @@ const EXCO_POSITIONS = [
 
 const blankExco = () => Object.fromEntries(EXCO_POSITIONS.map(p => [p.key, "To be updated"]));
 
-const legacy = [a
+const legacy = [
   {
     year:"2025/2026",
     president:"Abubakar Abdulmusawwir Salisu",
