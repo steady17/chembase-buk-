@@ -4,10 +4,10 @@ const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
 
 const GROQ_KEY  = "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";
-const SUPA_URL    = "https://naygokwyeuxqgtubakyy.supabase.co";
-const SUPA_ANON   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5heWdva3d5ZXV4cWd0dWJha3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NjMyMTgsImV4cCI6MjEwMzQzOTIxOH0.LJlouGNXypTz5aTrsdbnrfDa7cjNG6hD1kbBkRDsWfA";
+const SUPA_URL    = "https://naygokwyeuxqgtubakyy.supabase.com";
+const SUPA_ANON   = "sb_publishable_-gpzo9zWopBu9zSF3xf04Q_UC_4QPu6";
 
-const LIGHT = {
+const LIGHT = { 
   green:"#0e7a3c", greenDark:"#085c2c", greenLight:"#e6f4ed", greenMid:"#c3e6d0",
   white:"#ffffff", bg:"#f7fbf9", ink:"#0a1f12", muted:"#5a7a65", border:"#cce8d8",
   card:"#ffffff", navBg:"#ffffff",
@@ -119,7 +119,7 @@ const EXCO_POSITIONS = [
 
 const blankExco = () => Object.fromEntries(EXCO_POSITIONS.map(p => [p.key, "To be updated"]));
 
-const legacy = [
+const legacy = [a
   {
     year:"2025/2026",
     president:"Abubakar Abdulmusawwir Salisu",
@@ -156,32 +156,9 @@ async function fileToBase64(file) {
   });
 }
 
-async function uploadToStorage(file) {
-  const filename = `${Date.now()}-${file.name}`;
-  const res = await fetch(`${SUPA_URL}/storage/v1/object/academic-files/${filename}`, {
-    method: "POST",
-    headers: {
-      "apikey": SUPA_ANON,
-      "Authorization": `Bearer ${SUPA_ANON}`,
-      "Content-Type": file.type,
-    },
-    body: file
-  });
-  if(!res.ok) throw new Error("Upload failed");
-  return `${SUPA_URL}/storage/v1/object/public/academic-files/${filename}`;
-}
-
 async function askDeepSeek(history) {
   const messages = [
-    { role:"system", content:`You are ChemBot, the AI study assistant built into ChemBase BUK — the academic platform of NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano Chapter). You help Chemical Engineering students at BUK with their coursework.
-
-Rules:
-- Be a clear, direct tutor. Medium-length answers — enough to fully explain, but never padded or repetitive.
-- Use Given:/Find:/Solution:/Answer: structure for problems.
-- Use LaTeX for math: inline $...$ and display $$...$$
-- Number steps clearly. Briefly explain the "why", not just the "how".
-- Not every student using this app is an NSChE member — address students as Chemical Engineering students at BUK, not as "NSChE students". You may mention NSChE BUK naturally when relevant (e.g. "this platform was built by NSChE BUK").
-- If someone uploads an image, analyze it and answer based on what you see.` },
+    { role:"system", content:`You are ChemBot, the official AI study assistant for NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano chapter). Help 100–300 level chemical engineering students with step-by-step solutions. Format responses clearly using numbered steps, "Given:/Find:/Solution:/Answer:" structure. Use real Unicode symbols: α β γ δ Δ θ λ μ ρ σ ∫ √ ∞ ∂ × ± ≈ ≤ ≥ — never LaTeX. Be concise, direct and educational.` },
     ...history.map(m => ({
       role: m.role === "assistant" ? "assistant" : "user",
       content: typeof m.content === "string" ? m.content : (m.display || "")
@@ -227,66 +204,27 @@ function renderMath(text, display=false) {
 }
 
 function renderInline(text, k) {
-  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$]*?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\*\*[^*]+\*\*)/g);
+  // Split on LaTeX: \(...\) inline and \[...\] display
+  const parts = text.split(/(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\*\*[^*]+\*\*)/g);
   return parts.map((p,i) => {
-    if(p.startsWith('$$') && p.endsWith('$$')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",maxWidth:"100%",fontSize:"0.95em",overflowWrap:"break-word"}} className="katex-wrap">{renderMath(p.slice(2,-2), true)}</span>;
-    if(p.startsWith('$') && p.endsWith('$') && p.length>2) return <span key={`${k}-${i}`}>{renderMath(p.slice(1,-1), false)}</span>;
-    if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",overflowX:"auto",maxWidth:"100%"}}>{renderMath(p.slice(2,-2), true)}</span>;
+    if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('\\(') && p.endsWith('\\)')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
     if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:800}}>{p.slice(2,-2)}</strong>;
     return <span key={`${k}-${i}`}>{p}</span>;
   });
 }
 
-function renderTableCell(cell, idx) {
-  return <span>{renderInline(cell, idx)}</span>;
-}
-
-function renderTable(lines, startIdx) {
-  const headers = lines[startIdx].split('|').filter(c=>c.trim()).map(c=>c.trim());
-  const rows = [];
-  let i = startIdx + 2;
-  while(i < lines.length && lines[i].includes('|')) {
-    rows.push(lines[i].split('|').filter(c=>c.trim()).map(c=>c.trim()));
-    i++;
-  }
-  return { table: (
-    <div key={startIdx} style={{overflowX:"auto",marginTop:8,marginBottom:8,maxWidth:"100%"}}>
-      <table style={{borderCollapse:"collapse",width:"100%",fontSize:13}}>
-        <thead>
-          <tr>{headers.map((h,j)=><th key={j} style={{background:"#0e7a3c",color:"#fff",padding:"6px 10px",textAlign:"left",fontWeight:700,border:"1px solid #cce8d8"}}>{renderTableCell(h,j)}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row,j)=><tr key={j} style={{background:j%2===0?"rgba(14,122,60,0.05)":"transparent"}}>{row.map((cell,k)=><td key={k} style={{padding:"6px 10px",border:"1px solid #cce8d8",fontSize:13}}>{renderTableCell(cell,`${j}-${k}`)}</td>)}</tr>)}
-        </tbody>
-      </table>
-    </div>
-  ), nextIdx: i };
-}
-
 function formatMsg(text) {
-  const lines = text.split("\n");
-  const result = [];
-  let i = 0;
-  while(i < lines.length) {
-    const line = lines[i];
+  return text.split("\n").map((line,i) => {
     const t = line.trim();
-    if(t.startsWith('|') && i+1 < lines.length && lines[i+1].includes('---')) {
-      const {table, nextIdx} = renderTable(lines, i);
-      result.push(table);
-      i = nextIdx;
-      continue;
-    }
-    if(/^#{1,3}\s+/.test(t)) result.push(<div key={i} style={{fontWeight:900,fontSize:15,marginTop:10,marginBottom:2}}>{renderInline(t.replace(/^#{1,3}\s+/,""),i)}</div>);
-    else if(/^-{3,}$/.test(t)) result.push(<div key={i} style={{borderTop:"1px solid currentColor",opacity:0.2,margin:"8px 0"}}/>);
-    else if(/^\d+\.\s/.test(t)) result.push(<div key={i} style={{paddingLeft:8,marginTop:4}}>{renderInline(t,i)}</div>);
-    else if(t.startsWith("- ")||t.startsWith("* ")) result.push(<div key={i} style={{paddingLeft:12,marginTop:2}}>• {renderInline(t.slice(2),i)}</div>);
-    else if(line.match(/^(Given:|Find:|Solution:|Answer:|Note:)/)) result.push(<div key={i} style={{fontWeight:700,marginTop:8,color:"#0e7a3c"}}>{renderInline(line,i)}</div>);
-    else if(t==="") result.push(<div key={i} style={{height:6}}/>);
-    else result.push(<div key={i}>{renderInline(line,i)}</div>);
-    i++;
-  }
-  return result;
+    if(/^#{1,3}\s+/.test(t)) return <div key={i} style={{fontWeight:900,fontSize:15,marginTop:10,marginBottom:2}}>{renderInline(t.replace(/^#{1,3}\s+/,""),i)}</div>;
+    if(/^-{3,}$/.test(t)) return <div key={i} style={{borderTop:"1px solid currentColor",opacity:0.2,margin:"8px 0"}}/>;
+    if(/^\d+\.\s/.test(t)) return <div key={i} style={{paddingLeft:8,marginTop:4}}>{renderInline(t,i)}</div>;
+    if(t.startsWith("- ")||t.startsWith("* ")) return <div key={i} style={{paddingLeft:12,marginTop:2}}>• {renderInline(t.slice(2),i)}</div>;
+    if(line.match(/^(Given:|Find:|Solution:|Answer:|Note:)/)) return <div key={i} style={{fontWeight:700,marginTop:8,color:"#0e7a3c"}}>{renderInline(line,i)}</div>;
+    if(t==="") return <div key={i} style={{height:6}}/>;
+    return <div key={i}>{renderInline(line,i)}</div>;
+  });
 }
 
 export default function ChemBaseBUK() {
@@ -307,12 +245,7 @@ export default function ChemBaseBUK() {
   ]);
 
   // ChemBot
-  const [chatHistory, setChatHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem("chembot-history");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  const [chatHistory, setChatHistory] = useState([]);
   const [chatInput, setChatInput]     = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatFile, setChatFile]       = useState(null);
@@ -337,10 +270,6 @@ export default function ChemBaseBUK() {
   useEffect(() => {
     if(chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatHistory, chatLoading]);
-
-  useEffect(() => {
-    try { localStorage.setItem("chembot-history", JSON.stringify(chatHistory)); } catch {}
-  }, [chatHistory]);
 
   useEffect(() => { loadQuestions(); }, []);
 
@@ -382,17 +311,7 @@ export default function ChemBaseBUK() {
   const handleChatSend = async () => {
     if((!chatInput.trim()&&!chatFile)||chatLoading) return;
     const userText = chatInput.trim()||(chatFile?`[Uploaded: ${chatFile.name}]`:"");
-    // Build content array for image support
-    let userContent;
-    if(chatFile && chatFile.base64) {
-      userContent = [
-        ...(chatInput.trim() ? [{type:"text",text:chatInput.trim()}] : []),
-        {type:"image_url", image_url:{url:`data:${chatFile.type};base64,${chatFile.base64}`}}
-      ];
-    } else {
-      userContent = chatInput.trim() || userText;
-    }
-    const newHistory = [...chatHistory,{role:"user",content:userContent,display:userText}];
+    const newHistory = [...chatHistory,{role:"user",content:chatInput.trim()||userText,display:userText}];
     setChatHistory(newHistory); setChatInput(""); setChatFile(null); setChatLoading(true);
     try{ const r=await askDeepSeek(newHistory); setChatHistory(p=>[...p,{role:"assistant",content:r}]); }
     catch(e){ setChatHistory(p=>[...p,{role:"assistant",content:`Error: ${e.message}`}]); }
@@ -414,19 +333,9 @@ export default function ChemBaseBUK() {
   const submitQuestion = async () => {
     if(!newQ.name.trim()||!newQ.course.trim()||!newQ.question.trim()){alert("Fill all fields");return;}
     try{
-      let fileUrl = null;
-      if(newQFile) {
-        const filename = `${Date.now()}-${newQFile.name}`;
-        const uploadRes = await fetch(`${SUPA_URL}/storage/v1/object/academic-files/${filename}`, {
-          method:"POST",
-          headers:{"apikey":SUPA_ANON,"Authorization":`Bearer ${SUPA_ANON}`,"Content-Type":newQFile.type},
-          body:await fetch(`data:${newQFile.type};base64,${newQFile.base64}`).then(r=>r.blob())
-        });
-        if(uploadRes.ok) fileUrl = `${SUPA_URL}/storage/v1/object/public/academic-files/${filename}`;
-      }
       await supabaseRequest("/questions","POST",{
         name:newQ.name.trim(), course:newQ.course.trim(), question:newQ.question.trim(),
-        answer_text:null, answer_file_url:fileUrl
+        answer_text:null, answer_file_url:null
       });
       await loadQuestions();
       setNewQ({name:"",course:"",question:""}); setNewQFile(null); setShowAskForm(false);
@@ -446,46 +355,14 @@ export default function ChemBaseBUK() {
     const file=pendingAnsFile[qId]||null;
     if(!text&&!file){alert("Add text or attach file");return;}
     try{
-      let fileUrl = null;
-      if(file) {
-        const filename = `${Date.now()}-${file.name}`;
-        const uploadRes = await fetch(`${SUPA_URL}/storage/v1/object/academic-files/${filename}`, {
-          method:"POST",
-          headers:{"apikey":SUPA_ANON,"Authorization":`Bearer ${SUPA_ANON}`,"Content-Type":file.type},
-          body:await fetch(`data:${file.type};base64,${file.base64}`).then(r=>r.blob())
-        });
-        if(uploadRes.ok) fileUrl = `${SUPA_URL}/storage/v1/object/public/academic-files/${filename}`;
-      }
       await supabaseRequest(`/questions?id=eq.${qId}`,"PATCH",{
         answer_text:text||null,
-        answer_file_url:fileUrl
+        answer_file_url:file?file.name:null
       });
       await loadQuestions();
       setAnswerDrafts(p=>({...p,[qId]:""}));
       setPendingAnsFile(p=>({...p,[qId]:null}));
     }catch{ alert("Couldn't save answer"); }
-  };
-
-  const deleteQuestion = async qId => {
-    if(!window.confirm("Delete this question?")) return;
-    try{
-      // Get the question first to check for attached file
-      const questions_data = await supabaseRequest(`/questions?id=eq.${qId}`);
-      const q = questions_data?.[0];
-      // Delete file from storage if exists
-      if(q?.answer_file_url) {
-        const filename = q.answer_file_url.split('/academic-files/')[1];
-        if(filename) {
-          await fetch(`${SUPA_URL}/storage/v1/object/academic-files/${filename}`, {
-            method:"DELETE",
-            headers:{"apikey":SUPA_ANON,"Authorization":`Bearer ${SUPA_ANON}`}
-          });
-        }
-      }
-      // Delete question from database
-      await supabaseRequest(`/questions?id=eq.${qId}`,"DELETE");
-      await loadQuestions();
-    }catch{ alert("Couldn't delete. Try again."); }
   };
 
   const navItems = [
@@ -500,13 +377,6 @@ export default function ChemBaseBUK() {
   const card = {background:C.card,borderRadius:14,border:`1.5px solid ${C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"};
 
   return (
-    <>
-    <style>{`
-      .katex-display { overflow-x: hidden !important; max-width: 100%; }
-      .katex-display > .katex { white-space: normal !important; max-width: 100%; }
-      .katex { max-width: 100%; }
-      .katex .base { flex-wrap: wrap; }
-    `}</style>
     <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:C.bg,color:C.ink,paddingBottom:tab==="ai"?0:80,overflow:tab==="ai"?"hidden":"auto",transition:"background 0.3s,color 0.3s"}}>
 
       {/* TOP NAV — Logo + dark mode only, no tab icons */}
@@ -663,24 +533,17 @@ export default function ChemBaseBUK() {
 
       {/* CHEMBOT */}
       {tab==="ai" && (
-        <div style={{position:"fixed",top:62,left:0,right:0,bottom:64,display:"flex",flexDirection:"column",background:C.bg,overflow:"hidden"}}>
-          {/* Fixed header */}
-          <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,background:C.bg,flexShrink:0,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div>
-              <h2 style={{margin:"0 0 1px",fontWeight:900,fontSize:18}}>🤖 ChemBot</h2>
-              <p style={{margin:0,color:C.muted,fontSize:12}}>Your free AI study assistant for Chemical Engineering.</p>
-            </div>
-            {chatHistory.length>0 && (
-              <button onClick={()=>{if(window.confirm("Clear chat history?")){setChatHistory([]);}}} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",padding:"4px 6px",whiteSpace:"nowrap"}}>🗑 Clear</button>
-            )}
+        <div style={{maxWidth:700,margin:"0 auto",padding:"12px 16px 0",display:"flex",flexDirection:"column",height:"calc(100vh - 130px)",boxSizing:"border-box"}}>
+          <div style={{marginBottom:12}}>
+            <h2 style={{margin:"0 0 2px",fontWeight:900,fontSize:20}}>🤖 ChemBot</h2>
+            <p style={{margin:0,color:C.muted,fontSize:13}}>Your free AI study assistant for Chemical Engineering.</p>
           </div>
-          {/* Scrollable messages */}
-          <div ref={chatRef} style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,padding:"14px 16px"}}>
+          <div ref={chatRef} style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,padding:14,background:C.card,borderRadius:14,border:`1.5px solid ${C.border}`,marginBottom:12,minHeight:0}}>
             {chatHistory.length===0 && (
-              <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",flex:1,padding:"24px 16px"}}>
+              <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",flex:1,padding:"16px"}}>
                 <div style={{fontSize:40,marginBottom:8}}>🧪</div>
                 <div style={{fontWeight:800,fontSize:17,marginBottom:4,color:C.ink,textAlign:"center"}}>Ask me anything ChE</div>
-                <div style={{fontSize:13,color:C.muted,marginBottom:20,textAlign:"center"}}>Step-by-step solutions. Upload images or PDFs too.</div>
+                <div style={{fontSize:13,color:C.muted,marginBottom:16,textAlign:"center"}}>Step-by-step solutions. Upload images or PDFs too.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:10,width:"100%"}}>
                   {["What is material balance and how do I apply it?","Explain the difference between batch and continuous reactors","How do I calculate GPA on a 5-point scale?"].map(q=>(
                     <button key={q} onClick={()=>setChatInput(q)} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:12,padding:"12px 16px",fontSize:14,cursor:"pointer",color:C.green,fontWeight:600,textAlign:"left",width:"100%"}}>{q}</button>
@@ -692,7 +555,7 @@ export default function ChemBaseBUK() {
               <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",gap:4}}>
                 <div style={{display:"flex",alignItems:"flex-end",gap:8,flexDirection:m.role==="user"?"row-reverse":"row"}}>
                   {m.role==="assistant" && <div style={{width:28,height:28,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13}}>🤖</div>}
-                  <div style={{maxWidth:"85%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.card,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7,border:m.role==="assistant"?`1px solid ${C.border}`:"none",wordBreak:"break-word",overflowWrap:"break-word"}}>
+                  <div style={{maxWidth:"80%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.greenLight,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7}}>
                     {m.role==="assistant"?formatMsg(m.content):(m.display||m.content)}
                   </div>
                 </div>
@@ -711,23 +574,20 @@ export default function ChemBaseBUK() {
               </div>
             )}
           </div>
-          {/* Fixed input bar */}
-          <div style={{padding:"8px 10px 8px 10px",borderTop:`1px solid ${C.border}`,background:C.bg,flexShrink:0,boxSizing:"border-box",width:"100%"}}>
-            {chatFile && (
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.greenLight,border:`1.5px solid ${C.green}`,borderRadius:10,padding:"6px 12px",marginBottom:8}}>
-                <span style={{fontSize:13,color:C.green}}>📎 {chatFile.name}</span>
-                <button onClick={()=>setChatFile(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button>
-              </div>
-            )}
-            <div style={{display:"flex",gap:6,alignItems:"center",width:"100%",boxSizing:"border-box",overflow:"hidden"}}>
-              <input type="file" ref={chatFileRef} accept="image/*,application/pdf" onChange={handleChatFileSelect} style={{display:"none"}}/>
-              <button onClick={()=>chatFileRef.current?.click()} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"10px 11px",fontSize:16,cursor:"pointer",color:C.green,flexShrink:0}}>📎</button>
-              <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
-                placeholder={chatFile?"Add message...":"Ask a ChE question..."}
-                style={{flex:1,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.card,color:C.ink,minWidth:0}}/>
-              <button onClick={handleChatSend} disabled={chatLoading||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"10px 14px",borderRadius:10,fontWeight:800,fontSize:13,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||(!chatInput.trim()&&!chatFile)?0.5:1,flexShrink:0}}>Send</button>
+          {chatFile && (
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.greenLight,border:`1.5px solid ${C.green}`,borderRadius:10,padding:"8px 12px",marginBottom:8}}>
+              <span style={{fontSize:13,color:C.green}}>📎 {chatFile.name}</span>
+              <button onClick={()=>setChatFile(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button>
             </div>
+          )}
+          <div style={{display:"flex",gap:10}}>
+            <input type="file" ref={chatFileRef} accept="image/*,application/pdf" onChange={handleChatFileSelect} style={{display:"none"}}/>
+            <button onClick={()=>chatFileRef.current?.click()} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"11px 14px",fontSize:16,cursor:"pointer",color:C.green}}>📎</button>
+            <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
+              placeholder={chatFile?"Add a message (optional)...":"Ask a ChE question..."}
+              style={{flex:1,padding:"11px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.card,color:C.ink}}/>
+            <button onClick={handleChatSend} disabled={chatLoading||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"11px 18px",borderRadius:10,fontWeight:800,fontSize:14,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||(!chatInput.trim()&&!chatFile)?0.5:1}}>Send</button>
           </div>
         </div>
       )}
@@ -831,12 +691,11 @@ export default function ChemBaseBUK() {
                         <span style={{background:C.greenLight,color:C.green,fontWeight:800,fontSize:11,padding:"2px 10px",borderRadius:20}}>{q.course}</span>
                         <span style={{fontSize:11,color:C.muted}}>by {q.name}</span>
                         {(q.answer_text||q.answer_file_url) && <span style={{background:"#e6f4ed",color:C.green,fontWeight:700,fontSize:10,padding:"2px 8px",borderRadius:20}}>✅ Answered</span>}
-                        {adminMode && <button onClick={()=>deleteQuestion(q.id)} style={{marginLeft:"auto",background:"#fee2e2",color:"#c0392b",border:"none",borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑 Delete</button>}
                       </div>
                       <div style={{fontSize:14,color:C.ink,lineHeight:1.5,marginBottom:6}}>{q.question}</div>
                       {q.answer_text && <div style={{background:C.greenLight,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.ink,marginBottom:8,lineHeight:1.6}}><strong style={{color:C.green}}>Answer: </strong>{q.answer_text}</div>}
-                      {q.answer_file_url && <a href={q.answer_file_url} download target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:C.green,borderRadius:8,padding:"10px 12px",fontSize:13,color:"#fff",fontWeight:700,marginBottom:8,textDecoration:"none"}}>⬇ Download File</a>}
-                      {adminMode && (
+                      {q.answer_file_url && <div style={{background:C.greenLight,borderRadius:8,padding:"8px 12px",fontSize:13,color:C.green,fontWeight:700,marginBottom:8}}>📎 {q.answer_file_url}</div>}
+                      {adminMode && !q.answer_text && !q.answer_file_url && (
                         <div style={{borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:4}}>
                           <textarea placeholder="Type your answer..." rows={2} value={answerDrafts[q.id]||""}
                             onChange={e=>setAnswerDrafts(p=>({...p,[q.id]:e.target.value}))}
@@ -904,6 +763,5 @@ export default function ChemBaseBUK() {
         ))}
       </nav>
     </div>
-    </>
   );
 }
