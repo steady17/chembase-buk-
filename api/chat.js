@@ -19,7 +19,7 @@ export default async function handler(req, res) {
         'X-Title': 'ChemBase BUK'
       },
       body: JSON.stringify({
-        model: 'openrouter/free',
+        model: 'minimax/minimax-m3:free',
         messages,
         temperature: 0.3,
         max_tokens: 1500,
