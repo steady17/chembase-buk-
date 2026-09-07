@@ -14,7 +14,7 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer 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',
+        'Authorization': 'Bearer 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',
         'HTTP-Referer': 'https://chembase-buk-qmxr.vercel.app',
         'X-Title': 'ChemBase BUK'
       },
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer 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',
+          'Authorization': 'Bearer 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',
           'HTTP-Referer': 'https://chembase-buk-qmxr.vercel.app',
           'X-Title': 'ChemBase BUK'
         },
