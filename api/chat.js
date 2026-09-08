@@ -9,8 +9,7 @@ export default async function handler(req, res) {
   try {
     const { messages } = req.body;
 
-    // Primary: MiniMax M3 (free, supports images)
-    let response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -19,7 +18,13 @@ export default async function handler(req, res) {
         'X-Title': 'ChemBase BUK'
       },
       body: JSON.stringify({
-        model: 'minimax/minimax-m3:free',
+        // OpenRouter tries these in order — if one is down/rate-limited, it auto-tries the next
+        models: [
+          'minimax/minimax-m3:free',
+          'nvidia/nemotron-3-ultra-550b-a55b:free',
+          'openai/gpt-oss-120b:free',
+          'google/gemma-3-27b-it:free'
+        ],
         messages,
         temperature: 0.3,
         max_tokens: 1500,
@@ -27,28 +32,7 @@ export default async function handler(req, res) {
       })
     });
 
-    let data = await response.json();
-
-    // Fallback: Llama on OpenRouter
-    if (!response.ok || !data.choices?.[0]?.message?.content) {
-      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer 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',
-          'HTTP-Referer': 'https://chembase-buk-qmxr.vercel.app',
-          'X-Title': 'ChemBase BUK'
-        },
-        body: JSON.stringify({
-          model: 'qwen/qwen3-235b-a22b:free',
-          messages: messages.map(m => ({...m, content: typeof m.content === 'string' ? m.content : m.content.find?.(c => c.type === 'text')?.text || ''})),
-          temperature: 0.3,
-          max_tokens: 1500,
-          stream: false
-        })
-      });
-      data = await response.json();
-    }
+    const data = await response.json();
 
     if (!response.ok) return res.status(response.status).json({ error: data });
 
