@@ -231,7 +231,7 @@ function renderInline(text, k) {
   return parts.map((p,i) => {
     if(p.startsWith('$$') && p.endsWith('$$')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",maxWidth:"100%",fontSize:"0.95em",overflowWrap:"break-word"}} className="katex-wrap">{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('$') && p.endsWith('$') && p.length>2) return <span key={`${k}-${i}`}>{renderMath(p.slice(1,-1), false)}</span>;
-    if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",overflowX:"auto",maxWidth:"100%"}}>{renderMath(p.slice(2,-2), true)}</span>;
+    if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",maxWidth:"100%",fontSize:"0.95em",overflowWrap:"break-word"}}>{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('\\(') && p.endsWith('\\)')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
     if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:800}}>{p.slice(2,-2)}</strong>;
     return <span key={`${k}-${i}`}>{p}</span>;
@@ -548,10 +548,11 @@ export default function ChemBaseBUK() {
   return (
     <>
     <style>{`
-      .katex-display { overflow-x: hidden !important; max-width: 100%; }
-      .katex-display > .katex { white-space: normal !important; max-width: 100%; }
-      .katex { max-width: 100%; }
-      .katex .base { flex-wrap: wrap; }
+      .katex-display { overflow-x: hidden !important; overflow-y: hidden !important; max-width: 100%; margin: 0.4em 0 !important; }
+      .katex-display > .katex { white-space: normal !important; max-width: 100%; display: inline-block; }
+      .katex { max-width: 100%; font-size: 0.92em; }
+      .katex .base { flex-wrap: wrap !important; white-space: normal !important; }
+      .katex .mfrac, .katex .sqrt { max-width: 100%; }
     `}</style>
     <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:C.bg,color:C.ink,paddingBottom:tab==="ai"?0:80,overflow:tab==="ai"?"hidden":"auto",transition:"background 0.3s,color 0.3s"}}>
 
