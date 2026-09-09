@@ -19,7 +19,7 @@ export default async function handler(req, res) {
           'Authorization': 'Bearer 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'
         },
         body: JSON.stringify({
-          model: 'moonshotai/kimi-k2.6',
+          model: 'meta/llama-4-maverick-17b-128e-instruct',
           messages,
           temperature: 0.3,
           max_tokens: 1200,
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
             'Authorization': 'Bearer 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'
           },
           body: JSON.stringify({
-            model: 'minimax/minimax-m2.7',
+            model: 'nvidia/nemotron-3-ultra-550b-a55b',
             messages,
             temperature: 0.3,
             max_tokens: 1200,
