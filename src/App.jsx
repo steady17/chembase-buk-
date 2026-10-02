@@ -994,7 +994,12 @@ export default function ChemBaseBUK() {
                   <div onClick={()=>setExpandedExco(isOpen?null:exec.year)}
                     style={{background:`linear-gradient(135deg,${C.greenDark},${C.green})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
                     <div>
-                      <div style={{fontWeight:900,fontSize:17,color:"#fff",letterSpacing:0.2}}>Executive Set {exec.year}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{fontWeight:900,fontSize:17,color:"#fff",letterSpacing:0.2}}>Executive Set {exec.year}</div>
+                        {i===0 && (
+                          <span style={{fontSize:9.5,fontWeight:800,color:C.greenDark,background:"#fff",padding:"2px 8px",borderRadius:20,letterSpacing:0.5,textTransform:"uppercase"}}>Current</span>
+                        )}
+                      </div>
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",marginTop:2}}>{exec.members.length} members</div>
                     </div>
                     <span style={{color:"#fff",fontSize:14,transform:isOpen?"rotate(180deg)":"none",transition:"transform .2s"}}>▼</span>
