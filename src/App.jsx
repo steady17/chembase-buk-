@@ -780,16 +780,13 @@ export default function ChemBaseBUK() {
                 {openCourse===course.code && (
                   <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 16px",background:C.greenLight}}>
                     {pqLinks[course.code] ? (
-                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                        <a href={`https://drive.google.com/file/d/${pqLinks[course.code]}/preview`} target="_blank" rel="noopener noreferrer"
-                          style={{background:C.card,border:`1.5px solid ${C.green}`,color:C.green,padding:"8px 20px",borderRadius:8,fontWeight:700,fontSize:13,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:6}}>
-                          View
-                        </a>
-                        <a href={`https://drive.google.com/uc?export=download&id=${pqLinks[course.code]}`} target="_blank" rel="noopener noreferrer" download
-                          style={{background:C.green,border:`1.5px solid ${C.green}`,color:"#fff",padding:"8px 20px",borderRadius:8,fontWeight:700,fontSize:13,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:6}}>
-                          ⬇ Download
-                        </a>
-                      </div>
+                      <a href={`https://drive.google.com/uc?export=download&id=${pqLinks[course.code]}`} target="_blank" rel="noopener noreferrer" download
+                        style={{background:`linear-gradient(135deg,${C.greenMid},${C.green})`,border:"none",color:"#fff",
+                          padding:"13px 22px",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",
+                          display:"flex",alignItems:"center",justifyContent:"center",gap:9,
+                          boxShadow:`0 4px 14px rgba(0,0,0,0.18)`,letterSpacing:0.2}}>
+                        <span style={{fontSize:17}}>⬇</span> Download Past Questions
+                      </a>
                     ) : (
                       <>
                         <button
