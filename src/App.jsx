@@ -781,11 +781,11 @@ export default function ChemBaseBUK() {
                   <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 16px",background:C.greenLight}}>
                     {pqLinks[course.code] ? (
                       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                        <a href={`https://drive.google.com/file/d/${pqLinks[course.code]}/view`} target="_blank" rel="noopener noreferrer"
+                        <a href={`https://drive.google.com/file/d/${pqLinks[course.code]}/preview`} target="_blank" rel="noopener noreferrer"
                           style={{background:C.card,border:`1.5px solid ${C.green}`,color:C.green,padding:"8px 20px",borderRadius:8,fontWeight:700,fontSize:13,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:6}}>
-                          👁 View
+                          View
                         </a>
-                        <a href={`https://drive.google.com/uc?export=download&id=${pqLinks[course.code]}`}
+                        <a href={`https://drive.google.com/uc?export=download&id=${pqLinks[course.code]}`} target="_blank" rel="noopener noreferrer" download
                           style={{background:C.green,border:`1.5px solid ${C.green}`,color:"#fff",padding:"8px 20px",borderRadius:8,fontWeight:700,fontSize:13,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:6}}>
                           ⬇ Download
                         </a>
