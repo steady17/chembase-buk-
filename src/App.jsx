@@ -53,7 +53,6 @@ const courses = {
       { code:"GET209", name:"Engineering Mathematics I", units:3 },
       { code:"GET206", name:"Fundamentals of Thermodynamics", units:3 },
       { code:"TCH202", name:"Material Science", units:3 },
-      { code:"GST211", name:"Communication in English", units:2 },
     ],
     "Second Semester": [
       { code:"BUK-TCH202", name:"Strength of Materials", units:2 },
