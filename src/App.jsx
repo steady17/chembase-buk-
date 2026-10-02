@@ -93,6 +93,7 @@ const courses = {
 
 const pqLinks = {
   // 100 Level - First Semester
+  "BUK-TCH101": "1Xc3ZQSJ0s-zkrmvqFollWcW5tWWXXNP1",
   "BUK-TCH103": "1C6qhy6n7hMgZJbDxnFj-dCrXey6x4501",
   "BUK-TCH105": "14dLugS8HqZ-oex4eOGC60-hz5jOgky1y",
   "CHM107":     "1V92rILdKmvN3POfoG8IcpKiT9qDMYtZG",
