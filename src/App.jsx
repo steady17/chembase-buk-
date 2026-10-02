@@ -97,52 +97,74 @@ const allCourses = Object.entries(courses).flatMap(([level, sems]) =>
   )
 );
 
-const EXCO_POSITIONS = [
-  { key:"president", role:"President", icon:"👑" },
-  { key:"vp", role:"Vice President", icon:"⭐" },
-  { key:"secGeneral", role:"Secretary-General", icon:"📝" },
-  { key:"assistSecGeneral", role:"Assistant Secretary-General", icon:"🗒️" },
-  { key:"socialDirector", role:"Social Director", icon:"🎉" },
-  { key:"proI", role:"PRO I", icon:"📢" },
-  { key:"proII", role:"PRO II", icon:"📣" },
-  { key:"welfareDirector", role:"Welfare Director", icon:"🤝" },
-  { key:"treasurer", role:"Treasurer", icon:"💼" },
-  { key:"assistTreasurer", role:"Assistant Treasurer", icon:"💰" },
-  { key:"financialSecretary", role:"Financial Secretary", icon:"📒" },
-  { key:"academicDirector", role:"Academic Director", icon:"📚" },
-  { key:"assistAcademicDirector", role:"Assistant Academic Director", icon:"📖" },
-  { key:"sportDirector", role:"Sport Director", icon:"⚽" },
-  { key:"assistSportDirector", role:"Assistant Sport Director", icon:"🏃" },
-  { key:"senator", role:"Senator", icon:"🏛️" },
-  { key:"auditorGeneral", role:"Auditor General", icon:"🔍" },
-];
-
-const blankExco = () => Object.fromEntries(EXCO_POSITIONS.map(p => [p.key, "To be updated"]));
-
 const legacy = [
   {
     year:"2025/2026",
-    president:"Abubakar Abdulmusawwir Salisu",
-    vp:"Rufaidah Ahuoiza Shuaib",
-    secGeneral:"Maryam Abimaje",
-    assistSecGeneral:"Ummulkhair Oyiza Shaibu",
-    socialDirector:"Bulyaminu Aishat Titilayo",
-    proI:"Abiodun Joshua Ajiboye",
-    proII:"Peter Ameh",
-    welfareDirector:"Michael Uchenna Ndubuisi",
-    treasurer:"Audu Faith",
-    assistTreasurer:"Samuel Sunday",
-    financialSecretary:"Halimat Bamidele Agbeke",
-    academicDirector:"Ibrahim Abubakar",
-    assistAcademicDirector:"Yusuf Mansur Babura",
-    sportDirector:"To be updated",
-    assistSportDirector:"To be updated",
-    senator:"Sadik Kassim",
-    auditorGeneral:"Bello Kabiru Olalekan",
+    members:[
+      { role:"President", name:"Abubakar Abdulmusawwir Salisu", photo:"/exco/president-2026.jpg" },
+      { role:"Vice President", name:"Rufaidah Ahuoiza Shuaib", photo:"/exco/vp-2026.jpg" },
+      { role:"Secretary-General", name:"Maryam Abimaje", photo:"/exco/secgen-2026.jpg" },
+      { role:"Asst. Secretary-General", name:"Ummulkhair Oyiza Shaibu", photo:"/exco/asst-secgen-2026.jpg" },
+      { role:"Academic Director", name:"Ibrahim Abubakar", photo:"/exco/academic-director-2026.jpg" },
+      { role:"Asst. Academic Director", name:"Yusuf Mansur Babura", photo:"/exco/asst-academic-director-2026.jpg" },
+      { role:"Financial Secretary", name:"Halimat Bamidele Agbeke", photo:"/exco/financial-sec-2026.jpg" },
+      { role:"Treasurer", name:"Audu Faith", photo:"/exco/treasurer-2026.jpg" },
+      { role:"Asst. Treasurer", name:"Samuel Sunday", photo:"/exco/asst-treasurer-2026.jpg" },
+      { role:"Social Director", name:"Bulyaminu Aishat Titilayo", photo:"/exco/social-director-2026.jpg" },
+      { role:"Welfare Director", name:"Michael Uchenna Ndubuisi", photo:"/exco/welfare-director-2026.jpg" },
+      { role:"PRO I", name:"Abiodun Joshua Ajiboye", photo:"/exco/pro1-2026.jpg" },
+      { role:"PRO II", name:"Peter Ameh", photo:"/exco/pro2-2026.jpg" },
+      { role:"Sport Director", name:"Abdulsamad Abubakar", photo:"/exco/sports-director-2026.jpg" },
+      { role:"Asst. Sport Director", name:"Anwar Musbahu Aliyu", photo:"/exco/asst-sports-director-2026.jpg" },
+      { role:"Senator", name:"Sadik Kassim", photo:"/exco/senator-2026.jpg" },
+      { role:"Auditor General", name:"Bello Kabiru Olalekan", photo:"/exco/auditor-general-2026.jpg" },
+    ],
   },
-  { year:"2024/2025", ...blankExco() },
-  { year:"2023/2024", ...blankExco() },
-  { year:"2022/2023", ...blankExco() },
+  {
+    year:"2024/2025",
+    members:[
+      { role:"President", name:"Abdulmajid Suleiman", photo:"/exco/president-2025.jpg" },
+      { role:"Vice President", name:"Abimaje Maryam", photo:"/exco/vp-2025.jpg" },
+      { role:"Secretary-General", name:"Mogaji Ridwan Olamilekan", photo:"/exco/secgeneral-2025.jpg" },
+      { role:"Asst. Secretary-General", name:"Abubakar Abdulmusawwir", photo:"/exco/asstsecgen-2025.jpg" },
+      { role:"Academic Director", name:"Yahaya Muhammad Nazir", photo:"/exco/academicdirector-2025.jpg" },
+      { role:"Asst. Academic Director", name:"Tamim Baidau Ummul-Hakim", photo:"/exco/asstacademicdirector-2025.jpg" },
+      { role:"Financial Secretary", name:"Musa Umar Folarin", photo:"/exco/financialsec-2025.jpg" },
+      { role:"Treasurer", name:"Yazid Mustapha", photo:"/exco/treasurer-2025.jpg" },
+      { role:"Asst. Treasurer", name:"Shuaib Rufaidah Ahuoiza", photo:"/exco/asstreasurer-2025.jpg" },
+      { role:"Social Director", name:"Maryam Ibrahim Ibukunoluwa", photo:"/exco/socialdirector-2025.jpg" },
+      { role:"Asst. Social Director", name:"Buliyaminu Aisha", photo:"/exco/asstsocialdirector-2025.jpg" },
+      { role:"Welfare Director", name:"Halimat Agbeke Bamidele", photo:"/exco/welfaredirector-2025.jpg" },
+      { role:"PRO I", name:"Lukman Muhammad Isah", photo:"/exco/pro1-2025.jpg" },
+      { role:"Program Chair", name:"Lamidi Abubakar Ovajimoh", photo:"/exco/programchair-2025.jpg" },
+      { role:"Sport Director", name:"Abedoh Bilal Adavuruku", photo:"/exco/sportdirector-2025.jpg" },
+      { role:"Asst. Sport Director", name:"Sani Bala Saidu", photo:"/exco/asstsportdirector-2025.jpg" },
+      { role:"Senator (Level 2)", name:"Michael Uchenna Ndubuisi", photo:"/exco/senator-l2-2025.jpg" },
+      { role:"Senator (Level 3)", name:"Shaibu Ummulkhair Oyiza", photo:"/exco/senator-l3-2025.jpg" },
+      { role:"Senator (Level 4)", name:"Celestine David Chibuikem", photo:"/exco/senator-l4-2025.jpg" },
+      { role:"Auditor General", name:"Hammed Opeyemi Odunuga", photo:"/exco/auditorgeneral-2025.jpg" },
+      { role:"Asst. Auditor General", name:"Ibrahim Abubakar", photo:"/exco/asstauditorgeneral-2025.jpg" },
+    ],
+  },
+  {
+    year:"2023/2024",
+    members:[
+      { role:"President", name:"Abdulwasi Lawal", photo:"/exco/president-2024.jpg" },
+      { role:"Vice President", name:"Abubakar Bawale Jaafar", photo:"/exco/vp-2024.jpg" },
+      { role:"Secretary-General", name:"Rufai Faisal", photo:"/exco/secgen-2024.jpg" },
+      { role:"Asst. Secretary-General", name:"Mogaji Ridwan Olamilekan", photo:"/exco/asst-secgen-2024.jpg" },
+      { role:"Academic Director", name:"Auwalu Musa", photo:"/exco/academic-director-2024.jpg" },
+      { role:"Financial Secretary", name:"Khadijah Ilamosi Ibrahim", photo:"/exco/financial-sec-2024.jpg" },
+      { role:"Treasurer", name:"Musa Umar Folarin", photo:"/exco/treasurer-2024.jpg" },
+      { role:"Asst. Treasurer", name:"Maryam Abimaje", photo:"/exco/asst-treasurer-2024.jpg" },
+      { role:"Social Director", name:"Ayaht Oizah Abdulwahab", photo:"/exco/social-director-2024.jpg" },
+      { role:"Welfare Director", name:"Faith Audu", photo:"/exco/welfare-director-2024.jpg" },
+      { role:"PRO", name:"Zakariyya Habib Sani", photo:"/exco/pro-2024.jpg" },
+      { role:"Sport Director", name:"Abedoh Bilal Adavuruku", photo:"/exco/sports-director-2024.jpg" },
+      { role:"Senator (Level 2)", name:"Comr. Ayuba Bitrus Jr.", photo:"/exco/senator-l2-2024.jpg" },
+      { role:"Senator (Level 3)", name:"Celestine David Chibuikem", photo:"/exco/senator-l3-2024.jpg" },
+    ],
+  },
 ];
 
 const GRADE_POINTS = { "A":5,"B":4,"C":3,"D":2,"E":1,"F":0 };
@@ -215,6 +237,27 @@ async function supabaseRequest(path, method="GET", body=null) {
   const res = await fetch(`${SUPA_URL}/rest/v1${path}`, opts);
   if(!res.ok) throw new Error("Supabase error");
   return method === "GET" ? res.json() : res;
+}
+
+function initialsOf(name) {
+  return name.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+}
+
+function ExcoPhoto({ src, name, size, ring, C }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <div style={{position:"relative",width:size,height:size,borderRadius:"50%",flexShrink:0,
+      background:`linear-gradient(135deg,${C.greenMid},${C.green})`,
+      display:"flex",alignItems:"center",justifyContent:"center",
+      boxShadow:ring?`0 0 0 3px ${C.card}, 0 0 0 5px ${C.green}`:`0 0 0 2px ${C.card}, 0 0 0 3px ${C.border}`,
+      overflow:"hidden"}}>
+      <span style={{color:"#fff",fontWeight:800,fontSize:size*0.32}}>{initialsOf(name)}</span>
+      {!broken && (
+        <img src={src} alt={name} loading="lazy" onError={()=>setBroken(true)}
+          style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>
+      )}
+    </div>
+  );
 }
 
 function renderMath(text, display=false) {
@@ -932,30 +975,43 @@ export default function ChemBaseBUK() {
 
       {/* LEGACY */}
       {tab==="legacy" && (
-        <div style={{maxWidth:700,margin:"0 auto",padding:"20px 16px"}}>
-          <div style={{textAlign:"center",marginBottom:24}}>
-            <div style={{fontSize:36,marginBottom:8}}>🏆</div>
-            <h2 style={{margin:"0 0 4px",fontWeight:900,fontSize:22}}>NSChE BUK Legacy</h2>
+        <div style={{maxWidth:720,margin:"0 auto",padding:"20px 16px 32px"}}>
+          <div style={{textAlign:"center",marginBottom:26}}>
+            <div style={{fontSize:38,marginBottom:8}}>🏆</div>
+            <h2 style={{margin:"0 0 4px",fontWeight:900,fontSize:23}}>NSChE BUK Legacy</h2>
             <p style={{margin:0,color:C.muted,fontSize:13}}>Honouring those who led before us</p>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"flex",flexDirection:"column",gap:18}}>
             {legacy.map((exec,i)=>{
               const isOpen=expandedExco===exec.year;
+              const president=exec.members[0];
+              const rest=exec.members.slice(1);
               return (
-                <div key={i} style={{...card,overflow:"hidden"}}>
+                <div key={i} style={{...card,overflow:"hidden",boxShadow:isOpen?"0 6px 20px rgba(0,0,0,0.10)":card.boxShadow,transition:"box-shadow .2s"}}>
                   <div onClick={()=>setExpandedExco(isOpen?null:exec.year)}
-                    style={{background:`linear-gradient(135deg,${LIGHT.greenDark},${LIGHT.green})`,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
-                    <div style={{fontWeight:900,fontSize:16,color:"#fff"}}>Executive Set {exec.year}</div>
-                    <span style={{color:"#fff",fontSize:16}}>{isOpen?"▲":"▼"}</span>
+                    style={{background:`linear-gradient(135deg,${C.greenDark},${C.green})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+                    <div>
+                      <div style={{fontWeight:900,fontSize:17,color:"#fff",letterSpacing:0.2}}>Executive Set {exec.year}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",marginTop:2}}>{exec.members.length} members</div>
+                    </div>
+                    <span style={{color:"#fff",fontSize:14,transform:isOpen?"rotate(180deg)":"none",transition:"transform .2s"}}>▼</span>
                   </div>
                   {isOpen && (
-                    <div style={{padding:"16px"}}>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                        {EXCO_POSITIONS.map((pos,j)=>(
-                          <div key={j} style={{background:C.greenLight,borderRadius:10,padding:"10px 12px"}}>
-                            <div style={{fontSize:18,marginBottom:3}}>{pos.icon}</div>
-                            <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4}}>{pos.role}</div>
-                            <div style={{fontWeight:700,fontSize:12,color:C.ink,marginTop:2}}>{exec[pos.key]}</div>
+                    <div style={{padding:"24px 18px 20px"}}>
+                      {/* President spotlight */}
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",marginBottom:22}}>
+                        <ExcoPhoto src={president.photo} name={president.name} size={104} ring C={C}/>
+                        <div style={{marginTop:12,fontWeight:900,fontSize:17,color:C.ink}}>{president.name}</div>
+                        <div style={{marginTop:4,fontSize:11.5,fontWeight:700,color:C.green,textTransform:"uppercase",letterSpacing:1}}>{president.role}</div>
+                      </div>
+                      <div style={{height:1,background:C.border,margin:"0 0 20px"}}/>
+                      {/* Rest of the set */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(100px,1fr))",gap:14}}>
+                        {rest.map((m,j)=>(
+                          <div key={j} style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",gap:6}}>
+                            <ExcoPhoto src={m.photo} name={m.name} size={58} C={C}/>
+                            <div style={{fontWeight:700,fontSize:11.5,color:C.ink,lineHeight:1.2}}>{m.name}</div>
+                            <div style={{fontSize:9.5,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.3,lineHeight:1.3}}>{m.role}</div>
                           </div>
                         ))}
                       </div>
