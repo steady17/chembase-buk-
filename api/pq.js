@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const { id, name } = req.query;
+  const { id, name, mode } = req.query;
   if (!id) return res.status(400).send('Missing file id');
 
   const safeName = (name || 'past-questions').toString().replace(/[^a-z0-9.\-_]/gi, '_');
@@ -27,8 +27,9 @@ export default async function handler(req, res) {
 
     if (!driveRes.ok) return res.status(502).send('Could not fetch file from Drive');
 
+    const disposition = mode === 'view' ? 'inline' : 'attachment';
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeName}.pdf"`);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}.pdf"`);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.status(200).send(buffer);
   } catch (e) {

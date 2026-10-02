@@ -781,7 +781,7 @@ export default function ChemBaseBUK() {
                   <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 16px",background:C.greenLight}}>
                     {pqLinks[course.code] ? (
                       <div style={{display:"flex",gap:10}}>
-                        <a href={`https://drive.google.com/file/d/${pqLinks[course.code]}/preview`} target="_blank" rel="noopener noreferrer"
+                        <a href={`/api/pq?id=${pqLinks[course.code]}&name=${course.code}-pq&mode=view`} target="_blank" rel="noopener noreferrer"
                           style={{flex:1,background:"transparent",border:`1.5px solid ${C.green}`,color:C.green,
                             padding:"11px 14px",borderRadius:10,fontWeight:700,fontSize:13.5,textDecoration:"none",
                             display:"flex",alignItems:"center",justifyContent:"center"}}>
