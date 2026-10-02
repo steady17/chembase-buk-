@@ -780,13 +780,20 @@ export default function ChemBaseBUK() {
                 {openCourse===course.code && (
                   <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 16px",background:C.greenLight}}>
                     {pqLinks[course.code] ? (
-                      <a href={`/api/pq?id=${pqLinks[course.code]}&name=${course.code}-pq`} download={`${course.code}-pq.pdf`}
-                        style={{background:`linear-gradient(135deg,${C.greenMid},${C.green})`,border:"none",color:"#fff",
-                          padding:"13px 22px",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",
-                          display:"flex",alignItems:"center",justifyContent:"center",gap:9,
-                          boxShadow:`0 4px 14px rgba(0,0,0,0.18)`,letterSpacing:0.2}}>
-                        <span style={{fontSize:17}}>⬇</span> Download Past Questions
-                      </a>
+                      <div style={{display:"flex",gap:10}}>
+                        <a href={`https://drive.google.com/file/d/${pqLinks[course.code]}/preview`} target="_blank" rel="noopener noreferrer"
+                          style={{flex:1,background:"transparent",border:`1.5px solid ${C.green}`,color:C.green,
+                            padding:"11px 14px",borderRadius:10,fontWeight:700,fontSize:13.5,textDecoration:"none",
+                            display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          View
+                        </a>
+                        <a href={`/api/pq?id=${pqLinks[course.code]}&name=${course.code}-pq`} download={`${course.code}-pq.pdf`}
+                          style={{flex:1,background:C.green,border:`1.5px solid ${C.green}`,color:"#fff",
+                            padding:"11px 14px",borderRadius:10,fontWeight:700,fontSize:13.5,textDecoration:"none",
+                            display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          Download
+                        </a>
+                      </div>
                     ) : (
                       <>
                         <button
