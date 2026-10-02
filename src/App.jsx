@@ -243,16 +243,16 @@ function initialsOf(name) {
   return name.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
 }
 
-function ExcoPhoto({ src, name, size, ring, C }) {
+function ExcoPhoto({ src, name, size, ring, C, onClick }) {
   const [broken, setBroken] = useState(false);
   const gap = ring ? 4 : 2.5;
   const frame = ring ? 4 : 3;
   return (
-    <div style={{position:"relative",width:size,height:size,borderRadius:"50%",flexShrink:0,
+    <div onClick={onClick} style={{position:"relative",width:size,height:size,borderRadius:"50%",flexShrink:0,
       background:`linear-gradient(135deg,${C.greenMid},${C.green})`,
       display:"flex",alignItems:"center",justifyContent:"center",
       boxShadow:`0 0 0 ${gap}px ${C.card}, 0 0 0 ${gap+frame}px ${C.green}`,
-      overflow:"hidden"}}>
+      overflow:"hidden",cursor:onClick?"pointer":"default"}}>
       <span style={{color:"#fff",fontWeight:800,fontSize:size*0.32}}>{initialsOf(name)}</span>
       {!broken && (
         <img src={src} alt={name} loading="lazy" onError={()=>setBroken(true)}
@@ -343,6 +343,7 @@ export default function ChemBaseBUK() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
   const [expandedExco, setExpandedExco] = useState("2025/2026");
+  const [zoomedExco, setZoomedExco] = useState(null);
 
   // GPA
   const [gpaCourses, setGpaCourses] = useState([
@@ -1002,7 +1003,8 @@ export default function ChemBaseBUK() {
                     <div style={{padding:"24px 18px 20px"}}>
                       {/* President spotlight */}
                       <div style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",marginBottom:22}}>
-                        <ExcoPhoto src={president.photo} name={president.name} size={156} ring C={C}/>
+                        <ExcoPhoto src={president.photo} name={president.name} size={156} ring C={C}
+                          onClick={()=>setZoomedExco({src:president.photo,name:president.name,role:president.role})}/>
                         <div style={{marginTop:12,fontWeight:900,fontSize:17,color:C.ink}}>{president.name}</div>
                         <div style={{marginTop:4,fontSize:11.5,fontWeight:700,color:C.green,textTransform:"uppercase",letterSpacing:1}}>{president.role}</div>
                       </div>
@@ -1011,7 +1013,8 @@ export default function ChemBaseBUK() {
                       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:16}}>
                         {rest.map((m,j)=>(
                           <div key={j} style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",gap:6}}>
-                            <ExcoPhoto src={m.photo} name={m.name} size={84} C={C}/>
+                            <ExcoPhoto src={m.photo} name={m.name} size={84} C={C}
+                              onClick={()=>setZoomedExco({src:m.photo,name:m.name,role:m.role})}/>
                             <div style={{fontWeight:700,fontSize:11.5,color:C.ink,lineHeight:1.2}}>{m.name}</div>
                             <div style={{fontSize:9.5,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.3,lineHeight:1.3}}>{m.role}</div>
                           </div>
@@ -1023,6 +1026,28 @@ export default function ChemBaseBUK() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ZOOMED EXCO PHOTO OVERLAY */}
+      {zoomedExco && (
+        <div onClick={()=>setZoomedExco(null)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:999,
+            display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+            gap:16,padding:24,cursor:"pointer"}}>
+          <div style={{width:260,height:260,maxWidth:"80vw",maxHeight:"80vw",borderRadius:"50%",
+            overflow:"hidden",boxShadow:`0 0 0 6px rgba(255,255,255,0.1), 0 0 0 10px ${C.green}`,
+            background:`linear-gradient(135deg,${C.greenMid},${C.green})`,
+            display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <img src={zoomedExco.src} alt={zoomedExco.name} loading="lazy"
+              onError={(e)=>{e.target.style.display="none";}}
+              style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontWeight:900,fontSize:19,color:"#fff"}}>{zoomedExco.name}</div>
+            <div style={{marginTop:4,fontSize:12.5,fontWeight:700,color:C.greenLight||"#9fe0bb",textTransform:"uppercase",letterSpacing:1}}>{zoomedExco.role}</div>
+          </div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginTop:6}}>Tap anywhere to close</div>
         </div>
       )}
 
