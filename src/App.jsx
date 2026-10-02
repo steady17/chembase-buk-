@@ -780,7 +780,7 @@ export default function ChemBaseBUK() {
                 {openCourse===course.code && (
                   <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 16px",background:C.greenLight}}>
                     {pqLinks[course.code] ? (
-                      <a href={`https://drive.google.com/uc?export=download&id=${pqLinks[course.code]}`} target="_blank" rel="noopener noreferrer" download
+                      <a href={`/api/pq?id=${pqLinks[course.code]}&name=${course.code}-pq`} download={`${course.code}-pq.pdf`}
                         style={{background:`linear-gradient(135deg,${C.greenMid},${C.green})`,border:"none",color:"#fff",
                           padding:"13px 22px",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",
                           display:"flex",alignItems:"center",justifyContent:"center",gap:9,
