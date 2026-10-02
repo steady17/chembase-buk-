@@ -76,6 +76,7 @@ const courses = {
       { code:"TCH307", name:"Biochemical Engineering I", units:2 },
       { code:"GET307", name:"Introduction to AI, Machine Learning and Convergent Technologies", units:2 },
       { code:"TCH304", name:"Process Instrumentation", units:2 },
+      { code:"ENT312", name:"Venture and Creation", units:2 },
     ],
     "Second Semester": [
       { code:"BUK-TCH302", name:"Chemical Kinetics and Catalysis", units:2 },
@@ -84,11 +85,19 @@ const courses = {
       { code:"GET304", name:"Technical Writing and Communication", units:3 },
       { code:"GET306", name:"Renewable Energy Systems and Technologies", units:3 },
       { code:"GST312", name:"Peace and Conflict Resolution", units:2 },
-      { code:"ENT312", name:"Venture and Creation", units:2 },
       { code:"TCH308", name:"Numerical Methods in Chemical Engineering", units:2 },
       { code:"GET399", name:"SIWES II", units:4 },
     ],
   },
+};
+
+const pqLinks = {
+  "BUK-TCH301": "1sw_8e_B9z21SY49U16ZUtfkGfzk0bO2v",
+  "BUK-TCH303": "1HdN62HfhkbZoiwhc5bI-tq38dX1ewlMh",
+  "TCH303":     "1QT-D9RUwRRGTSfi7rm845rdfPe82068q",
+  "TCH304":     "1Qq5Y0DMrLYVw66YJ1uNC_cYy0yAH9MV8",
+  "GET307":     "17Ek5_-5Yc-bPDrzlhLuY32t9U9ZKMod2",
+  "ENT312":     "1dSVwXziln2uixpdntD2RGKha4s1vTj8h",
 };
 
 const allCourses = Object.entries(courses).flatMap(([level, sems]) =>
@@ -734,12 +743,27 @@ export default function ChemBaseBUK() {
                 </div>
                 {openCourse===course.code && (
                   <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 16px",background:C.greenLight}}>
-                    <button
-                      onClick={()=>alert(`Past questions for ${course.code} will be available once uploaded by the admin.`)}
-                      style={{background:C.card,border:`1.5px solid ${C.green}`,color:C.green,padding:"8px 20px",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>
-                      📄 Download Past Questions
-                    </button>
-                    <div style={{fontSize:12,color:C.muted,marginTop:8}}>Files activated once uploaded by the admin.</div>
+                    {pqLinks[course.code] ? (
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                        <a href={`https://drive.google.com/file/d/${pqLinks[course.code]}/view`} target="_blank" rel="noopener noreferrer"
+                          style={{background:C.card,border:`1.5px solid ${C.green}`,color:C.green,padding:"8px 20px",borderRadius:8,fontWeight:700,fontSize:13,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:6}}>
+                          👁 View
+                        </a>
+                        <a href={`https://drive.google.com/uc?export=download&id=${pqLinks[course.code]}`}
+                          style={{background:C.green,border:`1.5px solid ${C.green}`,color:"#fff",padding:"8px 20px",borderRadius:8,fontWeight:700,fontSize:13,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:6}}>
+                          ⬇ Download
+                        </a>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={()=>alert(`Past questions for ${course.code} will be available once uploaded by the admin.`)}
+                          style={{background:C.card,border:`1.5px solid ${C.green}`,color:C.green,padding:"8px 20px",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                          📄 Download Past Questions
+                        </button>
+                        <div style={{fontSize:12,color:C.muted,marginTop:8}}>Files activated once uploaded by the admin.</div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
