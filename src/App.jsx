@@ -92,6 +92,42 @@ const courses = {
 };
 
 const pqLinks = {
+  // 100 Level - First Semester
+  "BUK-TCH103": "1C6qhy6n7hMgZJbDxnFj-dCrXey6x4501",
+  "BUK-TCH105": "14dLugS8HqZ-oex4eOGC60-hz5jOgky1y",
+  "CHM107":     "1V92rILdKmvN3POfoG8IcpKiT9qDMYtZG",
+  "CHM101":     "1QhTKuETegbOt9TktR5oeeQBWEM_qRrXG",
+  "MTH101":     "18kNuazZHEP0rNnnGOelmgYAtwyyBO5Ux",
+  "PHY101":     "1QZoPdBIpOE5T7hTfAc7HjmjNDP6ydtJ1",
+  "PHY107":     "1psLhjXADMTOHHJRivJ3bmIdjH07U28mC",
+  "GST111":     "1dWxcvhh0YypDFEkgMs2xfqPRrpN47XkF",
+  // 100 Level - Second Semester
+  "PHY103": "1ZQMwDiVGGIXx4SIQrasr6KcvsI4PNcfC",
+  "CHM102": "1DolAvmIr60lAh08nZHhVk8gIMOhNjcY5",
+  "CHM108": "1LRMwoTdiO6l2ZwBLSXqQ18H8420a9iQ1",
+  "GST112": "1e08eeIpV9ytIvtX8Kk8gQH3cn1rlmNyz",
+  "MTH102": "1sLWS8_E5Ytx4fEHTLZClNy-fLmyjIrX0",
+  "PHY108": "1yQ4xcNivii4GZYz4kjna6TBtUPt-zS3y",
+  "GET102": "1dzUcgOGKGyllYLcoFdBUFsnZkwv1QVk_",
+  "TCH101": "1QMS8R7MFZcbVg2Cml7Ak35mv50PWcAZ0",
+  // 200 Level - First Semester
+  "TCH202":     "1paWJEETQS2VgC-p6pgiM2duJ31KmGI0M",
+  "BUK-TCH201": "1PYwtAKGb9kn8Xqn1buWvXNDG1HeZ7UX2",
+  "GET206":     "1USdsrCtzbaOgEFi-BXbeYOP9McFFKoYM",
+  "BUK-TCH203": "1yFNgZy-HW3d6QwH468cjnuH49wROrqS5",
+  "GET204":     "1vMOoe7kqpWA-rc5PLuLCKBJC--2gyoxC",
+  "ENT211":     "1Y0ymqFKA3lIFPxODiKGb4SeVzx3627pl",
+  "BUK-TCH205": "1FWeiWbc4QQ-9ySF-un1xWqPw3BfNLQjH",
+  "GET209":     "1_PANr0p74GwtWybemnlMI4SVzIIVpHBP",
+  // 200 Level - Second Semester
+  "GST212":     "1W00L2jalHDY7_2PaGh3xpAZIlp1kbDL0",
+  "GET210":     "1EHIkYE4nntNzNA2tsaWnrF0O3xoFCGwC",
+  "TCH201":     "1i04vM7dRetwUSUdkadgxFJEy0gTDUwwB",
+  "BUK-TCH202": "1foMdKTSdR5jW5ZoRzcbSx_riJbXtG0qh",
+  "GET211":     "1dBS9HjIA0VGwTaiXf0CYhynM6oDL7Hvn",
+  "GET205":     "1hUeGKfYLj7rYvCd0nzGqBtjuasS_n94B",
+  "TCH206":     "1faNdaqipter88nrmORwM_dZmDDxUocXh",
+  // 300 Level - First Semester
   "BUK-TCH301": "1sw_8e_B9z21SY49U16ZUtfkGfzk0bO2v",
   "BUK-TCH303": "1HdN62HfhkbZoiwhc5bI-tq38dX1ewlMh",
   "TCH303":     "1QT-D9RUwRRGTSfi7rm845rdfPe82068q",
