@@ -385,6 +385,7 @@ export default function ChemBaseBUK() {
   const [level, setLevel]           = useState("300 Level");
   const [semester, setSemester]     = useState("First Semester");
   const [openCourse, setOpenCourse] = useState(null);
+  const [viewingPQ, setViewingPQ]   = useState(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
   const [expandedExco, setExpandedExco] = useState("2025/2026");
@@ -781,12 +782,12 @@ export default function ChemBaseBUK() {
                   <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 16px",background:C.greenLight}}>
                     {pqLinks[course.code] ? (
                       <div style={{display:"flex",gap:10}}>
-                        <a href={`/api/pq?id=${pqLinks[course.code]}&name=${course.code}-pq&mode=view`}
+                        <button onClick={()=>setViewingPQ({id:pqLinks[course.code],code:course.code})}
                           style={{flex:1,background:"transparent",border:`1.5px solid ${C.green}`,color:C.green,
-                            padding:"11px 14px",borderRadius:10,fontWeight:700,fontSize:13.5,textDecoration:"none",
-                            display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            padding:"11px 14px",borderRadius:10,fontWeight:700,fontSize:13.5,
+                            display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
                           View
-                        </a>
+                        </button>
                         <a href={`/api/pq?id=${pqLinks[course.code]}&name=${course.code}-pq`} download={`${course.code}-pq.pdf`}
                           style={{flex:1,background:C.green,border:`1.5px solid ${C.green}`,color:"#fff",
                             padding:"11px 14px",borderRadius:10,fontWeight:700,fontSize:13.5,textDecoration:"none",
@@ -1095,6 +1096,24 @@ export default function ChemBaseBUK() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* PQ VIEWER OVERLAY — stays inside the app, no navigation away */}
+      {viewingPQ && (
+        <div style={{position:"fixed",inset:0,background:"#000",zIndex:1000,display:"flex",flexDirection:"column"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:C.greenDark,flexShrink:0}}>
+            <div style={{color:"#fff",fontWeight:800,fontSize:14}}>{viewingPQ.code} — Past Questions</div>
+            <button onClick={()=>setViewingPQ(null)}
+              style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",width:32,height:32,borderRadius:8,fontSize:16,fontWeight:700,cursor:"pointer"}}>
+              ✕
+            </button>
+          </div>
+          <iframe
+            src={`/api/pq?id=${viewingPQ.id}&name=${viewingPQ.code}-pq&mode=view`}
+            title={`${viewingPQ.code} Past Questions`}
+            style={{flex:1,border:"none",width:"100%"}}
+          />
         </div>
       )}
 
