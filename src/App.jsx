@@ -1002,16 +1002,16 @@ export default function ChemBaseBUK() {
                     <div style={{padding:"24px 18px 20px"}}>
                       {/* President spotlight */}
                       <div style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",marginBottom:22}}>
-                        <ExcoPhoto src={president.photo} name={president.name} size={132} ring C={C}/>
+                        <ExcoPhoto src={president.photo} name={president.name} size={156} ring C={C}/>
                         <div style={{marginTop:12,fontWeight:900,fontSize:17,color:C.ink}}>{president.name}</div>
                         <div style={{marginTop:4,fontSize:11.5,fontWeight:700,color:C.green,textTransform:"uppercase",letterSpacing:1}}>{president.role}</div>
                       </div>
                       <div style={{height:1,background:C.border,margin:"0 0 20px"}}/>
                       {/* Rest of the set */}
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(100px,1fr))",gap:14}}>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:16}}>
                         {rest.map((m,j)=>(
                           <div key={j} style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",gap:6}}>
-                            <ExcoPhoto src={m.photo} name={m.name} size={64} C={C}/>
+                            <ExcoPhoto src={m.photo} name={m.name} size={84} C={C}/>
                             <div style={{fontWeight:700,fontSize:11.5,color:C.ink,lineHeight:1.2}}>{m.name}</div>
                             <div style={{fontSize:9.5,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.3,lineHeight:1.3}}>{m.role}</div>
                           </div>
