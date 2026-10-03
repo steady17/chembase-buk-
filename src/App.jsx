@@ -749,10 +749,10 @@ const CALC_KEYS = [
     { label:"tan", act:calcIns("tan(","num"), sl:"tan⁻¹", sa:calcIns("tan⁻¹(","num"), style:"fn" },
     { label:"log", act:calcIns("log(","num"), sl:"10ˣ",   sa:calcIns("10^⟦⟧","num",4),   style:"fn" },
     { label:"ln",  act:calcIns("ln(","num"),  sl:"eˣ",    sa:calcIns("e^⟦⟧","num",3),    style:"fn" } ],
-  [ { label:"Fraction", icon:"frac", act:calcIns("⟨|⟩","num",1), sl:"a b/c", sicon:"mixed", sa:calcIns("⟪||⟫","num",1), style:"fn" },
+  [ { label:"Fraction", icon:"frac", act:calcIns("⟨|⟩","num",1), sl:"mixed", sicon:"mixed", nohint:true, sa:calcIns("⟪||⟫","num",1), style:"fn" },
     { label:"Power", icon:"pow", act:calcIns("^⟦⟧","op",2), style:"fn" },
     { label:"x²",  act:calcIns("^⟦2⟧","op"), sl:"x³", sa:calcIns("^⟦3⟧","op"), style:"fn" },
-    { label:"√",   act:calcIns("√(","num"), sl:"∛", sa:calcIns("∛(","num"), style:"fn" },
+    { label:"√",   icon:"sqrt", act:calcIns("√(","num"), sl:"∛", sicon:"cbrt", hintIcon:"cbrt", sa:calcIns("∛(","num"), style:"fn" },
     { label:"x⁻¹", act:calcIns("^⟦−1⟧","op"), style:"fn" },
     { label:"n!",  act:calcIns("!","op"), style:"fn" } ],
   [ { label:"(", act:calcIns("(","num"), style:"fn" },
@@ -1074,6 +1074,8 @@ function CalcIcon({ name, size = 22 }) {
     case "frac":  return <svg {...p}><rect x="7.5" y="2.5" width="9" height="6.5" rx="1.6" {...box}/><path d="M4 12h16"/><rect x="7.5" y="15" width="9" height="6.5" rx="1.6" {...box}/></svg>;
     case "mixed": return <svg {...p}><rect x="1.5" y="7.5" width="6.5" height="9" rx="1.6" {...box}/><rect x="12" y="2.5" width="8.5" height="6" rx="1.6" {...box}/><path d="M10 12h12"/><rect x="12" y="15.5" width="8.5" height="6" rx="1.6" {...box}/></svg>;
     case "pow":   return <svg {...p}><text x="2.5" y="21" fontSize="19" fontWeight="700" fontStyle="italic" fontFamily="Georgia, 'Times New Roman', serif" fill="currentColor" stroke="none">x</text><rect x="14" y="2.5" width="8" height="8" rx="1.6" {...box}/></svg>;
+    case "sqrt":  return <svg {...p}><path d="M2.5 13.5l3-1.6 4.6 8.4L18.5 4.5H23"/></svg>;
+    case "cbrt":  return <svg {...p}><path d="M6.5 14.5l2.8-1.4 3.8 7.2L20 4.5h3.5" strokeWidth="2.2"/><text x="1.5" y="12" fontSize="10.5" fontWeight="800" fill="currentColor" stroke="none" fontFamily="system-ui, sans-serif">3</text></svg>;
     default: return null;
   }
 }
@@ -2415,8 +2417,8 @@ export default function ChemBaseBUK() {
                               return (
                                 <button key={k.label+(k.span||"")} className="calc-key" aria-label={k.icon ? k.label : undefined} onClick={()=>calcDo(act)}
                                   style={{...S,gridColumn:k.span?`span ${k.span}`:undefined,position:"relative",height:48,borderRadius:12,fontWeight:"var(--fw-xheavy)",cursor:"pointer",fontFamily:"inherit",padding:0,touchAction:"manipulation",userSelect:"none"}}>
-                                  {iconName ? <CalcIcon name={iconName} size={k.style==="pad"?24:26}/> : label}
-                                  {k.sl && !calc.shift && <span style={{position:"absolute",top:2,right:5,fontSize:8.5,fontWeight:600,color:"#d98a00"}}>{k.sl}</span>}
+                                  {iconName ? <CalcIcon name={iconName} size={k.style==="pad"?24:(iconName==="sqrt"||iconName==="cbrt")?22:26}/> : label}
+                                  {k.sl && !k.nohint && !calc.shift && <span style={{position:"absolute",top:2,right:5,display:"flex",fontSize:8.5,fontWeight:600,color:"#d98a00",lineHeight:1}}>{k.hintIcon ? <CalcIcon name={k.hintIcon} size={11}/> : k.sl}</span>}
                                 </button>
                               );
                             })}
