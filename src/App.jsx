@@ -215,11 +215,21 @@ const GRADE_POINTS = { "A":5,"B":4,"C":3,"D":2,"E":1,"F":0 };
 
 // ChemE Toolbox data ---------------------------------------------------
 
+// Each plain category maps unit -> factor to that category's SI base unit.
 const UNIT_CATEGORIES = {
-  Pressure:   { units:{ "Pa":1, "kPa":1000, "bar":100000, "atm":101325, "psi":6894.76, "mmHg":133.322, "torr":133.322 } },
-  Temperature:{ units:{ "°C":null, "°F":null, "K":null } }, // handled specially, not a plain factor
-  "Flow rate":{ units:{ "m³/s":1, "L/s":0.001, "L/min":0.001/60, "m³/h":1/3600, "gal/min (US)":6.30902e-5, "ft³/s":0.0283168 } },
-  Viscosity:  { units:{ "Pa·s":1, "cP":0.001, "P":0.1, "lb/(ft·s)":1.48816 } },
+  Length:     { units:{ "m":1, "cm":0.01, "mm":0.001, "km":1000, "ft":0.3048, "in":0.0254 } },
+  Mass:       { units:{ "kg":1, "g":0.001, "lb":0.45359237, "tonne":1000 } },
+  Time:       { units:{ "s":1, "min":60, "hr":3600 } },
+  Temperature:{ units:{ "°C":null, "K":null, "°F":null } }, // handled specially, not a plain factor
+  Pressure:   { units:{ "Pa":1, "kPa":1000, "MPa":1e6, "bar":100000, "atm":101325, "psi":6894.757, "mmHg":133.322, "torr":133.322 } },
+  Volume:     { units:{ "m³":1, "L":0.001, "mL":1e-6, "ft³":0.0283168466, "gal (US)":0.003785411784 } },
+  "Flow rate":{ units:{ "m³/s":1, "m³/hr":1/3600, "L/s":0.001, "L/min":0.001/60, "gal/min (US)":6.30902e-5, "ft³/s":0.0283168466 } },
+  Density:    { units:{ "kg/m³":1, "g/cm³":1000, "lb/ft³":16.01846337 } },
+  Energy:     { units:{ "J":1, "kJ":1000, "cal":4.184, "kcal":4184, "BTU":1055.05585 } },
+  Power:      { units:{ "W":1, "kW":1000, "hp":745.69987 } },
+  Viscosity:  { units:{ "Pa·s":1, "cP":0.001, "P":0.1, "lb/(ft·s)":1.488164 } },
+  "Thermal conductivity":{ units:{ "W/(m·K)":1, "BTU/(hr·ft·°F)":1.730735, "cal/(s·cm·K)":418.4 } },
+  "Specific heat":{ units:{ "J/(kg·K)":1, "kJ/(kg·K)":1000, "cal/(g·K)":4184, "BTU/(lb·°F)":4186.8 } },
 };
 
 function convertUnits(category, value, fromUnit, toUnit) {
