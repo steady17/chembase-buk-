@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
@@ -1171,15 +1172,20 @@ async function prepareChatPdf(file) {
   return { text, images, note };
 }
 
+async function chatThumb(dataUrl) {
+  const img = await loadImageEl(dataUrl);
+  return shrinkToJpeg(img, img.naturalWidth, img.naturalHeight, 360, 0.7);
+}
+
 async function prepareChatFile(file) {
+  let r;
   if (file.type.startsWith("image/")) {
-    return { name:file.name, images:[await prepareChatImage(file)], text:"", note:"" };
-  }
-  if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-    const r = await prepareChatPdf(file);
-    return { name:file.name, ...r };
-  }
-  throw new Error("Unsupported file type");
+    r = { name:file.name, images:[await prepareChatImage(file)], text:"", note:"", isPdf:false };
+  } else if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+    r = { name:file.name, ...(await prepareChatPdf(file)), isPdf:true };
+  } else throw new Error("Unsupported file type");
+  try { r.thumb = r.images.length ? await chatThumb(r.images[0]) : ""; } catch { r.thumb = ""; }
+  return r;
 }
 
 // Old messages keep their words only, so each request stays small.
@@ -1596,6 +1602,7 @@ export default function ChemBaseBUK() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatFile, setChatFile]       = useState(null);
   const [chatFileBusy, setChatFileBusy] = useState(false);
+  const [chatViewer, setChatViewer] = useState(null);
   const chatRef    = useRef(null);
   const chatFileRef = useRef(null);
 
@@ -1809,7 +1816,7 @@ export default function ChemBaseBUK() {
     // see appendToSession's comment for why that caused lost messages.
     const sessionId = activeSessionId || Date.now().toString();
     if (!activeSessionId) setActiveSessionId(sessionId);
-    const newHistory = [...chatHistory,{role:"user",content:userContent,display:userText,doc:isDoc}];
+    const newHistory = [...chatHistory,{role:"user",content:userContent,display:userText,shown:typed,doc:isDoc,attach:chatFile?{name:chatFile.name,thumb:chatFile.thumb||"",isPdf:!!chatFile.isPdf}:undefined}];
     appendToSession(sessionId, newHistory); setChatInput(""); setChatFile(null); setChatLoading(true);
     try{ const r=await askDeepSeek(newHistory); appendToSession(sessionId, p=>[...p,{role:"assistant",content:r}]); }
     catch(e){ appendToSession(sessionId, p=>[...p,{role:"assistant",content:`Error: ${e.message}`}]); }
@@ -2014,7 +2021,7 @@ export default function ChemBaseBUK() {
               <div style={{marginTop:16,marginBottom:8,padding:"14px 16px",background:C.greenLight,borderRadius:12,borderLeft:`4px solid ${C.green}`}}>
                 <div style={{fontWeight:"var(--fw-heavy)",color:C.green,fontSize:13}}>📢 Welcome to ChemBase BUK</div>
                 <p style={{margin:"6px 0 0",color:C.muted,fontSize:13,lineHeight:1.6}}>
-                  Your official NSChE BUK academic resource hub. Browse past questions, use ChemBot AI for instant solutions (it can now read photos and PDFs), ask for academic help, and open the ChemE Toolbox for a scientific calculator, unit converter, GPA calculator, periodic table, constants and more.
+                  Your official NSChE BUK academic resource hub. Browse past questions, use ChemBot AI for instant solutions, ask for academic help, and use the ChemE Toolbox for your coursework.
                 </p>
               </div>
             </div>
@@ -2166,7 +2173,17 @@ export default function ChemBaseBUK() {
                 <div style={{display:"flex",alignItems:"flex-start",gap:8,flexDirection:m.role==="user"?"row-reverse":"row"}}>
                   {m.role==="assistant" && <div style={{width:28,height:28,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,marginTop:2}}>🤖</div>}
                   <div style={{maxWidth:m.role==="user"?"85%":"96%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.card,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7,border:m.role==="assistant"?`1px solid ${C.border}`:"none",overflowWrap:"break-word",minWidth:0}}>
-                    {m.role==="assistant"?formatMsg(m.content):(m.display||m.content)}
+                    {m.role==="assistant"?formatMsg(m.content):(m.attach ? (
+                      <div>
+                        {m.attach.thumb
+                          ? <img src={m.attach.thumb} alt={m.attach.name} onClick={()=>{const full=Array.isArray(m.content)?m.content.find(x=>x.type==="image_url")?.image_url.url:null; setChatViewer(full||m.attach.thumb);}}
+                              style={{display:"block",maxWidth:"100%",maxHeight:220,borderRadius:10,cursor:"zoom-in",marginBottom:m.shown?8:0}}/>
+                          : <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.18)",borderRadius:10,padding:"8px 10px",marginBottom:m.shown?8:0,fontSize:13}}>
+                              <span style={{fontSize:20}}>{m.attach.isPdf?"📄":"🖼️"}</span><span style={{overflowWrap:"anywhere"}}>{m.attach.name}</span>
+                            </div>}
+                        {m.shown}
+                      </div>
+                    ) : (m.display||m.content))}
                   </div>
                 </div>
                 {m.role==="assistant" && (
@@ -2184,6 +2201,12 @@ export default function ChemBaseBUK() {
               </div>
             )}
           </div>
+          {chatViewer && createPortal(
+            <div onClick={()=>setChatViewer(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:100000,display:"flex",alignItems:"center",justifyContent:"center",padding:12}}>
+              <img src={chatViewer} alt="" style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>
+              <button onClick={()=>setChatViewer(null)} aria-label="Close" style={{position:"absolute",top:14,right:14,background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",fontSize:22,width:40,height:40,borderRadius:20,cursor:"pointer"}}>✕</button>
+            </div>
+          , document.body)}
           {/* Fixed input bar */}
           <div style={{padding:"8px 10px 8px 10px",borderTop:`1px solid ${C.border}`,background:C.bg,flexShrink:0,boxSizing:"border-box",width:"100%"}}>
             {chatFileBusy && (
@@ -2191,7 +2214,10 @@ export default function ChemBaseBUK() {
             )}
             {chatFile && (
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.greenLight,border:`1.5px solid ${C.green}`,borderRadius:10,padding:"6px 12px",marginBottom:8}}>
-                <span style={{fontSize:13,color:C.green,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>📎 {chatFile.name}{chatFile.note?` (${chatFile.note})`:""}</span>
+                <span style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:C.green,minWidth:0}}>
+                  {chatFile.thumb ? <img src={chatFile.thumb} alt="" style={{width:44,height:44,objectFit:"cover",borderRadius:8,flexShrink:0}}/> : <span style={{fontSize:20}}>📄</span>}
+                  <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{chatFile.name}{chatFile.note?` (${chatFile.note})`:""}</span>
+                </span>
                 <button onClick={()=>setChatFile(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button>
               </div>
             )}
