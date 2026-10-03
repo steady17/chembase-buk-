@@ -1063,6 +1063,27 @@ function CalcExprView({ expr, cur }) {
 }
 
 // Key icons: drawn as SVG so they stay sharp and match the theme colours.
+// Shows a fraction answer like "5/4 = 1 1/4" the way it is written on paper, with the
+// fraction stacked and the whole number of a mixed number beside it.
+function CalcResultView({ text }) {
+  return (
+    <span>
+      {String(text).split(" = ").map((part, i) => {
+        const m = /^(−)?(?:(\d+) )?(\d+)\/(\d+)$/.exec(part);
+        const sep = i > 0 ? <span style={{margin:"0 8px"}}>=</span> : null;
+        if (!m) return <span key={i}>{sep}{part}</span>;
+        return (
+          <span key={i}>{sep}
+            {m[1] && <span>−</span>}
+            {m[2] && <span style={{marginRight:4}}>{m[2]}</span>}
+            <span className="calc-frac" style={{fontSize:"0.8em"}}><span>{m[3]}</span><span>{m[4]}</span></span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function CalcIcon({ name, size = 22 }) {
   const p = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", strokeWidth:2.4, strokeLinecap:"round", strokeLinejoin:"round", "aria-hidden":true };
   const box = { fill:"none", strokeWidth:1.7, strokeDasharray:"2.4 1.7" };
@@ -1264,7 +1285,7 @@ async function prepareChatPdf(file) {
 
 async function chatThumb(dataUrl) {
   const img = await loadImageEl(dataUrl);
-  return shrinkToJpeg(img, img.naturalWidth, img.naturalHeight, 360, 0.7);
+  return shrinkToJpeg(img, img.naturalWidth, img.naturalHeight, 900, 0.78);
 }
 
 async function prepareChatFile(file) {
@@ -1718,8 +1739,17 @@ export default function ChemBaseBUK() {
   useEffect(() => {
     try {
       // Pictures are never saved to the phone, only their words.
-      localStorage.setItem("chembot-sessions", JSON.stringify(chatSessions, (k,v) =>
-        (k==="content" && Array.isArray(v)) ? (v.filter(p=>p.type==="text").map(p=>p.text).join("\n") + " [picture not saved]").trim() : v));
+      const rep = (k,v) => (k==="content" && Array.isArray(v)) ? (v.filter(p=>p.type==="text").map(p=>p.text).join("\n") + " [picture not saved]").trim() : v;
+      let json = JSON.stringify(chatSessions, rep);
+      if (json.length > 3500000) {
+        // Too many saved pictures: drop the oldest small previews first so the chats still save.
+        const copy = JSON.parse(json);
+        const msgs = copy.slice().sort((a,b)=>(a.updatedAt||0)-(b.updatedAt||0)).flatMap(x=>x.messages||[]);
+        for (const m of msgs) {
+          if (m.attach && m.attach.thumb) { m.attach.thumb = ""; json = JSON.stringify(copy); if (json.length <= 3500000) break; }
+        }
+      }
+      localStorage.setItem("chembot-sessions", json);
     } catch {}
   }, [chatSessions]);
 
@@ -2266,8 +2296,9 @@ export default function ChemBaseBUK() {
                     {m.role==="assistant"?formatMsg(m.content):(m.attach ? (
                       <div>
                         {m.attach.thumb
-                          ? <img src={m.attach.thumb} alt={m.attach.name} onClick={()=>{const full=Array.isArray(m.content)?m.content.find(x=>x.type==="image_url")?.image_url.url:null; setChatViewer(full||m.attach.thumb);}}
-                              style={{display:"block",maxWidth:"100%",maxHeight:220,borderRadius:10,cursor:"zoom-in",marginBottom:m.shown?8:0}}/>
+                          ? (()=>{ const full=Array.isArray(m.content)?m.content.find(x=>x.type==="image_url")?.image_url.url:null; const src=full||m.attach.thumb;
+                              return <img src={src} alt={m.attach.name} onClick={()=>setChatViewer(src)}
+                                style={{display:"block",width:"100%",maxHeight:360,objectFit:"contain",background:"rgba(0,0,0,0.12)",borderRadius:10,cursor:"zoom-in",marginBottom:m.shown?8:0}}/>; })()
                           : <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.18)",borderRadius:10,padding:"8px 10px",marginBottom:m.shown?8:0,fontSize:13}}>
                               <span style={{fontSize:20}}>{m.attach.isPdf?"📄":"🖼️"}</span><span style={{overflowWrap:"anywhere"}}>{m.attach.name}</span>
                             </div>}
@@ -2390,7 +2421,7 @@ export default function ChemBaseBUK() {
                           {!calc.expr && <span style={{opacity:0.4}}>0</span>}
                         </div>
                         <div style={{minHeight:42,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:(calc.result||"").length>14?22:32,fontWeight:"var(--fw-xheavy)",lineHeight:1.2,wordBreak:"break-word",color:calc.error?"#c0392b":"inherit"}}>
-                          {calc.result!==null ? calcPretty(calc.result) : (calcPreview!==null ? <span style={{opacity:0.45}}>{calcPretty(calcPreview)}</span> : "")}
+                          {calc.result!==null ? (calc.frac&&!calc.error ? <CalcResultView text={calc.result}/> : calcPretty(calc.result)) : (calcPreview!==null ? <span style={{opacity:0.45}}>{calcPretty(calcPreview)}</span> : "")}
                         </div>
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -2449,8 +2480,22 @@ export default function ChemBaseBUK() {
                           </div>
                         </div>
                       )}
-                      <div style={{marginTop:14,padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.7}}>
-                        Use the <b>arrow keys</b> to move around what you typed: <b>left</b> and <b>right</b> move one step, <b>up</b> and <b>down</b> jump between the top and bottom of a fraction (or in and out of a power). With nothing to jump into, <b>up</b> and <b>down</b> bring back your earlier calculations. The fraction key gives you a top box and a bottom box: type the top, press <b>right</b>, type the bottom. <b>SHIFT</b> then the fraction key gives a mixed number. The power key lets you type any power, for example 12: press it, type 12, then press <b>right</b> to carry on. <b>x²</b> and <b>x⁻¹</b> are quick powers. <b>SHIFT</b> unlocks the orange keys, <b>MODE</b> switches degrees and radians, <b>S⇔D</b> turns an answer into a fraction and back, <b>STO</b> then a letter saves the answer, and <b>M+</b> adds to M (<b>SHIFT</b> for M−). On a PC you can type on your keyboard, press <b>f</b> for a fraction, and use the arrow keys.
+                      <div style={{...card,marginTop:14,padding:"14px 14px 6px"}}>
+                        <div style={{fontSize:13,fontWeight:"var(--fw-xheavy)",marginBottom:2}}>Fractions, mixed numbers and powers</div>
+                        <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Use the arrow keys to move between the boxes.</div>
+                        {[
+                          {ex:<CalcExprView expr="⟨3|4⟩"/>, title:"Fraction", steps:"Press the fraction key. Type the top number, press the right arrow, type the bottom number, then press the right arrow again to carry on."},
+                          {ex:<CalcExprView expr="⟪2|3|4⟫"/>, title:"Mixed number", steps:"Press SHIFT, then the fraction key. Type the whole number, right arrow, the top, right arrow, the bottom, right arrow. This one is 2 and 3 over 4."},
+                          {ex:<CalcExprView expr="2^⟦12⟧"/>, title:"Power", steps:"Type the number, press the power key, then type any power you like, for example 12. Press the right arrow to leave the power."},
+                          {ex:<CalcResultView text="5/4 = 1 1/4"/>, title:"Answer as a fraction", wide:true, steps:"After you press =, press S⇔D to see the answer as a fraction and as a mixed number. Press S⇔D again to go back to the decimal."},
+                        ].map((r,i,arr)=>(
+                          <div key={r.title} style={{display:"flex",flexDirection:r.wide?"column":"row",alignItems:r.wide?"stretch":"center",gap:r.wide?8:12,padding:"10px 0",borderTop:i?`1px solid ${C.border}`:"none"}}>
+                            <div style={{flex:r.wide?"0 0 auto":"0 0 92px",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"6px 4px",fontSize:18,overflow:"hidden",fontWeight:"var(--fw-xheavy)",color:C.ink}}>{r.ex}</div>
+                            <div style={{flex:"1 1 0",minWidth:0,fontSize:12.5,lineHeight:1.55,color:C.muted}}>
+                              <b style={{color:C.ink}}>{r.title}.</b> {r.steps}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
