@@ -985,7 +985,7 @@ export default function ChemBaseBUK() {
               <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",gap:4}}>
                 <div style={{display:"flex",alignItems:"flex-end",gap:8,flexDirection:m.role==="user"?"row-reverse":"row"}}>
                   {m.role==="assistant" && <div style={{width:28,height:28,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13}}>🤖</div>}
-                  <div style={{maxWidth:m.role==="user"?"85%":"96%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.card,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7,border:m.role==="assistant"?`1px solid ${C.border}`:"none",wordBreak:"break-word",overflowWrap:"break-word"}}>
+                  <div style={{maxWidth:m.role==="user"?"85%":"96%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.card,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7,border:m.role==="assistant"?`1px solid ${C.border}`:"none",overflowWrap:"break-word",minWidth:0}}>
                     {m.role==="assistant"?formatMsg(m.content):(m.display||m.content)}
                   </div>
                 </div>
