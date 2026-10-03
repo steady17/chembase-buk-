@@ -1085,6 +1085,98 @@ async function fileToBase64(file) {
   });
 }
 
+// ---- ChemBot attachments: images are shrunk, PDFs are read in the browser ----
+const CHAT_MAX_BYTES = 15*1024*1024;
+const CHAT_PDF_MAX_PAGES = 15;
+const CHAT_PDF_MAX_CHARS = 12000;
+
+function loadImageEl(url) {
+  return new Promise((resolve,reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("bad image"));
+    img.src = url;
+  });
+}
+
+// Scales anything drawable down to maxSide and returns a JPEG data URL.
+function shrinkToJpeg(source, w, h, maxSide, quality) {
+  const k = Math.min(1, maxSide/Math.max(w,h));
+  const cw = Math.max(1, Math.round(w*k)), ch = Math.max(1, Math.round(h*k));
+  const cv = document.createElement("canvas");
+  cv.width = cw; cv.height = ch;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0,0,cw,ch);
+  ctx.drawImage(source, 0, 0, cw, ch);
+  return cv.toDataURL("image/jpeg", quality);
+}
+
+async function prepareChatImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImageEl(url);
+    return shrinkToJpeg(img, img.naturalWidth, img.naturalHeight, 1600, 0.85);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function prepareChatPdf(file) {
+  const pdfjs = await import(/* @vite-ignore */ "/pdfjs/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.mjs";
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const total = doc.numPages;
+  const upTo = Math.min(total, CHAT_PDF_MAX_PAGES);
+  let text = "";
+  for (let i = 1; i <= upTo && text.length < CHAT_PDF_MAX_CHARS; i++) {
+    const page = await doc.getPage(i);
+    const tc = await page.getTextContent();
+    let pageText = "";
+    for (const it of tc.items) { pageText += it.str + (it.hasEOL ? "\n" : " "); }
+    text += `\n[Page ${i}]\n` + pageText.replace(/[ \t]+/g, " ").trim() + "\n";
+  }
+  text = text.trim();
+  const readable = text.replace(/\[Page \d+\]/g, "").replace(/\s/g, "").length;
+  let note = "";
+  if (text.length > CHAT_PDF_MAX_CHARS) { text = text.slice(0, CHAT_PDF_MAX_CHARS); note = "Only the first part of this PDF was read."; }
+  else if (total > upTo) note = `Only the first ${upTo} of ${total} pages were read.`;
+  const images = [];
+  if (readable < 40 * upTo) {
+    // Scanned PDF: no text layer, so show the first pages to the vision model.
+    text = "";
+    const n = Math.min(total, 3);
+    for (let i = 1; i <= n; i++) {
+      const page = await doc.getPage(i);
+      const vp0 = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: 1500 / Math.max(vp0.width, vp0.height) });
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0,0,cv.width,cv.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      images.push(cv.toDataURL("image/jpeg", 0.85));
+    }
+    note = total > n ? `This scanned PDF has ${total} pages, only the first ${n} were read.` : "";
+  }
+  return { text, images, note };
+}
+
+async function prepareChatFile(file) {
+  if (file.type.startsWith("image/")) {
+    return { name:file.name, images:[await prepareChatImage(file)], text:"", note:"" };
+  }
+  if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+    const r = await prepareChatPdf(file);
+    return { name:file.name, ...r };
+  }
+  throw new Error("Unsupported file type");
+}
+
+// Old messages keep their words only, so each request stays small.
+function chatMsgToText(m) {
+  if (typeof m.content === "string") return m.content;
+  const t = m.content.filter(p=>p.type==="text").map(p=>p.text).join("\n");
+  return t || m.display || "";
+}
+
 async function uploadToStorage(file) {
   const filename = `${Date.now()}-${file.name}`;
   const res = await fetch(`${SUPA_URL}/storage/v1/object/academic-files/${filename}`, {
@@ -1101,6 +1193,8 @@ async function uploadToStorage(file) {
 }
 
 async function askDeepSeek(history) {
+  let lastImgIdx = -1, lastDocIdx = -1;
+  history.forEach((m,i) => { if (Array.isArray(m.content) && m.content.some(p=>p.type==="image_url")) lastImgIdx = i; if (m.doc) lastDocIdx = i; });
   const messages = [
     { role:"system", content:`You are ChemBot, the AI study assistant built into ChemBase BUK — the academic platform of NSChE BUK (Nigerian Society of Chemical Engineers, Bayero University Kano Chapter). You help Chemical Engineering students at BUK with their coursework.
 
@@ -1113,10 +1207,14 @@ Rules:
 - If an image is uploaded, analyze it and answer based on what you see.
 - When you use a markdown table for step-by-step solutions, every cell must contain real content. Never put a placeholder like "-" or "—" in a "Formula"/"Typical Formulas" column — either write the actual formula used in that step there, or drop that column entirely and describe the formula in the step text instead. An empty-looking cell is worse than no table at all.
 - Use a light touch of emojis to make answers visually friendly and easy to scan — e.g. 📌 before a key point, ✅ for a final answer, ⚠️ for a common mistake/warning, 🔢 or 🧮 near calculations, 💡 for a tip or insight, 📐/⚗️ for section headers where fitting. Don't overdo it — one or two per section is enough, never per line, and never on pure math/formula lines.` },
-    ...history.map(m => ({
-      role: m.role === "assistant" ? "assistant" : "user",
-      content: typeof m.content === "string" ? m.content : (m.display || "")
-    }))
+    ...history.map((m, i) => {
+      const role = m.role === "assistant" ? "assistant" : "user";
+      // Only the newest message with pictures is sent as pictures.
+      if (Array.isArray(m.content) && i === lastImgIdx) return { role, content: m.content };
+      let text = Array.isArray(m.content) ? chatMsgToText(m) : m.content;
+      if (m.doc && i !== lastDocIdx && text.length > 2500) text = text.slice(0, 2500) + "\n[rest of the earlier attachment left out]";
+      return { role, content: text };
+    })
   ];
 
   try {
@@ -1485,6 +1583,7 @@ export default function ChemBaseBUK() {
   const [chatInput, setChatInput]     = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatFile, setChatFile]       = useState(null);
+  const [chatFileBusy, setChatFileBusy] = useState(false);
   const chatRef    = useRef(null);
   const chatFileRef = useRef(null);
 
@@ -1508,7 +1607,11 @@ export default function ChemBaseBUK() {
   }, [chatHistory, chatLoading]);
 
   useEffect(() => {
-    try { localStorage.setItem("chembot-sessions", JSON.stringify(chatSessions)); } catch {}
+    try {
+      // Pictures are never saved to the phone, only their words.
+      localStorage.setItem("chembot-sessions", JSON.stringify(chatSessions, (k,v) =>
+        (k==="content" && Array.isArray(v)) ? (v.filter(p=>p.type==="text").map(p=>p.text).join("\n") + " [picture not saved]").trim() : v));
+    } catch {}
   }, [chatSessions]);
 
   useEffect(() => {
@@ -1661,31 +1764,40 @@ export default function ChemBaseBUK() {
 
   // ChemBot
   const handleChatFileSelect = async e => {
-    const f = e.target.files[0]; if(!f) return;
-    if(f.size>5*1024*1024){alert("Max 5MB");return;}
-    try{ const b64=await fileToBase64(f); setChatFile({name:f.name,type:f.type,base64:b64}); }
-    catch{ alert("Couldn't read file"); }
-    e.target.value="";
+    const f = e.target.files[0]; e.target.value="";
+    if(!f) return;
+    if(f.size>CHAT_MAX_BYTES){alert("Max 15MB");return;}
+    setChatFileBusy(true);
+    try{
+      const r = await prepareChatFile(f);
+      if(!r.images.length && !r.text){ alert("No readable text was found in this file."); }
+      else setChatFile(r);
+    }
+    catch{ alert("Couldn't read this file. Please use a photo (JPG or PNG) or a PDF."); }
+    setChatFileBusy(false);
   };
   const handleChatSend = async () => {
-    if((!chatInput.trim()&&!chatFile)||chatLoading) return;
-    const userText = chatInput.trim()||(chatFile?`[Uploaded: ${chatFile.name}]`:"");
-    // Build content array for image support
-    let userContent;
-    if(chatFile && chatFile.base64) {
-      userContent = [
-        ...(chatInput.trim() ? [{type:"text",text:chatInput.trim()}] : []),
-        {type:"image_url", image_url:{url:`data:${chatFile.type};base64,${chatFile.base64}`}}
-      ];
+    if((!chatInput.trim()&&!chatFile)||chatLoading||chatFileBusy) return;
+    const typed = chatInput.trim();
+    const userText = typed||(chatFile?`[Uploaded: ${chatFile.name}]`:"");
+    let userContent, isDoc = false;
+    if(chatFile) {
+      const ask = typed || (chatFile.images.length ? "Read this carefully, then solve it or explain it step by step." : "Summarize this document and point out what matters most for my studies.");
+      let body = ask;
+      if(chatFile.text) { isDoc = true; body += `\n\n[Attached PDF: ${chatFile.name}]\n${chatFile.text}` + (chatFile.note?`\n(${chatFile.note})`:""); }
+      else if(chatFile.note) body += `\n(${chatFile.note})`;
+      userContent = chatFile.images.length
+        ? [{type:"text",text:body}, ...chatFile.images.map(u=>({type:"image_url",image_url:{url:u}}))]
+        : body;
     } else {
-      userContent = chatInput.trim() || userText;
+      userContent = userText;
     }
     // Pin one concrete session id for BOTH writes below (user message, then AI
     // reply) instead of letting each call re-derive it from activeSessionId —
     // see appendToSession's comment for why that caused lost messages.
     const sessionId = activeSessionId || Date.now().toString();
     if (!activeSessionId) setActiveSessionId(sessionId);
-    const newHistory = [...chatHistory,{role:"user",content:userContent,display:userText}];
+    const newHistory = [...chatHistory,{role:"user",content:userContent,display:userText,doc:isDoc}];
     appendToSession(sessionId, newHistory); setChatInput(""); setChatFile(null); setChatLoading(true);
     try{ const r=await askDeepSeek(newHistory); appendToSession(sessionId, p=>[...p,{role:"assistant",content:r}]); }
     catch(e){ appendToSession(sessionId, p=>[...p,{role:"assistant",content:`Error: ${e.message}`}]); }
@@ -2062,9 +2174,12 @@ export default function ChemBaseBUK() {
           </div>
           {/* Fixed input bar */}
           <div style={{padding:"8px 10px 8px 10px",borderTop:`1px solid ${C.border}`,background:C.bg,flexShrink:0,boxSizing:"border-box",width:"100%"}}>
+            {chatFileBusy && (
+              <div style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"6px 12px",marginBottom:8,fontSize:13,color:C.muted}}>Reading your file...</div>
+            )}
             {chatFile && (
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.greenLight,border:`1.5px solid ${C.green}`,borderRadius:10,padding:"6px 12px",marginBottom:8}}>
-                <span style={{fontSize:13,color:C.green}}>📎 {chatFile.name}</span>
+                <span style={{fontSize:13,color:C.green,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>📎 {chatFile.name}{chatFile.note?` (${chatFile.note})`:""}</span>
                 <button onClick={()=>setChatFile(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button>
               </div>
             )}
@@ -2075,7 +2190,7 @@ export default function ChemBaseBUK() {
                 onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
                 placeholder={chatFile?"Add message...":"Ask a ChE question..."}
                 style={{flex:1,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.card,color:C.ink,minWidth:0}}/>
-              <button onClick={handleChatSend} disabled={chatLoading||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"10px 14px",borderRadius:10,fontWeight:"var(--fw-heavy)",fontSize:13,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||(!chatInput.trim()&&!chatFile)?0.5:1,flexShrink:0}}>Send</button>
+              <button onClick={handleChatSend} disabled={chatLoading||chatFileBusy||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"10px 14px",borderRadius:10,fontWeight:"var(--fw-heavy)",fontSize:13,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||chatFileBusy||(!chatInput.trim()&&!chatFile)?0.5:1,flexShrink:0}}>Send</button>
             </div>
           </div>
         </div>

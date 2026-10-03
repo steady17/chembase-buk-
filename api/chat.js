@@ -2,7 +2,7 @@
 // configured, falls back to OpenRouter — first DeepSeek, then Llama — so
 // ChemBot keeps working even if Groq has a bad day.
 
-async function callGroq(messages, groqKey) {
+async function callGroq(messages, groqKey, model = 'openai/gpt-oss-120b', maxTokens = 1200) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -10,10 +10,10 @@ async function callGroq(messages, groqKey) {
       'Authorization': `Bearer ${groqKey}`
     },
     body: JSON.stringify({
-      model: 'openai/gpt-oss-120b',
+      model,
       messages,
       temperature: 0.3,
-      max_tokens: 1200
+      max_tokens: maxTokens
     })
   });
   const data = await res.json();
@@ -24,7 +24,7 @@ async function callGroq(messages, groqKey) {
   return content;
 }
 
-async function callOpenRouter(messages, orKey, model) {
+async function callOpenRouter(messages, orKey, model, maxTokens = 1200) {
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -37,7 +37,7 @@ async function callOpenRouter(messages, orKey, model) {
       model,
       messages,
       temperature: 0.3,
-      max_tokens: 1200
+      max_tokens: maxTokens
     })
   });
   const data = await res.json();
@@ -46,6 +46,11 @@ async function callOpenRouter(messages, orKey, model) {
   content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   if (!content) throw new Error(`OpenRouter (${model}) returned an empty response.`);
   return content;
+}
+
+function hasImages(messages) {
+  return Array.isArray(messages) && messages.some(m =>
+    Array.isArray(m.content) && m.content.some(p => p && p.type === 'image_url'));
 }
 
 export default async function handler(req, res) {
@@ -58,16 +63,31 @@ export default async function handler(req, res) {
 
   const groqKey = process.env.GROQ_API_KEY;
   const openRouterKey = process.env.OPENROUTER_API_KEY;
-  const { messages } = req.body;
+  const { messages } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'No messages were sent.' });
+  }
 
   const attempts = [];
 
-  if (groqKey) {
-    attempts.push({ label: 'Groq', run: () => callGroq(messages, groqKey) });
-  }
-  if (openRouterKey) {
-    attempts.push({ label: 'OpenRouter DeepSeek', run: () => callOpenRouter(messages, openRouterKey, 'deepseek/deepseek-chat:free') });
-    attempts.push({ label: 'OpenRouter Llama', run: () => callOpenRouter(messages, openRouterKey, 'meta-llama/llama-3.3-70b-instruct:free') });
+  if (hasImages(messages)) {
+    // Image questions need a vision model. The default text model cannot see pictures.
+    const visionModel = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
+    const orVision = process.env.OPENROUTER_VISION_MODEL || 'google/gemma-3-27b-it:free';
+    if (groqKey) {
+      attempts.push({ label: 'Groq vision', run: () => callGroq(messages, groqKey, visionModel, 2500) });
+    }
+    if (openRouterKey) {
+      attempts.push({ label: 'OpenRouter vision', run: () => callOpenRouter(messages, openRouterKey, orVision, 2500) });
+    }
+  } else {
+    if (groqKey) {
+      attempts.push({ label: 'Groq', run: () => callGroq(messages, groqKey) });
+    }
+    if (openRouterKey) {
+      attempts.push({ label: 'OpenRouter DeepSeek', run: () => callOpenRouter(messages, openRouterKey, 'deepseek/deepseek-chat:free') });
+      attempts.push({ label: 'OpenRouter Llama', run: () => callOpenRouter(messages, openRouterKey, 'meta-llama/llama-3.3-70b-instruct:free') });
+    }
   }
 
   if (attempts.length === 0) {
