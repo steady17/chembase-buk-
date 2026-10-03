@@ -426,13 +426,18 @@ function renderMath(text, display=false) {
 }
 
 function renderInline(text, k) {
-  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$]*?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\*\*[^*]+\*\*)/g);
+  // Groq sometimes emits literal HTML line breaks instead of a real newline — turn
+  // those into actual breaks before splitting, so "<br>" never shows up as raw text.
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$]*?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\*\*[^*]+\*\*|\*[^*\n]+\*|\n)/g);
   return parts.map((p,i) => {
+    if(p === "\n") return <br key={`${k}-${i}`}/>;
     if(p.startsWith('$$') && p.endsWith('$$')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",maxWidth:"100%",fontSize:"0.95em",overflowWrap:"break-word"}} className="katex-wrap">{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('$') && p.endsWith('$') && p.length>2) return <span key={`${k}-${i}`}>{renderMath(p.slice(1,-1), false)}</span>;
     if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",maxWidth:"100%",fontSize:"0.95em",overflowWrap:"break-word"}}>{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('\\(') && p.endsWith('\\)')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
     if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:800}}>{p.slice(2,-2)}</strong>;
+    if(p.startsWith('*') && p.endsWith('*') && p.length>2) return <em key={`${k}-${i}`}>{p.slice(1,-1)}</em>;
     return <span key={`${k}-${i}`}>{p}</span>;
   });
 }
