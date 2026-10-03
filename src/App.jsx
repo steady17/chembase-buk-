@@ -307,6 +307,82 @@ function ExcoPhoto({ src, name, size, ring, C, onClick }) {
   );
 }
 
+function PQViewer({ url, C }) {
+  const containerRef = useRef(null);
+  const [status, setStatus] = useState("loading"); // loading | error | ready
+
+  useEffect(() => {
+    let cancelled = false;
+
+    function waitForPdfJs(tries = 0) {
+      if (cancelled) return;
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+        renderPdf();
+      } else if (tries < 100) {
+        setTimeout(() => waitForPdfJs(tries + 1), 100);
+      } else {
+        setStatus("error");
+      }
+    }
+
+    async function renderPdf() {
+      try {
+        const container = containerRef.current;
+        if (!container) return;
+        container.innerHTML = "";
+
+        const pdf = await window.pdfjsLib.getDocument(url).promise;
+        if (cancelled) return;
+
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          if (cancelled) return;
+          const page = await pdf.getPage(pageNum);
+          const scale = Math.min(2, (container.clientWidth || 360) / page.getViewport({ scale: 1 }).width);
+          const viewport = page.getViewport({ scale });
+
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          canvas.style.width = "100%";
+          canvas.style.maxWidth = `${viewport.width}px`;
+          canvas.style.display = "block";
+          canvas.style.margin = "0 auto 10px";
+          canvas.style.borderRadius = "6px";
+          canvas.style.boxShadow = "0 2px 10px rgba(0,0,0,0.3)";
+          container.appendChild(canvas);
+
+          const ctx = canvas.getContext("2d");
+          await page.render({ canvasContext: ctx, viewport }).promise;
+        }
+        if (!cancelled) setStatus("ready");
+      } catch (e) {
+        if (!cancelled) setStatus("error");
+      }
+    }
+
+    setStatus("loading");
+    waitForPdfJs();
+    return () => { cancelled = true; };
+  }, [url]);
+
+  return (
+    <div style={{flex:1,overflow:"auto",background:"#1a1a1a",padding:"14px 10px"}}>
+      {status==="loading" && (
+        <div style={{color:"#fff",textAlign:"center",padding:"60px 20px",opacity:0.8}}>Loading PDF…</div>
+      )}
+      {status==="error" && (
+        <div style={{color:"#fff",textAlign:"center",padding:"60px 20px"}}>
+          <div style={{marginBottom:10}}>Couldn't load the PDF.</div>
+          <a href={url} download style={{color:C.greenLight||"#9fe0bb",fontWeight:700}}>Download it instead</a>
+        </div>
+      )}
+      <div ref={containerRef}/>
+    </div>
+  );
+}
+
 function renderMath(text, display=false) {
   try {
     if(window.katex) {
@@ -1109,11 +1185,7 @@ export default function ChemBaseBUK() {
               ✕
             </button>
           </div>
-          <iframe
-            src={`/api/pq?id=${viewingPQ.id}&name=${viewingPQ.code}-pq&mode=view`}
-            title={`${viewingPQ.code} Past Questions`}
-            style={{flex:1,border:"none",width:"100%"}}
-          />
+          <PQViewer url={`/api/pq?id=${viewingPQ.id}&name=${viewingPQ.code}-pq&mode=view`} C={C}/>
         </div>
       )}
 
