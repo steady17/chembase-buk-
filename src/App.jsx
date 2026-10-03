@@ -319,15 +319,21 @@ function PQViewer({ url, C }) {
     if (!container || !pdf) return;
     container.innerHTML = "";
 
+    // Render at extra pixel density so pinch-zooming in with the fingers still looks sharp,
+    // not blurry — the CSS size stays the same, only the underlying resolution is higher.
+    const pixelDensity = Math.min(window.devicePixelRatio || 1, 2.5);
+
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       const page = await pdf.getPage(pageNum);
       const fitScale = (container.clientWidth || 360) / page.getViewport({ scale: 1 }).width;
-      const viewport = page.getViewport({ scale: fitScale * zoomMultiplier });
+      const cssViewport = page.getViewport({ scale: fitScale * zoomMultiplier });
+      const renderViewport = page.getViewport({ scale: fitScale * zoomMultiplier * pixelDensity });
 
       const canvas = document.createElement("canvas");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      canvas.style.width = `${viewport.width}px`;
+      canvas.width = renderViewport.width;
+      canvas.height = renderViewport.height;
+      canvas.style.width = `${cssViewport.width}px`;
+      canvas.style.height = `${cssViewport.height}px`;
       canvas.style.display = "block";
       canvas.style.margin = "0 auto 10px";
       canvas.style.borderRadius = "6px";
@@ -335,7 +341,7 @@ function PQViewer({ url, C }) {
       container.appendChild(canvas);
 
       const ctx = canvas.getContext("2d");
-      await page.render({ canvasContext: ctx, viewport }).promise;
+      await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
     }
   }
 
@@ -372,6 +378,15 @@ function PQViewer({ url, C }) {
     waitForPdfJs();
     return () => { cancelled = true; };
   }, [url]);
+
+  // Allow pinch-to-zoom with the fingers while this viewer is open — the rest of the
+  // app keeps pinch-zoom disabled, this restores the normal viewport on close.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    const original = meta ? meta.getAttribute('content') : null;
+    if (meta) meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
+    return () => { if (meta && original) meta.setAttribute('content', original); };
+  }, []);
 
   function adjustZoom(delta) {
     const next = Math.max(0.5, Math.min(3, Math.round((zoom + delta) * 100) / 100));
