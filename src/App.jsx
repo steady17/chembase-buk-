@@ -3,7 +3,6 @@ import { useState, useRef, useEffect } from "react";
 const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
 
-const GROQ_KEY  = "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";
 const SUPA_URL    = "https://naygokwyeuxqgtubakyy.supabase.co";
 const SUPA_ANON   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5heWdva3d5ZXV4cWd0dWJha3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NjMyMTgsImV4cCI6MjEwMzQzOTIxOH0.LJlouGNXypTz5aTrsdbnrfDa7cjNG6hD1kbBkRDsWfA";
 
