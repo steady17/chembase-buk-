@@ -369,7 +369,7 @@ function ToolResult({ label, value, sub, children }) {
 // CALC-START
 // ── Scientific calculator engine (no eval — a small hand-written parser) ──
 const CALC_VARS0 = { A:0, B:0, C:0, X:0, Y:0, M:0 };
-const CALC_INIT = { expr:"", result:null, error:false, justEval:false, ans:0, deg:true, shift:false, hist:[], vars:CALC_VARS0, store:false, note:"", frac:false };
+const CALC_INIT = { expr:"", cur:0, histIdx:-1, result:null, error:false, justEval:false, ans:0, deg:true, shift:false, hist:[], vars:CALC_VARS0, store:false, note:"", frac:false };
 
 function calcErr(msg) { const e = new Error(msg); e.calc = true; return e; }
 
@@ -394,32 +394,36 @@ function calcTrig(kind, x, deg) {
   return Math.abs(v) < 1e-15 ? 0 : v;
 }
 
-// Tracks which brackets/templates are still open, innermost last. Used by the ▶ key and to
-// auto-close anything left open when "=" is pressed.
+// Tracks which brackets/templates are still open, innermost last. Used to auto-close
+// anything left open when "=" is pressed.
 function calcOpenStack(expr) {
   const st = [];
   for (const ch of expr) {
     const top = st[st.length - 1];
     if (ch === "⟨") st.push("frac1");
     else if (ch === "⟪") st.push("mix1");
+    else if (ch === "⟦") st.push("pow");
     else if (ch === "(") st.push("paren");
     else if (ch === "|") { if (top === "frac1") st[st.length - 1] = "frac2"; else if (top === "mix1") st[st.length - 1] = "mix2"; else if (top === "mix2") st[st.length - 1] = "mix3"; }
     else if (ch === ")") { if (top === "paren") st.pop(); }
     else if (ch === "⟩") { if (top === "frac2") st.pop(); }
     else if (ch === "⟫") { if (top === "mix3") st.pop(); }
+    else if (ch === "⟧") { if (top === "pow") st.pop(); }
   }
   return st;
 }
-const CALC_CLOSER = { paren: ")", frac2: "⟩", frac1: "|⟩", mix1: "||⟫", mix2: "|⟫", mix3: "⟫" };
+const CALC_CLOSER = { paren: ")", frac2: "⟩", frac1: "|⟩", mix1: "||⟫", mix2: "|⟫", mix3: "⟫", pow: "⟧" };
 
-// Fraction templates ⟨top|bottom⟩ and mixed numbers ⟪whole|top|bottom⟫ become ordinary brackets.
+// Templates become ordinary brackets: ⟨top|bottom⟩ is a fraction, ⟪whole|top|bottom⟫ a mixed
+// number, and ^⟦power⟧ a power.
 function calcExpandTemplates(input) {
   const stack = calcOpenStack(input);
   let s = input;
   for (let k = stack.length - 1; k >= 0; k--) s += CALC_CLOSER[stack[k]];
-  const NT = "[^⟨⟩⟪⟫|]*";
+  const NT = "[^⟨⟩⟪⟫⟦⟧|]*";
   const fracRe = new RegExp(`⟨(${NT})\\|(${NT})⟩`);
   const mixRe = new RegExp(`⟪(${NT})\\|(${NT})\\|(${NT})⟫`);
+  const powRe = new RegExp(`\\^⟦(${NT})⟧`);
   for (let guard = 0; guard < 500; guard++) {
     const before = s;
     s = s.replace(fracRe, (m, a, b) => `((${a})÷(${b}))`);
@@ -427,9 +431,10 @@ function calcExpandTemplates(input) {
       const neg = /^\s*[-−]/.test(w), w2 = w.replace(/^\s*[-−]/, "");
       return neg ? `(−((${w2})+(${n})÷(${d})))` : `((${w})+(${n})÷(${d}))`;
     });
+    s = s.replace(powRe, (m, a) => `^(${a})`);
     if (s === before) break;
   }
-  if (/[⟨⟩⟪⟫|]/.test(s)) throw calcErr("Syntax ERROR");
+  if (/[⟨⟩⟪⟫⟦⟧|]/.test(s)) throw calcErr("Syntax ERROR");
   return s;
 }
 
@@ -552,24 +557,112 @@ function formatCalc(v) {
   return String(Number(v.toPrecision(10)));
 }
 
-const CALC_TOKEN_END = /(\^\((?:2|3|-1)\)|sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|e\^\(|10\^\(|Ans|.)$/;
+const CALC_TOKEN_END = /(\^⟦(?:2|3|[-−]1)⟧|sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|Ans|[\s\S])$/;
+const CALC_TOKEN_START = /^(\^⟦|sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|Ans|[\s\S])/;
+const CALC_TOKEN_BACK = /(\^⟦|sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|Ans|[\s\S])$/;
+
+// Finds every fraction / mixed number / power template, with where its slots start and end.
+function calcFindTemplates(expr) {
+  const out = [], st = [];
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (ch === "⟨") st.push({ type:"frac", open:i, seps:[] });
+    else if (ch === "⟪") st.push({ type:"mix", open:i, seps:[] });
+    else if (ch === "⟦") st.push({ type:"pow", open:i, seps:[] });
+    else if (ch === "|") { if (st.length) st[st.length - 1].seps.push(i); }
+    else if (ch === "⟩" || ch === "⟫" || ch === "⟧") {
+      const want = ch === "⟩" ? "frac" : ch === "⟫" ? "mix" : "pow";
+      if (st.length && st[st.length - 1].type === want) { const t = st.pop(); t.close = i; out.push(t); }
+    }
+  }
+  while (st.length) { const t = st.pop(); t.close = expr.length; out.push(t); }
+  return out;
+}
+
+// Up / down arrows inside a template: top slot <-> bottom slot, or in and out of a power.
+// Returns the new cursor position, or null when the arrow should do something else.
+function calcVertical(expr, cur, dir) {
+  const tpls = calcFindTemplates(expr);
+  const inside = tpls.filter(t => t.open < cur && cur <= t.close).sort((a, b) => b.open - a.open);
+  for (const t of inside) {
+    if (t.type === "frac" && t.seps.length) {
+      if (dir === "down" && cur <= t.seps[0]) return t.close;
+      if (dir === "up" && cur > t.seps[0]) return t.seps[0];
+    } else if (t.type === "mix" && t.seps.length >= 2) {
+      if (dir === "down" && cur <= t.seps[1]) return t.close;
+      if (dir === "up" && cur > t.seps[1]) return t.seps[1];
+      if (dir === "up" && cur <= t.seps[0]) return t.seps[1];
+    } else if (t.type === "pow") {
+      if (dir === "down") return t.open - 1;
+    }
+  }
+  if (dir === "up" && expr.slice(cur, cur + 2) === "^⟦") {
+    const t = tpls.find(x => x.open === cur + 1);
+    if (t) return t.close;
+  }
+  return null;
+}
+
+// DEL: removes one thing, but never half of a template. An empty template goes in one go;
+// a filled one is stepped over instead, so fractions and powers can never be left broken.
+function calcDeleteAt(expr, cur) {
+  if (cur <= 0) return { expr, cur };
+  const prefix = expr.slice(0, cur), before = prefix[prefix.length - 1];
+  const unit = prefix.match(/\^⟦(?:2|3|[-−]1)⟧$/);
+  if (unit) return { expr: prefix.slice(0, cur - unit[0].length) + expr.slice(cur), cur: cur - unit[0].length };
+  if (before === "⟨" || before === "⟪" || before === "⟦") {
+    const t = calcFindTemplates(expr).find(x => x.open === cur - 1);
+    const body = t ? expr.slice(t.open + 1, t.close) : "";
+    const start = before === "⟦" ? cur - 2 : cur - 1;
+    if (t && body.replace(/\|/g, "") === "") {
+      const end = t.close < expr.length ? t.close + 1 : t.close;
+      return { expr: expr.slice(0, start) + expr.slice(end), cur: start };
+    }
+    return { expr, cur: start };
+  }
+  if (before === "|" || before === "⟩" || before === "⟫" || before === "⟧") return { expr, cur: cur - 1 };
+  const m = prefix.match(CALC_TOKEN_END);
+  return { expr: prefix.slice(0, cur - m[0].length) + expr.slice(cur), cur: cur - m[0].length };
+}
 
 function calcReduce(s, a) {
   const clear = { store: false, note: "", frac: false };
+  const edit = (cur, extra) => ({ ...s, ...clear, justEval: false, result: null, error: false, histIdx: -1, shift: false, cur, ...extra });
   switch (a.type) {
     case "shift": return { ...s, shift: !s.shift };
     case "mode":  return { ...s, ...clear, deg: !s.deg, shift: false };
-    case "ac":    return { ...s, ...clear, expr: "", result: null, error: false, justEval: false, shift: false };
+    case "ac":    return { ...s, ...clear, expr: "", cur: 0, histIdx: -1, result: null, error: false, justEval: false, shift: false };
     case "del": {
-      const base = s.justEval && s.error ? "" : s.expr;
-      return { ...s, ...clear, expr: base.replace(CALC_TOKEN_END, ""), result: null, error: false, justEval: false, shift: false };
+      const cur0 = s.justEval ? s.expr.length : s.cur;
+      const r = calcDeleteAt(s.expr, cur0);
+      return edit(r.cur, { expr: r.expr });
     }
-    case "next": {
-      if (s.justEval) return { ...s, shift: false };
-      const top = calcOpenStack(s.expr).pop();
-      const NEXT = { frac1: "|", frac2: "⟩", mix1: "|", mix2: "|", mix3: "⟫", paren: ")" };
-      if (!top) return { ...s, shift: false };
-      return { ...s, ...clear, expr: s.expr + NEXT[top], result: null, error: false, justEval: false, shift: false };
+    case "left": {
+      const cur0 = s.justEval ? s.expr.length : s.cur;
+      if (s.justEval) return edit(cur0);
+      if (cur0 <= 0) return { ...s, shift: false };
+      const m = s.expr.slice(0, cur0).match(CALC_TOKEN_BACK);
+      return edit(cur0 - m[0].length);
+    }
+    case "right": {
+      if (s.justEval) return edit(0);
+      if (s.cur >= s.expr.length) return { ...s, shift: false };
+      const m = s.expr.slice(s.cur).match(CALC_TOKEN_START);
+      return edit(s.cur + m[0].length);
+    }
+    case "up": case "down": {
+      if (!s.justEval) {
+        const v = calcVertical(s.expr, s.cur, a.type);
+        if (v !== null) return { ...s, cur: v, shift: false };
+      }
+      if (!s.hist.length) return { ...s, shift: false };
+      let idx;
+      if (a.type === "up") idx = Math.min(s.histIdx + 1, s.hist.length - 1);
+      else idx = s.histIdx - 1;
+      if (a.type === "down" && s.histIdx < 0) return { ...s, shift: false };
+      if (idx < 0) return { ...s, ...clear, expr: "", cur: 0, histIdx: -1, result: null, error: false, justEval: false, shift: false };
+      const e = s.hist[idx].expr;
+      return { ...s, ...clear, expr: e, cur: e.length, histIdx: idx, result: null, error: false, justEval: false, shift: false };
     }
     case "sto": return { ...s, store: !s.store, note: s.store ? "" : "Now tap A, B, C, X, Y or M", frac: false, shift: false };
     case "clearvars": return { ...s, ...clear, vars: { ...CALC_VARS0 }, note: "Memory cleared" };
@@ -601,51 +694,59 @@ function calcReduce(s, a) {
         return { ...s, ...clear, vars: { ...s.vars, [a.text]: v }, ans: v, result: formatCalc(v), error: false, justEval: true,
                  note: `${a.text} ← ${formatCalc(v)}`, shift: false };
       }
-      let expr = s.expr;
-      if (s.justEval) expr = (a.kind === "op" && !s.error) ? "Ans" : "";
-      if (a.text === "." && (expr.match(/[0-9.]*$/)[0]).includes(".")) return { ...s, shift: false };
-      return { ...s, ...clear, expr: expr + a.text, result: null, error: false, justEval: false, shift: false };
+      let expr = s.expr, cur = s.cur;
+      if (s.justEval) { expr = (a.kind === "op" && !s.error) ? "Ans" : ""; cur = expr.length; }
+      if (a.text === ".") {
+        const seg = expr.slice(0, cur).match(/[0-9.]*$/)[0] + expr.slice(cur).match(/^[0-9.]*/)[0];
+        if (seg.includes(".")) return { ...s, shift: false };
+      }
+      const at = a.at === undefined ? a.text.length : a.at;
+      return { ...s, ...clear, expr: expr.slice(0, cur) + a.text + expr.slice(cur), cur: cur + at,
+               result: null, error: false, justEval: false, histIdx: -1, shift: false };
     }
     case "eq": {
       if (!s.expr.trim()) return s;
       try {
         const v = calcEval(s.expr, s.deg, s.ans, s.vars);
         const text = formatCalc(v);
-        return { ...s, ...clear, result: text, error: false, ans: v, justEval: true, shift: false,
+        return { ...s, ...clear, result: text, error: false, ans: v, justEval: true, shift: false, histIdx: -1, cur: s.expr.length,
                  hist: [{ expr: s.expr, result: text }, ...s.hist].slice(0, 6) };
       } catch (e) {
-        return { ...s, ...clear, result: e.calc ? e.message : "Syntax ERROR", error: true, justEval: true, shift: false };
+        return { ...s, ...clear, result: e.calc ? e.message : "Syntax ERROR", error: true, justEval: true, shift: false, cur: s.expr.length };
       }
     }
     default: return s;
   }
 }
 
-const calcIns = (text, kind) => ({ type: "ins", text, kind });
+const calcIns = (text, kind, at) => ({ type: "ins", text, kind, at });
 const CALC_KEYS = [
   [ { label:"SHIFT", act:{type:"shift"}, style:"shift" },
     { label:"MODE",  act:{type:"mode"},  style:"mode" },
     { label:"Ans",   act:calcIns("Ans","num"), style:"fn" },
     { label:"DEL",   act:{type:"del"}, style:"del" },
     { label:"AC",    act:{type:"ac"},  style:"ac" } ],
+  [ { label:"Left",  icon:"left",  act:{type:"left"},  style:"pad" },
+    { label:"Up",    icon:"up",    act:{type:"up"},    style:"pad" },
+    { label:"Down",  icon:"down",  act:{type:"down"},  style:"pad" },
+    { label:"Right", icon:"right", act:{type:"right"}, style:"pad" },
+    { label:"S⇔D",   act:{type:"frac"}, style:"fn" },
+    { label:"%",     act:calcIns("%","op"), style:"fn" } ],
   [ { label:"sin", act:calcIns("sin(","num"), sl:"sin⁻¹", sa:calcIns("sin⁻¹(","num"), style:"fn" },
     { label:"cos", act:calcIns("cos(","num"), sl:"cos⁻¹", sa:calcIns("cos⁻¹(","num"), style:"fn" },
     { label:"tan", act:calcIns("tan(","num"), sl:"tan⁻¹", sa:calcIns("tan⁻¹(","num"), style:"fn" },
-    { label:"log", act:calcIns("log(","num"), sl:"10ˣ",   sa:calcIns("10^(","num"),   style:"fn" },
-    { label:"ln",  act:calcIns("ln(","num"),  sl:"eˣ",    sa:calcIns("e^(","num"),    style:"fn" } ],
-  [ { label:"□/□", act:calcIns("⟨","num"), sl:"□ □/□", sa:calcIns("⟪","num"), style:"fn" },
-    { label:"x□",  act:calcIns("^(","op"), style:"fn" },
-    { label:"x²",  act:calcIns("^(2)","op"), sl:"x³", sa:calcIns("^(3)","op"), style:"fn" },
+    { label:"log", act:calcIns("log(","num"), sl:"10ˣ",   sa:calcIns("10^⟦⟧","num",4),   style:"fn" },
+    { label:"ln",  act:calcIns("ln(","num"),  sl:"eˣ",    sa:calcIns("e^⟦⟧","num",3),    style:"fn" } ],
+  [ { label:"Fraction", icon:"frac", act:calcIns("⟨|⟩","num",1), sl:"a b/c", sicon:"mixed", sa:calcIns("⟪||⟫","num",1), style:"fn" },
+    { label:"Power", icon:"pow", act:calcIns("^⟦⟧","op",2), style:"fn" },
+    { label:"x²",  act:calcIns("^⟦2⟧","op"), sl:"x³", sa:calcIns("^⟦3⟧","op"), style:"fn" },
     { label:"√",   act:calcIns("√(","num"), sl:"∛", sa:calcIns("∛(","num"), style:"fn" },
-    { label:"x⁻¹", act:calcIns("^(-1)","op"), style:"fn" } ],
-  [ { label:"n!", act:calcIns("!","op"), style:"fn" },
-    { label:"%",  act:calcIns("%","op"),  style:"fn" },
-    { label:"(",  act:calcIns("(","num"), style:"fn" },
-    { label:")",  act:calcIns(")","num"), style:"fn" },
-    { label:"▶",  act:{type:"next"}, style:"next" } ],
-  [ { label:"π", act:calcIns("π","num"), style:"fn" },
+    { label:"x⁻¹", act:calcIns("^⟦−1⟧","op"), style:"fn" },
+    { label:"n!",  act:calcIns("!","op"), style:"fn" } ],
+  [ { label:"(", act:calcIns("(","num"), style:"fn" },
+    { label:")", act:calcIns(")","num"), style:"fn" },
+    { label:"π", act:calcIns("π","num"), style:"fn" },
     { label:"e", act:calcIns("e","num"), style:"fn" },
-    { label:"S⇔D", act:{type:"frac"}, style:"fn" },
     { label:"STO", act:{type:"sto"},  style:"sto" },
     { label:"M+",  act:{type:"mplus",sign:1}, sl:"M−", sa:{type:"mplus",sign:-1}, style:"fn" } ],
   [ { label:"A", act:calcIns("A","var"), style:"var" }, { label:"B", act:calcIns("B","var"), style:"var" },
@@ -659,7 +760,7 @@ const CALC_KEYS = [
     { label:"+", act:calcIns("+","op"), style:"op" }, { label:"−", act:calcIns("−","op"), style:"op" } ],
   [ { label:"1", act:calcIns("1","num"), style:"num" }, { label:"2", act:calcIns("2","num"), style:"num" },
     { label:"3", act:calcIns("3","num"), style:"num" },
-    { label:"EXP", act:calcIns("×10^","op"), style:"fn" }, { label:"(−)", act:calcIns("−","num"), style:"fn" } ],
+    { label:"EXP", act:calcIns("×10^⟦⟧","op",5), style:"fn" }, { label:"(−)", act:calcIns("−","num"), style:"fn" } ],
   [ { label:"0", act:calcIns("0","num"), style:"num" }, { label:".", act:calcIns(".","num"), style:"num" },
     { label:"=", act:{type:"eq"}, style:"eq", span:3 } ],
 ];
@@ -898,23 +999,27 @@ const MAT_OPS = [
 ];
 // CALC2-END
 
-// Shows the calculator's expression the way a textbook does: stacked fractions and raised powers.
-function CalcExprView({ expr }) {
+// Shows the calculator's expression the way a textbook does: stacked fractions, raised powers
+// and a blinking cursor at the position where the next key will land.
+function CalcExprView({ expr, cur }) {
   let key = 0;
+  const showCaret = cur !== undefined && cur !== null;
+  const here = a => showCaret && cur === a;
+  const caret = () => <span key={key++} className="calc-caret"/>;
   const slot = () => <span key={key++} className="calc-slot"/>;
-  const endOfTemplate = (s, i) => { let d = 0; for (let j = i; j < s.length; j++) { if (s[j] === "⟨" || s[j] === "⟪") d++; else if (s[j] === "⟩" || s[j] === "⟫") { d--; if (d === 0) return j; } } return -1; };
-  const endOfParen = (s, i) => { let d = 0; for (let j = i; j < s.length; j++) { if (s[j] === "(") d++; else if (s[j] === ")") { d--; if (d === 0) return j; } } return -1; };
-  const splitTop = inner => { const parts = []; let d = 0, st = 0; for (let j = 0; j < inner.length; j++) { const c = inner[j]; if (c === "⟨" || c === "⟪") d++; else if (c === "⟩" || c === "⟫") d--; else if (c === "|" && d === 0) { parts.push(inner.slice(st, j)); st = j + 1; } } parts.push(inner.slice(st)); return parts; };
-  const render = s => {
+  const endOfTemplate = (s, i) => { let d = 0; for (let j = i; j < s.length; j++) { const c = s[j]; if (c === "⟨" || c === "⟪" || c === "⟦") d++; else if (c === "⟩" || c === "⟫" || c === "⟧") { d--; if (d === 0) return j; } } return -1; };
+  const splitTop = (inner, base) => { const parts = []; let d = 0, st = 0; for (let j = 0; j < inner.length; j++) { const c = inner[j]; if (c === "⟨" || c === "⟪" || c === "⟦") d++; else if (c === "⟩" || c === "⟫" || c === "⟧") d--; else if (c === "|" && d === 0) { parts.push({ text: inner.slice(st, j), start: base + st }); st = j + 1; } } parts.push({ text: inner.slice(st), start: base + st }); return parts; };
+  const part = p => (!p ? slot() : (p.text === "" ? <span key={key++}>{here(p.start) && caret()}{slot()}</span> : <span key={key++}>{render(p.text, p.start)}</span>));
+  const render = (s, base) => {
     const out = []; let buf = ""; let i = 0;
     const flush = () => { if (buf) { out.push(buf); buf = ""; } };
-    const part = p => (p === undefined || p === "" ? slot() : render(p));
     while (i < s.length) {
-      const ch = s[i];
+      const abs = base + i, ch = s[i];
+      if (here(abs)) { flush(); out.push(caret()); }
       if (ch === "⟨" || ch === "⟪") {
         flush();
         let j = endOfTemplate(s, i); const closed = j !== -1; if (!closed) j = s.length;
-        const parts = splitTop(s.slice(i + 1, j)), mixed = ch === "⟪";
+        const parts = splitTop(s.slice(i + 1, j), abs + 1), mixed = ch === "⟪";
         out.push(
           <span key={key++} style={{display:"inline-flex",alignItems:"center"}}>
             {mixed && <span style={{marginRight:2}}>{part(parts[0])}</span>}
@@ -922,23 +1027,43 @@ function CalcExprView({ expr }) {
           </span>
         );
         i = closed ? j + 1 : j;
+      } else if (ch === "^" && s[i + 1] === "⟦") {
+        flush();
+        let j = endOfTemplate(s, i + 1); const closed = j !== -1; if (!closed) j = s.length;
+        out.push(<sup key={key++} className="calc-sup">{part({ text: s.slice(i + 2, j), start: abs + 2 })}</sup>);
+        i = closed ? j + 1 : j;
       } else if (ch === "^") {
-        if (s[i + 1] === "(") {
-          flush();
-          let j = endOfParen(s, i + 1); const closed = j !== -1; if (!closed) j = s.length;
-          out.push(<sup key={key++} className="calc-sup">{part(s.slice(i + 2, j))}</sup>);
-          i = closed ? j + 1 : j;
-        } else {
-          const m = s.slice(i + 1).match(/^[-−]?[0-9.]+/);
-          if (m) { flush(); out.push(<sup key={key++} className="calc-sup">{m[0]}</sup>); i += 1 + m[0].length; }
-          else { buf += "^"; i++; }
-        }
+        const m = s.slice(i + 1).match(/^[-−]?[0-9.]+/);
+        if (m) {
+          flush(); out.push(<sup key={key++} className="calc-sup">{m[0]}</sup>);
+          const end = i + 1 + m[0].length;
+          if (showCaret && cur > abs && cur <= base + end) out.push(caret());
+          i = end;
+        } else { buf += "^"; i++; }
       } else { buf += ch; i++; }
     }
     flush();
+    if (here(base + s.length)) out.push(caret());
     return out;
   };
-  return <>{render(expr)}</>;
+  if (expr === "") return <>{here(0) && caret()}</>;
+  return <>{render(expr, 0)}</>;
+}
+
+// Key icons: drawn as SVG so they stay sharp and match the theme colours.
+function CalcIcon({ name, size = 22 }) {
+  const p = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", strokeWidth:2.4, strokeLinecap:"round", strokeLinejoin:"round", "aria-hidden":true };
+  const box = { fill:"none", strokeWidth:1.7, strokeDasharray:"2.4 1.7" };
+  switch (name) {
+    case "left":  return <svg {...p}><path d="M15 5l-7 7 7 7"/></svg>;
+    case "right": return <svg {...p}><path d="M9 5l7 7-7 7"/></svg>;
+    case "up":    return <svg {...p}><path d="M5 15l7-7 7 7"/></svg>;
+    case "down":  return <svg {...p}><path d="M5 9l7 7 7-7"/></svg>;
+    case "frac":  return <svg {...p}><rect x="7.5" y="2.5" width="9" height="6.5" rx="1.6" {...box}/><path d="M4 12h16"/><rect x="7.5" y="15" width="9" height="6.5" rx="1.6" {...box}/></svg>;
+    case "mixed": return <svg {...p}><rect x="1.5" y="7.5" width="6.5" height="9" rx="1.6" {...box}/><rect x="12" y="2.5" width="8.5" height="6" rx="1.6" {...box}/><path d="M10 12h12"/><rect x="12" y="15.5" width="8.5" height="6" rx="1.6" {...box}/></svg>;
+    case "pow":   return <svg {...p}><text x="2.5" y="21" fontSize="19" fontWeight="700" fontStyle="italic" fontFamily="Georgia, 'Times New Roman', serif" fill="currentColor" stroke="none">x</text><rect x="14" y="2.5" width="8" height="8" rx="1.6" {...box}/></svg>;
+    default: return null;
+  }
 }
 
 // Small text input used in the equation and matrix grids. Module-level so it keeps focus while typing.
@@ -1297,8 +1422,11 @@ export default function ChemBaseBUK() {
       else if (k === "Enter" || k === "=") act = { type:"eq" };
       else if (k === "Backspace") act = { type:"del" };
       else if (k === "Escape") act = { type:"ac" };
-      else if (k === "ArrowRight") act = { type:"next" };
-      else if (k === "f") act = calcIns("⟨", "num");
+      else if (k === "ArrowRight") act = { type:"right" };
+      else if (k === "ArrowLeft") act = { type:"left" };
+      else if (k === "ArrowUp") act = { type:"up" };
+      else if (k === "ArrowDown") act = { type:"down" };
+      else if (k === "f") act = calcIns("⟨|⟩", "num", 1);
       else if (k === "e") act = calcIns("e", "num");
       else if (k === "p") act = calcIns("π", "num");
       else if (k.length === 1 && "ABCXYM".includes(k.toUpperCase())) act = calcIns(k.toUpperCase(), "var");
@@ -1748,7 +1876,7 @@ export default function ChemBaseBUK() {
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[
                   {icon:"📂",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
-                  {icon:"🤖",title:"ChemBot AI",desc:"Free AI study assistant",action:()=>setTab("ai"),color:"#1565c0"},
+                  {icon:"🤖",title:"ChemBot AI",desc:"AI study assistant",action:()=>setTab("ai"),color:"#1565c0"},
                   {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:"#b8860b"},
                   {icon:"🧰",title:"ChemE Toolbox",desc:"GPA, unit converter & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:"#6a1b9a"},
                 ].map((c,i)=>(
@@ -1863,7 +1991,7 @@ export default function ChemBaseBUK() {
           <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,background:C.bg,flexShrink:0,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div>
               <h2 style={{margin:"0 0 1px",fontWeight:"var(--fw-xheavy)",fontSize:18}}>🤖 ChemBot</h2>
-              <p style={{margin:0,color:C.muted,fontSize:12}}>Your free AI study assistant for Chemical Engineering.</p>
+              <p style={{margin:0,color:C.muted,fontSize:12}}>Your AI study assistant for Chemical Engineering.</p>
             </div>
             <div style={{display:"flex",gap:6,flexShrink:0}}>
               <button onClick={()=>setShowHistory(true)} style={{background:C.greenLight,border:`1px solid ${C.border}`,color:C.green,fontSize:11,cursor:"pointer",padding:"5px 8px",borderRadius:8,fontWeight:"var(--fw-heavy)",whiteSpace:"nowrap"}}>🕘 History</button>
@@ -1962,6 +2090,7 @@ export default function ChemBaseBUK() {
                 <div style={{fontSize:34,lineHeight:1}}>🧰</div>
                 <div style={{minWidth:0}}>
                   <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)"}}>ChemE Toolbox</div>
+                  <div style={{fontSize:12.5,opacity:0.88,marginTop:2}}>Quick tools for your coursework, labs and exams.</div>
                 </div>
               </div>
               {TOOLBOX_TOOLS.map(g=>(
@@ -1999,7 +2128,7 @@ export default function ChemBaseBUK() {
 
               {toolboxView==="calc" && (
                 <div style={{maxWidth:420,margin:"0 auto"}}>
-                  <style>{`.calc-key{transition:transform .06s,filter .06s;-webkit-tap-highlight-color:transparent}.calc-key:active{transform:scale(.94);filter:brightness(.92)}.calc-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 4px;line-height:1.2}.calc-frac>span{padding:0 4px;min-width:10px;text-align:center}.calc-frac>span:first-child{border-bottom:1.5px solid currentColor}.calc-slot{display:inline-block;width:0.65em;height:0.95em;border:1.5px dashed currentColor;opacity:.45;vertical-align:middle;border-radius:2px}.calc-sup{font-size:0.68em;vertical-align:0.6em;line-height:0}.calc-caret{display:inline-block;width:2px;height:1.05em;background:currentColor;vertical-align:text-bottom;margin-left:1px;animation:calcblink 1s steps(1) infinite}@keyframes calcblink{50%{opacity:0}}`}</style>
+                  <style>{`.calc-key{transition:transform .06s,filter .06s;-webkit-tap-highlight-color:transparent}.calc-key:active{transform:scale(.94);filter:brightness(.92)}.calc-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 4px;line-height:1.2}.calc-frac>span{padding:0 4px;min-width:10px;text-align:center}.calc-frac>span:first-child{border-bottom:1.5px solid currentColor}.calc-slot{display:inline-block;width:0.65em;height:0.95em;border:1.5px dashed currentColor;opacity:.45;vertical-align:middle;border-radius:2px}.calc-sup{font-size:0.68em;vertical-align:0.6em;line-height:0}.calc-caret{display:inline-block;width:2px;height:1.05em;margin-right:-1px;background:currentColor;vertical-align:text-bottom;margin-left:1px;animation:calcblink 1s steps(1) infinite}@keyframes calcblink{50%{opacity:0}}`}</style>
 
                   <div style={{display:"flex",gap:4,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:14,padding:4,marginBottom:14}}>
                     {[["calc","Calculate"],["eq","Equations"],["mat","Matrix"]].map(([id,label])=>(
@@ -2019,8 +2148,8 @@ export default function ChemBaseBUK() {
                           {calc.note && <span style={{marginLeft:"auto",fontSize:11,opacity:0.85}}>{calc.note}</span>}
                         </div>
                         <div style={{minHeight:40,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:17,lineHeight:1.35,wordBreak:"break-all",opacity:0.9}}>
-                          {calc.expr ? <CalcExprView expr={calc.expr}/> : <span style={{opacity:0.4}}>0</span>}
-                          {!calc.justEval && <span className="calc-caret"/>}
+                          {calc.expr || !calc.justEval ? <CalcExprView expr={calc.expr} cur={calc.justEval ? null : calc.cur}/> : null}
+                          {!calc.expr && <span style={{opacity:0.4}}>0</span>}
                         </div>
                         <div style={{minHeight:42,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:(calc.result||"").length>14?22:32,fontWeight:"var(--fw-xheavy)",lineHeight:1.2,wordBreak:"break-word",color:calc.error?"#c0392b":"inherit"}}>
                           {calc.result!==null ? calc.result : (calcPreview!==null ? <span style={{opacity:0.45}}>{calcPreview}</span> : "")}
@@ -2031,6 +2160,7 @@ export default function ChemBaseBUK() {
                           <div key={ri} style={{display:"grid",gridTemplateColumns:`repeat(${row.some(k=>k.span)?5:row.length},1fr)`,gap:8}}>
                             {row.map(k=>{
                               const useShift = calc.shift && k.sa;
+                              const iconName = useShift ? k.sicon : k.icon;
                               const label = k.style==="mode" ? (calc.deg?"DEG":"RAD") : (useShift ? k.sl : k.label);
                               const act = useShift ? k.sa : k.act;
                               const S = {
@@ -2041,15 +2171,15 @@ export default function ChemBaseBUK() {
                                 eq:   {background:C.green,color:"#fff",border:`1.5px solid ${C.green}`,fontSize:22},
                                 ac:   {background:"#c0392b",color:"#fff",border:"1.5px solid #c0392b",fontSize:14},
                                 del:  {background:"#e67e22",color:"#fff",border:"1.5px solid #e67e22",fontSize:14},
-                                next: {background:C.green,color:"#fff",border:`1.5px solid ${C.green}`,fontSize:15},
+                                pad:  {background:C.greenLight,color:C.green,border:`1.5px solid ${C.green}`,fontSize:15},
                                 shift:{background:calc.shift?"#f5a623":C.greenLight,color:calc.shift?"#fff":C.green,border:`1.5px solid ${calc.shift?"#f5a623":C.border}`,fontSize:12},
                                 sto:  {background:calc.store?"#f5a623":C.greenLight,color:calc.store?"#fff":C.green,border:`1.5px solid ${calc.store?"#f5a623":C.border}`,fontSize:12},
                                 var:  {background:calc.store?"#fff3e0":C.greenLight,color:calc.store?"#b36b00":C.green,border:`1.5px solid ${calc.store?"#f5a623":C.border}`,fontSize:15},
                               }[k.style];
                               return (
-                                <button key={k.label+(k.span||"")} className="calc-key" onClick={()=>calcDo(act)}
+                                <button key={k.label+(k.span||"")} className="calc-key" aria-label={k.icon ? k.label : undefined} onClick={()=>calcDo(act)}
                                   style={{...S,gridColumn:k.span?`span ${k.span}`:undefined,position:"relative",height:48,borderRadius:12,fontWeight:"var(--fw-xheavy)",cursor:"pointer",fontFamily:"inherit",padding:0,touchAction:"manipulation",userSelect:"none"}}>
-                                  {label}
+                                  {iconName ? <CalcIcon name={iconName} size={k.style==="pad"?24:26}/> : label}
                                   {k.sl && !calc.shift && <span style={{position:"absolute",top:2,right:5,fontSize:8.5,fontWeight:600,color:"#d98a00"}}>{k.sl}</span>}
                                 </button>
                               );
@@ -2082,7 +2212,7 @@ export default function ChemBaseBUK() {
                         </div>
                       )}
                       <div style={{marginTop:14,padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.7}}>
-                        <b>□/□</b> writes a fraction: type the top, press <b>▶</b>, type the bottom, press <b>▶</b> again to carry on. <b>SHIFT</b> then <b>□/□</b> gives a mixed number (whole, top, bottom). <b>x□</b> raises to any power: type the power (for example 12), then press <b>▶</b>. <b>▶</b> always steps out of the fraction, power or bracket you are in. <b>x²</b> and <b>x⁻¹</b> are quick powers. <b>SHIFT</b> unlocks the orange keys, <b>MODE</b> switches degrees and radians, <b>S⇔D</b> turns an answer into a fraction and back, <b>STO</b> then a letter saves the answer, and <b>M+</b> adds to M (<b>SHIFT</b> for M−). On a PC you can type on your keyboard, press <b>f</b> for a fraction and the right arrow for ▶.
+                        Use the <b>arrow keys</b> to move around what you typed: <b>left</b> and <b>right</b> move one step, <b>up</b> and <b>down</b> jump between the top and bottom of a fraction (or in and out of a power). With nothing to jump into, <b>up</b> and <b>down</b> bring back your earlier calculations. The fraction key gives you a top box and a bottom box: type the top, press <b>right</b>, type the bottom. <b>SHIFT</b> then the fraction key gives a mixed number. The power key lets you type any power, for example 12: press it, type 12, then press <b>right</b> to carry on. <b>x²</b> and <b>x⁻¹</b> are quick powers. <b>SHIFT</b> unlocks the orange keys, <b>MODE</b> switches degrees and radians, <b>S⇔D</b> turns an answer into a fraction and back, <b>STO</b> then a letter saves the answer, and <b>M+</b> adds to M (<b>SHIFT</b> for M−). On a PC you can type on your keyboard, press <b>f</b> for a fraction, and use the arrow keys.
                       </div>
                     </div>
                   )}
