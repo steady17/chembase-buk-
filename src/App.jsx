@@ -468,6 +468,12 @@ function renderTable(lines, startIdx) {
 }
 
 function formatMsg(text) {
+  // Groq often sends $$...$$ and \[...\] blocks spanning several lines. We split the
+  // whole message into lines below, so a block whose delimiters land on different lines
+  // would never be matched together — collapse each block onto one line first so it
+  // survives the split and still renders as math instead of raw backslash text.
+  text = text.replace(/\$\$([\s\S]*?)\$\$/g, (m,inner)=>`$$${inner.replace(/\s*\n\s*/g," ")}$$`);
+  text = text.replace(/\\\[([\s\S]*?)\\\]/g, (m,inner)=>`\\[${inner.replace(/\s*\n\s*/g," ")}\\]`);
   const lines = text.split("\n");
   const result = [];
   let i = 0;
@@ -984,8 +990,8 @@ export default function ChemBaseBUK() {
             )}
             {chatHistory.map((m,i)=>(
               <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",gap:4}}>
-                <div style={{display:"flex",alignItems:"flex-end",gap:8,flexDirection:m.role==="user"?"row-reverse":"row"}}>
-                  {m.role==="assistant" && <div style={{width:28,height:28,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13}}>🤖</div>}
+                <div style={{display:"flex",alignItems:"flex-start",gap:8,flexDirection:m.role==="user"?"row-reverse":"row"}}>
+                  {m.role==="assistant" && <div style={{width:28,height:28,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,marginTop:2}}>🤖</div>}
                   <div style={{maxWidth:m.role==="user"?"85%":"96%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.card,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7,border:m.role==="assistant"?`1px solid ${C.border}`:"none",overflowWrap:"break-word",minWidth:0}}>
                     {m.role==="assistant"?formatMsg(m.content):(m.display||m.content)}
                   </div>
