@@ -449,16 +449,20 @@ function renderTable(lines, startIdx) {
     rows.push(lines[i].split('|').filter(c=>c.trim()).map(c=>c.trim()));
     i++;
   }
+  // Rendered as stacked cards (label: value), never a wide table — this is what
+  // stops any left-right scrolling and gives math full width to lay out in.
   return { table: (
-    <div key={startIdx} style={{overflowX:"auto",marginTop:8,marginBottom:8,maxWidth:"100%"}}>
-      <table style={{borderCollapse:"collapse",width:"100%",fontSize:13}}>
-        <thead>
-          <tr>{headers.map((h,j)=><th key={j} style={{background:"#0e7a3c",color:"#fff",padding:"6px 10px",textAlign:"left",fontWeight:700,border:"1px solid #cce8d8"}}>{renderTableCell(h,j)}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row,j)=><tr key={j} style={{background:j%2===0?"rgba(14,122,60,0.05)":"transparent"}}>{row.map((cell,k)=><td key={k} style={{padding:"6px 10px",border:"1px solid #cce8d8",fontSize:13}}>{renderTableCell(cell,`${j}-${k}`)}</td>)}</tr>)}
-        </tbody>
-      </table>
+    <div key={startIdx} style={{marginTop:8,marginBottom:8,maxWidth:"100%",display:"flex",flexDirection:"column",gap:8}}>
+      {rows.map((row,j)=>(
+        <div key={j} style={{border:"1px solid #cce8d8",borderRadius:10,overflow:"hidden",background:j%2===0?"rgba(14,122,60,0.05)":"transparent"}}>
+          {row.map((cell,k)=>(
+            <div key={k} style={{padding:"8px 10px",borderBottom:k<row.length-1?"1px solid #cce8d8":"none"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#0e7a3c",marginBottom:2,textTransform:"uppercase",letterSpacing:0.3}}>{headers[k]}</div>
+              <div style={{fontSize:13.5,overflowWrap:"break-word",minWidth:0}}>{renderTableCell(cell,`${j}-${k}`)}</div>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   ), nextIdx: i };
 }
@@ -750,10 +754,7 @@ export default function ChemBaseBUK() {
     <>
     <style>{`
       .katex-display { overflow-x: hidden !important; overflow-y: hidden !important; max-width: 100%; margin: 0.4em 0 !important; }
-      .katex-display > .katex { white-space: normal !important; max-width: 100%; display: inline-block; }
-      .katex { max-width: 100%; font-size: 0.92em; }
-      .katex .base { flex-wrap: wrap !important; white-space: normal !important; }
-      .katex .mfrac, .katex .sqrt { max-width: 100%; }
+      .katex { font-size: 0.92em; max-width: 100%; }
     `}</style>
     <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:C.bg,color:C.ink,paddingBottom:tab==="ai"?0:80,overflow:tab==="ai"?"hidden":"auto",transition:"background 0.3s,color 0.3s"}}>
 
