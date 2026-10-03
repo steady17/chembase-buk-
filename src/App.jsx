@@ -2144,7 +2144,6 @@ export default function ChemBaseBUK() {
                   Your official NSChE BUK academic resource hub. Browse past questions, use ChemBot AI for instant solutions, ask for academic help, and use the ChemE Toolbox for your coursework.
                 </p>
               </div>
-              </div>
             </div>
           )}
         </div>
