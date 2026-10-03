@@ -1048,7 +1048,7 @@ export default function ChemBaseBUK() {
               </div>
             )}
             <div style={{display:"flex",gap:6,alignItems:"center",width:"100%",boxSizing:"border-box",overflow:"hidden"}}>
-              <input type="file" ref={chatFileRef} accept="image/*" onChange={handleChatFileSelect} style={{display:"none"}}/>
+              <input type="file" ref={chatFileRef} accept="image/*,application/pdf" onChange={handleChatFileSelect} style={{display:"none"}}/>
               <button onClick={()=>chatFileRef.current?.click()} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"10px 11px",fontSize:16,cursor:"pointer",color:C.green,flexShrink:0}}>📎</button>
               <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
