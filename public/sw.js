@@ -1,60 +1,30 @@
-// ChemBase BUK service worker.
+// Minimal service worker — no caching, network pass-through only.
 //
-// Goal: the app opens and the Toolbox works with no internet, WITHOUT ever
-// serving stale code after a deploy. So every request goes to the network
-// first; the saved copy is used only when the network fails or is very slow.
-// Only this site's own files and the KaTeX/PDF scripts from jsdelivr are
-// saved. The AI (/api), Supabase and everything else are never touched.
+// This file's only job is to EXIST and be registered, so the browser treats
+// ChemBase BUK as a fully installable PWA (a real WebAPK on Android) instead
+// of a plain bookmark shortcut. A plain shortcut is fragile: handing control
+// to a native system picker (the file chooser, for example) can make Android
+// discard its tab and reload from scratch on return, which is the "it kicks
+// me back to the start of the app" behaviour being fixed.
+//
+// It deliberately does NOT cache anything. We're actively shipping fixes to
+// this app multiple times a day — a caching service worker would risk
+// serving stale JS/CSS after every deploy, which is worse than the problem
+// we're solving here.
 
-const CACHE = 'chembase-v1';
-const SHELL = ['/', '/manifest.json', '/chembase-icon.png', '/nsche-logo.jpg'];
-const SLOW_MS = 6000;
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE)
-      .then((c) => Promise.all(SHELL.map((u) => c.add(u).catch(() => {}))))
-      .then(() => self.skipWaiting())
-  );
+self.addEventListener('install', () => {
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
+  // Clear anything an earlier version of this worker saved for offline use.
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
-function allowed(url) {
-  if (url.origin === self.location.origin) return !url.pathname.startsWith('/api/');
-  return url.hostname === 'cdn.jsdelivr.net';
-}
-
-async function networkFirst(req) {
-  const cache = await caches.open(CACHE);
-  const isPage = req.mode === 'navigate';
-  const cached = await cache.match(req, { ignoreSearch: false }) || (isPage ? await cache.match('/') : undefined);
-
-  const network = fetch(req).then((res) => {
-    if (res && (res.status === 200 || res.type === 'opaque')) cache.put(req, res.clone()).catch(() => {});
-    return res;
-  });
-
-  if (!cached) return network;
-  // Saved copy exists: use the network if it answers in time, otherwise the saved copy.
-  const slow = new Promise((resolve) => setTimeout(() => resolve(cached), SLOW_MS));
-  try {
-    return await Promise.race([network, slow]);
-  } catch (e) {
-    return cached;
-  }
-}
-
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-  const url = new URL(req.url);
-  if (!allowed(url)) return;
-  event.respondWith(networkFirst(req).catch(() => Response.error()));
+self.addEventListener('fetch', () => {
+  // No-op: let the browser handle every request exactly as it normally would.
 });

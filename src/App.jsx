@@ -1356,7 +1356,7 @@ Rules:
     if (!res.ok) return `Error ${res.status}: ${JSON.stringify(data.error || data)}`;
     return data.content || "No response received. Please try again.";
   } catch(e) {
-    return (typeof navigator !== "undefined" && navigator.onLine === false) ? "You are offline. ChemBot needs internet, but the Toolbox still works." : `Network Error: ${e.message}`;
+    return `Network Error: ${e.message}`;
   }
 }
 
@@ -2930,7 +2930,6 @@ export default function ChemBaseBUK() {
               );
             })}
           </div>
-          <p style={{textAlign:"center",color:C.muted,fontSize:12,margin:"26px 0 0"}}>Built by Sadik Kassim, Chemical Engineering, BUK</p>
         </div>
       )}
 
