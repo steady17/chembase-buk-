@@ -267,11 +267,11 @@ const SCIENCE_CONSTANTS = [
 
 // Antoine equation: log10(P) = A - B/(C + T) — P in mmHg, T in °C.
 const ANTOINE_SUBSTANCES = {
-  water:    { label:"Water",    A:8.07131, B:1730.63,  C:233.426 },
-  ethanol:  { label:"Ethanol",  A:8.20417, B:1642.89,  C:230.300 },
-  benzene:  { label:"Benzene",  A:6.90565, B:1211.033, C:220.790 },
-  methanol: { label:"Methanol", A:8.08097, B:1582.271, C:239.726 },
-  acetone:  { label:"Acetone",  A:7.11714, B:1210.595, C:229.664 },
+  water:    { label:"Water",    A:8.07131, B:1730.63,  C:233.426, range:[1,100] },
+  ethanol:  { label:"Ethanol",  A:8.20417, B:1642.89,  C:230.300, range:[-57,80] },
+  benzene:  { label:"Benzene",  A:6.90565, B:1211.033, C:220.790, range:[8,103] },
+  methanol: { label:"Methanol", A:8.08097, B:1582.271, C:239.726, range:[15,84] },
+  acetone:  { label:"Acetone",  A:7.11714, B:1210.595, C:229.664, range:[-13,55] },
 };
 
 const PERIODIC_TABLE = [
@@ -306,6 +306,60 @@ const PERIODIC_TABLE = [
   [113,"Nh","Nihonium",286],[114,"Fl","Flerovium",289],[115,"Mc","Moscovium",290],[116,"Lv","Livermorium",293],
   [117,"Ts","Tennessine",294],[118,"Og","Oganesson",294],
 ].map(([num,sym,name,mass])=>({num,sym,name,mass}));
+
+// The vertical tool list shown on the Toolbox landing screen.
+const TOOLBOX_TOOLS = [
+  { group:"Academics", items:[
+    { id:"gpa", icon:"🧮", title:"GPA Calculator", desc:"Work out your GPA on the BUK 5-point scale" },
+  ]},
+  { group:"Converters & reference", items:[
+    { id:"convert",   icon:"🔁", title:"Unit Converter", desc:"Length, mass, pressure, energy, flow rate and more" },
+    { id:"constants", icon:"📐", title:"Constants",      desc:"R, Avogadro's number, STP values, g, water properties" },
+    { id:"periodic",  icon:"⚛️", title:"Periodic Table", desc:"All 118 elements, searchable" },
+  ]},
+  { group:"Calculators", items:[
+    { id:"reynolds", icon:"🌊", title:"Reynolds Number", desc:"Re = ρvD/μ — laminar, transitional or turbulent" },
+    { id:"gas",      icon:"🎈", title:"Ideal Gas Law",   desc:"PV = nRT — solve for P, V, n or T" },
+    { id:"antoine",  icon:"🌡️", title:"Vapor Pressure",  desc:"Antoine equation for common solvents" },
+  ]},
+];
+
+// Friendly number formatting for tool results (keeps 7 significant figures,
+// thousands separators, and switches to scientific notation only at extremes).
+function formatNum(n) {
+  if (n === null || n === undefined || !Number.isFinite(n)) return "—";
+  if (n === 0) return "0";
+  const abs = Math.abs(n);
+  if (abs >= 1e9 || abs < 1e-4) return n.toExponential(4);
+  return Number(n.toPrecision(7)).toLocaleString(undefined, { maximumFractionDigits: 8 });
+}
+
+// Labelled numeric input used across the calculators. Lives at module level so it
+// keeps a stable identity between renders (defining it inside App would remount
+// the input on every keystroke and drop focus).
+function ToolField({ label, unit, value, onChange, C }) {
+  return (
+    <label style={{display:"block",minWidth:0}}>
+      <span style={{display:"block",fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,letterSpacing:0.2,marginBottom:5}}>
+        {label}{unit && <span style={{fontWeight:500}}> · {unit}</span>}
+      </span>
+      <input type="number" inputMode="decimal" value={value} placeholder="0" onChange={e=>onChange(e.target.value)}
+        style={{width:"100%",boxSizing:"border-box",padding:"11px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:15,outline:"none",background:C.bg,color:C.ink}}/>
+    </label>
+  );
+}
+
+// Green result panel shared by every tool.
+function ToolResult({ label, value, sub, children }) {
+  return (
+    <div style={{background:`linear-gradient(135deg,${LIGHT.greenDark},${LIGHT.green})`,borderRadius:16,padding:"20px 16px",textAlign:"center",color:"#fff"}}>
+      <div style={{fontSize:11,opacity:0.8,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{label}</div>
+      <div style={{fontSize:30,fontWeight:"var(--fw-xheavy)",lineHeight:1.15,wordBreak:"break-word"}}>{value}</div>
+      {sub && <div style={{fontSize:12.5,opacity:0.85,marginTop:6}}>{sub}</div>}
+      {children}
+    </div>
+  );
+}
 
 async function fileToBase64(file) {
   return new Promise((resolve,reject) => {
@@ -614,15 +668,15 @@ export default function ChemBaseBUK() {
   const [zoomedExco, setZoomedExco] = useState(null);
 
   // ChemE Toolbox (GPA lives here, plus unit converter / constants / calculators / periodic table)
-  const [toolboxView, setToolboxView] = useState("gpa");
+  const [toolboxView, setToolboxView] = useState(null); // null = the tool list
   const [gpaCourses, setGpaCourses] = useState([
     {id:1,name:"",units:"",grade:"A"},
     {id:2,name:"",units:"",grade:"A"},
     {id:3,name:"",units:"",grade:"A"},
   ]);
-  const [convCategory, setConvCategory] = useState("Pressure");
-  const [convFromUnit, setConvFromUnit] = useState("");
-  const [convToUnit, setConvToUnit]     = useState("");
+  const [convCategory, setConvCategory] = useState("Length");
+  const [convFromUnit, setConvFromUnit] = useState("m");
+  const [convToUnit, setConvToUnit]     = useState("ft");
   const [convValue, setConvValue]       = useState("");
   const [reynolds, setReynolds] = useState({density:"",velocity:"",diameter:"",viscosity:""});
   const [idealGas, setIdealGas] = useState({solveFor:"P",P:"",V:"",n:"",T:""});
@@ -759,12 +813,12 @@ export default function ChemBaseBUK() {
     const R = 0.08206;
     const {solveFor,P,V,n,T} = idealGas;
     const [p,v,mol,t] = [P,V,n,T].map(parseFloat);
-    try {
-      if (solveFor==="P" && !isNaN(v)&&!isNaN(mol)&&!isNaN(t)) return (mol*R*t)/v;
-      if (solveFor==="V" && !isNaN(p)&&!isNaN(mol)&&!isNaN(t)) return (mol*R*t)/p;
-      if (solveFor==="n" && !isNaN(p)&&!isNaN(v)&&!isNaN(t)) return (p*v)/(R*t);
-      if (solveFor==="T" && !isNaN(p)&&!isNaN(v)&&!isNaN(mol)) return (p*v)/(mol*R);
-    } catch { /* fall through */ }
+    let r = null;
+    if (solveFor==="P" && !isNaN(v)&&!isNaN(mol)&&!isNaN(t)&&v!==0) r = (mol*R*t)/v;
+    else if (solveFor==="V" && !isNaN(p)&&!isNaN(mol)&&!isNaN(t)&&p!==0) r = (mol*R*t)/p;
+    else if (solveFor==="n" && !isNaN(p)&&!isNaN(v)&&!isNaN(t)&&t!==0) r = (p*v)/(R*t);
+    else if (solveFor==="T" && !isNaN(p)&&!isNaN(v)&&!isNaN(mol)&&mol!==0) r = (p*v)/(mol*R);
+    if (r!==null && Number.isFinite(r)) return r;
     return null;
   })();
 
@@ -776,6 +830,25 @@ export default function ChemBaseBUK() {
     const logP = sub.A - sub.B/(sub.C + t);
     return Math.pow(10, logP);
   })();
+
+  const antoineOutOfRange = (() => {
+    const t = parseFloat(antoine.T);
+    const r = ANTOINE_SUBSTANCES[antoine.substance]?.range;
+    return !isNaN(t) && !!r && (t<r[0] || t>r[1]);
+  })();
+
+  const activeTool = TOOLBOX_TOOLS.flatMap(g=>g.items).find(t=>t.id===toolboxView) || null;
+  const openTool = id => {
+    setToolboxView(id);
+    try { window.scrollTo(0,0); } catch { /* ignore */ }
+  };
+  const selectConvCategory = cat => {
+    const units = Object.keys(UNIT_CATEGORIES[cat].units);
+    setConvCategory(cat);
+    setConvFromUnit(units[0]);
+    setConvToUnit(units[1] || units[0]);
+  };
+  const swapConvUnits = () => { setConvFromUnit(convToUnit); setConvToUnit(convFromUnit); };
 
   const periodicFiltered = PERIODIC_TABLE.filter(el => {
     const q = periodicSearch.trim().toLowerCase();
@@ -1002,7 +1075,7 @@ export default function ChemBaseBUK() {
                   {icon:"📂",title:"Past Questions",desc:"100L – 300L courses",action:()=>setTab("pq"),color:C.green},
                   {icon:"🤖",title:"ChemBot AI",desc:"Free AI study assistant",action:()=>setTab("ai"),color:"#1565c0"},
                   {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:"#b8860b"},
-                  {icon:"🧰",title:"ChemE Toolbox",desc:"GPA, unit converter & more",action:()=>setTab("toolbox"),color:"#6a1b9a"},
+                  {icon:"🧰",title:"ChemE Toolbox",desc:"GPA, unit converter & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:"#6a1b9a"},
                 ].map((c,i)=>(
                   <div key={i} onClick={c.action} style={{...card,padding:"16px 14px",cursor:"pointer"}}>
                     <div style={{fontSize:26,marginBottom:8}}>{c.icon}</div>
@@ -1205,202 +1278,216 @@ export default function ChemBaseBUK() {
         </div>
       )}
 
-      {/* GPA CALCULATOR */}
+      {/* CHEME TOOLBOX */}
       {tab==="toolbox" && (
         <div style={{maxWidth:700,margin:"0 auto",padding:"20px 16px"}}>
-          <h2 style={{margin:"0 0 4px",fontWeight:"var(--fw-xheavy)",fontSize:20}}>🧰 ChemE Toolbox</h2>
-          <p style={{margin:"0 0 16px",color:C.muted,fontSize:13}}>GPA, unit conversions, constants, and quick calculators.</p>
-
-          <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4,marginBottom:18}}>
-            {[
-              {id:"gpa",      label:"🧮 GPA"},
-              {id:"convert",  label:"🔁 Unit Converter"},
-              {id:"constants",label:"📐 Constants"},
-              {id:"calc",     label:"🧪 Calculators"},
-              {id:"periodic", label:"⚛️ Periodic Table"},
-            ].map(v=>(
-              <button key={v.id} onClick={()=>setToolboxView(v.id)}
-                style={{flexShrink:0,background:toolboxView===v.id?C.green:C.greenLight,color:toolboxView===v.id?"#fff":C.green,
-                  border:`1.5px solid ${toolboxView===v.id?C.green:C.border}`,borderRadius:20,padding:"8px 14px",
-                  fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",whiteSpace:"nowrap"}}>
-                {v.label}
-              </button>
-            ))}
-          </div>
-
-          {toolboxView==="gpa" && (
+          {toolboxView===null || !activeTool ? (
             <div>
-              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
-                {gpaCourses.map((c,idx)=>(
-                  <div key={c.id} style={{...card,padding:"12px",display:"flex",gap:8,alignItems:"center"}}>
-                    <input placeholder={`Course ${idx+1}`} value={c.name} onChange={e=>updateGpaCourse(c.id,"name",e.target.value)}
-                      style={{flex:2,minWidth:0,padding:"8px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink}}/>
-                    <input placeholder="Units" type="number" min="0" value={c.units} onChange={e=>updateGpaCourse(c.id,"units",e.target.value)}
-                      style={{width:56,padding:"8px 6px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink,textAlign:"center"}}/>
-                    <select value={c.grade} onChange={e=>updateGpaCourse(c.id,"grade",e.target.value)}
-                      style={{width:56,padding:"8px 4px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink}}>
-                      {Object.keys(GRADE_POINTS).map(g=><option key={g} value={g}>{g}</option>)}
-                    </select>
-                    <button onClick={()=>removeGpaCourse(c.id)} style={{background:"none",border:"none",color:"#c0392b",fontSize:18,cursor:"pointer",padding:"0 4px"}}>✕</button>
-                  </div>
-                ))}
-              </div>
-              <button onClick={addGpaCourse} style={{width:"100%",background:C.greenLight,border:`1.5px dashed ${C.green}`,color:C.green,padding:"10px",borderRadius:10,fontWeight:"var(--fw-heavy)",fontSize:13,cursor:"pointer",marginBottom:18}}>+ Add Course</button>
-              <div style={{background:`linear-gradient(135deg,${LIGHT.greenDark},${LIGHT.green})`,borderRadius:16,padding:"24px",textAlign:"center",color:"#fff"}}>
-                <div style={{fontSize:12,opacity:0.8,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Your GPA</div>
-                <div style={{fontSize:40,fontWeight:"var(--fw-xheavy)"}}>{gpaResult??"—"}</div>
-                <div style={{fontSize:12,opacity:0.75,marginTop:6}}>
-                  {gpaResult?(gpaResult>=4.5?"Excellent! Keep it up 🎉":gpaResult>=3.5?"Good standing 👍":"Push harder next semester 💪"):"Enter units and grades above"}
+              <div style={{background:`linear-gradient(135deg,${LIGHT.greenDark},${LIGHT.green})`,borderRadius:18,padding:"20px 18px",color:"#fff",marginBottom:22,display:"flex",alignItems:"center",gap:14}}>
+                <div style={{fontSize:34,lineHeight:1}}>🧰</div>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)"}}>ChemE Toolbox</div>
+                  <div style={{fontSize:12.5,opacity:0.85,marginTop:2}}>Everything a Chemical Engineering student needs, in one place.</div>
                 </div>
               </div>
-              <div style={{marginTop:16,padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted}}>
-                Grade points: A=5, B=4, C=3, D=2, E=1, F=0 — standard BUK 5-point scale.
-              </div>
-            </div>
-          )}
-
-          {toolboxView==="convert" && (
-            <div>
-              <div style={{display:"flex",gap:8,overflowX:"auto",marginBottom:14}}>
-                {Object.keys(UNIT_CATEGORIES).map(cat=>(
-                  <button key={cat} onClick={()=>{setConvCategory(cat);setConvFromUnit("");setConvToUnit("");}}
-                    style={{flexShrink:0,background:convCategory===cat?C.green:C.card,color:convCategory===cat?"#fff":C.ink,
-                      border:`1.5px solid ${convCategory===cat?C.green:C.border}`,borderRadius:20,padding:"7px 14px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",whiteSpace:"nowrap"}}>
-                    {cat}
-                  </button>
-                ))}
-              </div>
-              <div style={{...card,padding:16}}>
-                <input type="number" placeholder="Value" value={convValue} onChange={e=>setConvValue(e.target.value)}
-                  style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.bg,color:C.ink,marginBottom:12}}/>
-                <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
-                  <select value={convFromUnit} onChange={e=>setConvFromUnit(e.target.value)}
-                    style={{flex:1,minWidth:0,padding:"10px 8px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink}}>
-                    <option value="">From unit…</option>
-                    {Object.keys(UNIT_CATEGORIES[convCategory].units).map(u=><option key={u} value={u}>{u}</option>)}
-                  </select>
-                  <span style={{color:C.muted,fontSize:16}}>→</span>
-                  <select value={convToUnit} onChange={e=>setConvToUnit(e.target.value)}
-                    style={{flex:1,minWidth:0,padding:"10px 8px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink}}>
-                    <option value="">To unit…</option>
-                    {Object.keys(UNIT_CATEGORIES[convCategory].units).map(u=><option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-                <div style={{background:C.greenLight,borderRadius:10,padding:"14px",textAlign:"center"}}>
-                  <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Result</div>
-                  <div style={{fontSize:22,fontWeight:"var(--fw-xheavy)",color:C.green}}>
-                    {convResult!=null ? (Math.abs(convResult)>=1000||Math.abs(convResult)<0.001&&convResult!==0 ? convResult.toExponential(4) : convResult.toFixed(5).replace(/\.?0+$/,"")) : "—"}
-                    {convResult!=null && convToUnit ? ` ${convToUnit}` : ""}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {toolboxView==="constants" && (
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {SCIENCE_CONSTANTS.map((c,i)=>(
-                <div key={i} style={{...card,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-                  <div style={{minWidth:0}}>
-                    <div style={{fontWeight:"var(--fw-heavy)",fontSize:13.5}}>{c.name}</div>
-                    <div style={{fontSize:11,color:C.muted}}>Symbol: {c.symbol}</div>
-                  </div>
-                  <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontWeight:"var(--fw-xheavy)",fontSize:14,color:C.green}}>{c.value}</div>
-                    <div style={{fontSize:11,color:C.muted}}>{c.unit}</div>
+              {TOOLBOX_TOOLS.map(g=>(
+                <div key={g.group} style={{marginBottom:20}}>
+                  <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1,margin:"0 4px 10px"}}>{g.group}</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {g.items.map(t=>(
+                      <button key={t.id} onClick={()=>openTool(t.id)}
+                        style={{...card,width:"100%",display:"flex",alignItems:"center",gap:14,padding:"14px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",color:C.ink,boxSizing:"border-box"}}>
+                        <div style={{width:48,height:48,borderRadius:14,background:C.greenLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{t.icon}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:"var(--fw-xheavy)",fontSize:15}}>{t.title}</div>
+                          <div style={{fontSize:12.5,color:C.muted,marginTop:2,lineHeight:1.35}}>{t.desc}</div>
+                        </div>
+                        <div style={{color:C.green,fontSize:26,lineHeight:1,flexShrink:0}}>›</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
               ))}
             </div>
-          )}
-
-          {toolboxView==="calc" && (
-            <div style={{display:"flex",flexDirection:"column",gap:20}}>
-              <div style={{...card,padding:16}}>
-                <div style={{fontWeight:"var(--fw-xheavy)",fontSize:15,marginBottom:4}}>Reynolds Number</div>
-                <div style={{fontSize:12,color:C.muted,marginBottom:12}}>Re = ρvD/μ — flow regime in a pipe</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-                  <input type="number" placeholder="Density ρ (kg/m³)" value={reynolds.density} onChange={e=>setReynolds({...reynolds,density:e.target.value})}
-                    style={{padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:12.5,outline:"none",background:C.bg,color:C.ink}}/>
-                  <input type="number" placeholder="Velocity v (m/s)" value={reynolds.velocity} onChange={e=>setReynolds({...reynolds,velocity:e.target.value})}
-                    style={{padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:12.5,outline:"none",background:C.bg,color:C.ink}}/>
-                  <input type="number" placeholder="Diameter D (m)" value={reynolds.diameter} onChange={e=>setReynolds({...reynolds,diameter:e.target.value})}
-                    style={{padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:12.5,outline:"none",background:C.bg,color:C.ink}}/>
-                  <input type="number" placeholder="Viscosity μ (Pa·s)" value={reynolds.viscosity} onChange={e=>setReynolds({...reynolds,viscosity:e.target.value})}
-                    style={{padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:12.5,outline:"none",background:C.bg,color:C.ink}}/>
-                </div>
-                <div style={{background:C.greenLight,borderRadius:10,padding:"12px",textAlign:"center"}}>
-                  {reynoldsResult ? (
-                    <>
-                      <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)",color:C.green}}>Re = {reynoldsResult.re.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
-                      <div style={{fontSize:12,color:C.muted,marginTop:2}}>{reynoldsResult.regime} flow</div>
-                    </>
-                  ) : <div style={{fontSize:12,color:C.muted}}>Enter all four values</div>}
-                </div>
-              </div>
-
-              <div style={{...card,padding:16}}>
-                <div style={{fontWeight:"var(--fw-xheavy)",fontSize:15,marginBottom:4}}>Ideal Gas Law</div>
-                <div style={{fontSize:12,color:C.muted,marginBottom:12}}>PV = nRT — pick what to solve for, fill the rest</div>
-                <select value={idealGas.solveFor} onChange={e=>setIdealGas({...idealGas,solveFor:e.target.value})}
-                  style={{width:"100%",boxSizing:"border-box",padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink,marginBottom:10}}>
-                  <option value="P">Solve for Pressure (P, atm)</option>
-                  <option value="V">Solve for Volume (V, L)</option>
-                  <option value="n">Solve for Moles (n, mol)</option>
-                  <option value="T">Solve for Temperature (T, K)</option>
-                </select>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-                  {idealGas.solveFor!=="P" && <input type="number" placeholder="P (atm)" value={idealGas.P} onChange={e=>setIdealGas({...idealGas,P:e.target.value})}
-                    style={{padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:12.5,outline:"none",background:C.bg,color:C.ink}}/>}
-                  {idealGas.solveFor!=="V" && <input type="number" placeholder="V (L)" value={idealGas.V} onChange={e=>setIdealGas({...idealGas,V:e.target.value})}
-                    style={{padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:12.5,outline:"none",background:C.bg,color:C.ink}}/>}
-                  {idealGas.solveFor!=="n" && <input type="number" placeholder="n (mol)" value={idealGas.n} onChange={e=>setIdealGas({...idealGas,n:e.target.value})}
-                    style={{padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:12.5,outline:"none",background:C.bg,color:C.ink}}/>}
-                  {idealGas.solveFor!=="T" && <input type="number" placeholder="T (K)" value={idealGas.T} onChange={e=>setIdealGas({...idealGas,T:e.target.value})}
-                    style={{padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:12.5,outline:"none",background:C.bg,color:C.ink}}/>}
-                </div>
-                <div style={{background:C.greenLight,borderRadius:10,padding:"12px",textAlign:"center"}}>
-                  <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)",color:C.green}}>
-                    {idealGasResult!=null ? `${idealGas.solveFor} = ${idealGasResult.toFixed(4)}` : "—"}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{...card,padding:16}}>
-                <div style={{fontWeight:"var(--fw-xheavy)",fontSize:15,marginBottom:4}}>Vapor Pressure (Antoine Equation)</div>
-                <div style={{fontSize:12,color:C.muted,marginBottom:12}}>log₁₀(P) = A − B/(C + T) — P in mmHg, T in °C</div>
-                <div style={{display:"flex",gap:8,marginBottom:12}}>
-                  <select value={antoine.substance} onChange={e=>setAntoine({...antoine,substance:e.target.value})}
-                    style={{flex:1,minWidth:0,padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink}}>
-                    {Object.entries(ANTOINE_SUBSTANCES).map(([key,s])=><option key={key} value={key}>{s.label}</option>)}
-                  </select>
-                  <input type="number" placeholder="T (°C)" value={antoine.T} onChange={e=>setAntoine({...antoine,T:e.target.value})}
-                    style={{width:100,padding:"9px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink}}/>
-                </div>
-                <div style={{background:C.greenLight,borderRadius:10,padding:"12px",textAlign:"center"}}>
-                  <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)",color:C.green}}>
-                    {antoineResult!=null ? `${antoineResult.toFixed(2)} mmHg` : "—"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {toolboxView==="periodic" && (
+          ) : (
             <div>
-              <input placeholder="Search element name, symbol, or atomic number…" value={periodicSearch} onChange={e=>setPeriodicSearch(e.target.value)}
-                style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.card,color:C.ink,marginBottom:12}}/>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(72px,1fr))",gap:8}}>
-                {periodicFiltered.map(el=>(
-                  <div key={el.num} style={{...card,padding:"8px 6px",textAlign:"center"}}>
-                    <div style={{fontSize:10,color:C.muted}}>{el.num}</div>
-                    <div style={{fontSize:17,fontWeight:"var(--fw-xheavy)",color:C.green}}>{el.sym}</div>
-                    <div style={{fontSize:9.5,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{el.name}</div>
-                    <div style={{fontSize:9,color:C.muted}}>{el.mass}</div>
-                  </div>
-                ))}
+              <button onClick={()=>openTool(null)}
+                style={{background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"7px 14px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit",marginBottom:16}}>
+                ‹ All tools
+              </button>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+                <div style={{width:48,height:48,borderRadius:14,background:C.greenLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{activeTool.icon}</div>
+                <div style={{minWidth:0}}>
+                  <h2 style={{margin:0,fontWeight:"var(--fw-xheavy)",fontSize:20}}>{activeTool.title}</h2>
+                  <div style={{fontSize:12.5,color:C.muted,marginTop:2}}>{activeTool.desc}</div>
+                </div>
               </div>
-              {periodicFiltered.length===0 && <div style={{textAlign:"center",color:C.muted,padding:30,fontSize:13}}>No matching element</div>}
+
+              {toolboxView==="gpa" && (
+                <div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
+                    {gpaCourses.map((c,idx)=>(
+                      <div key={c.id} style={{...card,padding:"12px",display:"flex",gap:8,alignItems:"center"}}>
+                        <input placeholder={`Course ${idx+1}`} value={c.name} onChange={e=>updateGpaCourse(c.id,"name",e.target.value)}
+                          style={{flex:2,minWidth:0,padding:"8px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink}}/>
+                        <input placeholder="Units" type="number" min="0" value={c.units} onChange={e=>updateGpaCourse(c.id,"units",e.target.value)}
+                          style={{width:56,padding:"8px 6px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink,textAlign:"center"}}/>
+                        <select value={c.grade} onChange={e=>updateGpaCourse(c.id,"grade",e.target.value)}
+                          style={{width:56,padding:"8px 4px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.bg,color:C.ink}}>
+                          {Object.keys(GRADE_POINTS).map(g=><option key={g} value={g}>{g}</option>)}
+                        </select>
+                        <button onClick={()=>removeGpaCourse(c.id)} style={{background:"none",border:"none",color:"#c0392b",fontSize:18,cursor:"pointer",padding:"0 4px"}}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={addGpaCourse} style={{width:"100%",background:C.greenLight,border:`1.5px dashed ${C.green}`,color:C.green,padding:"10px",borderRadius:10,fontWeight:"var(--fw-heavy)",fontSize:13,cursor:"pointer",marginBottom:18}}>+ Add Course</button>
+                  <ToolResult label="Your GPA" value={gpaResult??"—"}
+                    sub={gpaResult?(gpaResult>=4.5?"Excellent! Keep it up 🎉":gpaResult>=3.5?"Good standing 👍":"Push harder next semester 💪"):"Enter units and grades above"}/>
+                  <div style={{marginTop:16,padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted}}>
+                    Grade points: A=5, B=4, C=3, D=2, E=1, F=0 — standard BUK 5-point scale.
+                  </div>
+                </div>
+              )}
+
+              {toolboxView==="convert" && (
+                <div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
+                    {Object.keys(UNIT_CATEGORIES).map(cat=>(
+                      <button key={cat} onClick={()=>selectConvCategory(cat)}
+                        style={{background:convCategory===cat?C.green:C.card,color:convCategory===cat?"#fff":C.ink,
+                          border:`1.5px solid ${convCategory===cat?C.green:C.border}`,borderRadius:20,padding:"7px 13px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{...card,padding:16,display:"flex",flexDirection:"column",gap:12}}>
+                    <ToolField label="Value" value={convValue} onChange={setConvValue} C={C}/>
+                    <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+                      <label style={{flex:1,minWidth:0}}>
+                        <span style={{display:"block",fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>From</span>
+                        <select value={convFromUnit} onChange={e=>setConvFromUnit(e.target.value)}
+                          style={{width:"100%",padding:"11px 8px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.bg,color:C.ink}}>
+                          {Object.keys(UNIT_CATEGORIES[convCategory].units).map(u=><option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </label>
+                      <button onClick={swapConvUnits} aria-label="Swap units"
+                        style={{background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,borderRadius:10,width:42,height:42,fontSize:18,cursor:"pointer",flexShrink:0,fontFamily:"inherit"}}>⇄</button>
+                      <label style={{flex:1,minWidth:0}}>
+                        <span style={{display:"block",fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:0.6,marginBottom:5}}>To</span>
+                        <select value={convToUnit} onChange={e=>setConvToUnit(e.target.value)}
+                          style={{width:"100%",padding:"11px 8px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.bg,color:C.ink}}>
+                          {Object.keys(UNIT_CATEGORIES[convCategory].units).map(u=><option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <ToolResult label="Result" value={convResult!=null ? `${formatNum(convResult)} ${convToUnit}` : "—"}
+                      sub={convResult!=null ? `${convValue} ${convFromUnit} = ${formatNum(convResult)} ${convToUnit}` : "Enter a value to convert"}/>
+                  </div>
+                </div>
+              )}
+
+              {toolboxView==="constants" && (
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {SCIENCE_CONSTANTS.map((c,i)=>(
+                    <div key={i} style={{...card,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontWeight:"var(--fw-heavy)",fontSize:13.5}}>{c.name}</div>
+                        <div style={{fontSize:11,color:C.muted}}>Symbol: {c.symbol}</div>
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontWeight:"var(--fw-xheavy)",fontSize:14,color:C.green}}>{c.value}</div>
+                        <div style={{fontSize:11,color:C.muted}}>{c.unit}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {toolboxView==="periodic" && (
+                <div>
+                  <input placeholder="Search element name, symbol, or atomic number…" value={periodicSearch} onChange={e=>setPeriodicSearch(e.target.value)}
+                    style={{width:"100%",boxSizing:"border-box",padding:"11px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.card,color:C.ink,marginBottom:12}}/>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(84px,1fr))",gap:8}}>
+                    {periodicFiltered.map(el=>(
+                      <div key={el.num} style={{...card,padding:"10px 6px",textAlign:"center"}}>
+                        <div style={{fontSize:10.5,color:C.muted}}>{el.num}</div>
+                        <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)",color:C.green}}>{el.sym}</div>
+                        <div style={{fontSize:10.5,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{el.name}</div>
+                        <div style={{fontSize:10,color:C.muted}}>{el.mass}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {periodicFiltered.length===0 && <div style={{textAlign:"center",color:C.muted,padding:30,fontSize:13}}>No matching element</div>}
+                </div>
+              )}
+
+              {toolboxView==="reynolds" && (
+                <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                  <div style={{...card,padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                    <ToolField label="Density ρ" unit="kg/m³" value={reynolds.density} onChange={v=>setReynolds({...reynolds,density:v})} C={C}/>
+                    <ToolField label="Velocity v" unit="m/s" value={reynolds.velocity} onChange={v=>setReynolds({...reynolds,velocity:v})} C={C}/>
+                    <ToolField label="Diameter D" unit="m" value={reynolds.diameter} onChange={v=>setReynolds({...reynolds,diameter:v})} C={C}/>
+                    <ToolField label="Viscosity μ" unit="Pa·s" value={reynolds.viscosity} onChange={v=>setReynolds({...reynolds,viscosity:v})} C={C}/>
+                  </div>
+                  <ToolResult label="Reynolds number" value={reynoldsResult ? `Re = ${formatNum(reynoldsResult.re)}` : "—"}
+                    sub={reynoldsResult ? `${reynoldsResult.regime} flow` : "Enter all four values (viscosity must be above 0)"}/>
+                  <div style={{padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.6}}>
+                    Re &lt; 2100 → laminar · 2100–4000 → transitional · Re &gt; 4000 → turbulent (flow in a circular pipe).
+                  </div>
+                </div>
+              )}
+
+              {toolboxView==="gas" && (
+                <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Solve for</div>
+                    <div style={{display:"flex",gap:8}}>
+                      {["P","V","n","T"].map(k=>(
+                        <button key={k} onClick={()=>setIdealGas({...idealGas,solveFor:k})}
+                          style={{flex:1,padding:"10px 0",borderRadius:10,fontSize:15,fontWeight:"var(--fw-xheavy)",cursor:"pointer",fontFamily:"inherit",
+                            background:idealGas.solveFor===k?C.green:C.card,color:idealGas.solveFor===k?"#fff":C.ink,border:`1.5px solid ${idealGas.solveFor===k?C.green:C.border}`}}>{k}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{...card,padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                    {idealGas.solveFor!=="P" && <ToolField label="Pressure P" unit="atm" value={idealGas.P} onChange={v=>setIdealGas({...idealGas,P:v})} C={C}/>}
+                    {idealGas.solveFor!=="V" && <ToolField label="Volume V" unit="L" value={idealGas.V} onChange={v=>setIdealGas({...idealGas,V:v})} C={C}/>}
+                    {idealGas.solveFor!=="n" && <ToolField label="Moles n" unit="mol" value={idealGas.n} onChange={v=>setIdealGas({...idealGas,n:v})} C={C}/>}
+                    {idealGas.solveFor!=="T" && <ToolField label="Temperature T" unit="K" value={idealGas.T} onChange={v=>setIdealGas({...idealGas,T:v})} C={C}/>}
+                  </div>
+                  <ToolResult label={{P:"Pressure",V:"Volume",n:"Moles",T:"Temperature"}[idealGas.solveFor]}
+                    value={idealGasResult!=null ? `${formatNum(idealGasResult)} ${{P:"atm",V:"L",n:"mol",T:"K"}[idealGas.solveFor]}` : "—"}
+                    sub={idealGasResult!=null ? "" : "Fill in the other three values"}/>
+                  <div style={{padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted}}>
+                    Uses R = 0.08206 L·atm/(mol·K). Temperature must be in kelvin (K = °C + 273.15).
+                  </div>
+                </div>
+              )}
+
+              {toolboxView==="antoine" && (
+                <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                    {Object.entries(ANTOINE_SUBSTANCES).map(([key,s])=>(
+                      <button key={key} onClick={()=>setAntoine({...antoine,substance:key})}
+                        style={{background:antoine.substance===key?C.green:C.card,color:antoine.substance===key?"#fff":C.ink,
+                          border:`1.5px solid ${antoine.substance===key?C.green:C.border}`,borderRadius:20,padding:"7px 14px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>{s.label}</button>
+                    ))}
+                  </div>
+                  <div style={{...card,padding:16}}>
+                    <ToolField label="Temperature T" unit="°C" value={antoine.T} onChange={v=>setAntoine({...antoine,T:v})} C={C}/>
+                  </div>
+                  <ToolResult label="Vapor pressure" value={antoineResult!=null ? `${formatNum(antoineResult)} mmHg` : "—"}
+                    sub={antoineResult!=null ? `${formatNum(antoineResult*0.133322)} kPa · ${formatNum(antoineResult/760)} atm` : "Enter a temperature"}/>
+                  {antoineOutOfRange && (
+                    <div style={{padding:"12px 16px",background:"#fff3e0",border:"1px solid #ffb74d",borderRadius:10,fontSize:12.5,color:"#8a5200"}}>
+                      ⚠️ {ANTOINE_SUBSTANCES[antoine.substance].label} constants are only valid from {ANTOINE_SUBSTANCES[antoine.substance].range[0]} to {ANTOINE_SUBSTANCES[antoine.substance].range[1]} °C. This result is an extrapolation.
+                    </div>
+                  )}
+                  <div style={{padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted}}>
+                    log₁₀(P) = A − B/(C + T), with P in mmHg and T in °C.
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1594,7 +1681,7 @@ export default function ChemBaseBUK() {
       {/* BOTTOM NAV */}
       <nav style={{position:"fixed",bottom:0,left:0,right:0,background:C.navBg,borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"space-around",padding:"8px 0 10px",boxShadow:"0 -2px 12px rgba(0,0,0,0.08)"}}>
         {navItems.map(n=>(
-          <button key={n.id} onClick={()=>setTab(n.id)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,color:tab===n.id?C.green:C.muted,fontWeight:tab===n.id?700:400,fontSize:9,padding:"4px 6px"}}>
+          <button key={n.id} onClick={()=>{ if(n.id==="toolbox" && tab==="toolbox") setToolboxView(null); setTab(n.id); }} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,color:tab===n.id?C.green:C.muted,fontWeight:tab===n.id?700:400,fontSize:9,padding:"4px 6px"}}>
             <span style={{fontSize:19}}>{n.icon}</span>
             {n.label}
           </button>
