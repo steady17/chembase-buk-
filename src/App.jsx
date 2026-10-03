@@ -2144,13 +2144,6 @@ export default function ChemBaseBUK() {
                   Your official NSChE BUK academic resource hub. Browse past questions, use ChemBot AI for instant solutions, ask for academic help, and use the ChemE Toolbox for your coursework.
                 </p>
               </div>
-              <div style={{marginTop:8,marginBottom:8,padding:"14px 16px",...card,display:"flex",alignItems:"center",gap:14}}>
-                <div style={{width:48,height:48,borderRadius:"50%",background:C.green,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"var(--fw-xheavy)",fontSize:17,flexShrink:0,letterSpacing:0.5}}>SK</div>
-                <div style={{minWidth:0}}>
-                  <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1}}>About the creator</div>
-                  <div style={{fontWeight:"var(--fw-xheavy)",fontSize:15,marginTop:2}}>Sadik Kassim</div>
-                  <div style={{fontSize:12.5,color:C.muted,lineHeight:1.5,marginTop:2}}>Level 300 Chemical Engineering student at Bayero University Kano and NSChE BUK Senator. I built ChemBase BUK to put everything a Chemical Engineering student needs in one place.</div>
-                </div>
               </div>
             </div>
           )}
