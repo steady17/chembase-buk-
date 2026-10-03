@@ -318,7 +318,7 @@ const TOOLBOX_TOOLS = [
     { id:"periodic",  icon:"⚛️", title:"Periodic Table", desc:"All 118 elements, searchable" },
   ]},
   { group:"Calculators", items:[
-    { id:"calc",     icon:"🔢", title:"Scientific Calculator", desc:"Casio-style: trig, logs, powers, factorial, Ans memory" },
+    { id:"calc",     icon:"🔢", title:"Scientific Calculator", desc:"Casio-style: trig, fractions, memory, equation solver, matrices" },
     { id:"reynolds", icon:"🌊", title:"Reynolds Number", desc:"Re = ρvD/μ — laminar, transitional or turbulent" },
     { id:"gas",      icon:"🎈", title:"Ideal Gas Law",   desc:"PV = nRT — solve for P, V, n or T" },
     { id:"antoine",  icon:"🌡️", title:"Vapor Pressure",  desc:"Antoine equation for common solvents" },
@@ -364,7 +364,8 @@ function ToolResult({ label, value, sub, children }) {
 
 // CALC-START
 // ── Scientific calculator engine (no eval — a small hand-written parser) ──
-const CALC_INIT = { expr:"", result:null, error:false, justEval:false, ans:0, deg:true, shift:false, hist:[] };
+const CALC_VARS0 = { A:0, B:0, C:0, X:0, Y:0, M:0 };
+const CALC_INIT = { expr:"", result:null, error:false, justEval:false, ans:0, deg:true, shift:false, hist:[], vars:CALC_VARS0, store:false, note:"", frac:false };
 
 function calcErr(msg) { const e = new Error(msg); e.calc = true; return e; }
 
@@ -389,12 +390,12 @@ function calcTrig(kind, x, deg) {
   return Math.abs(v) < 1e-15 ? 0 : v;
 }
 
-function calcEval(raw, deg, ans) {
+function calcEval(raw, deg, ans, vars = {}) {
   const s = raw
     .replace(/−/g, "-").replace(/×/g, "*").replace(/÷/g, "/").replace(/π/g, "pi")
     .replace(/√/g, "sqrt").replace(/∛/g, "cbrt").replace(/Ans/g, "ans")
     .replace(/sin⁻¹/g, "asin").replace(/cos⁻¹/g, "acos").replace(/tan⁻¹/g, "atan");
-  const re = /\s*(\d+\.?\d*|\.\d+|asin|acos|atan|sin|cos|tan|log|ln|sqrt|cbrt|pi|ans|e|[-+*\/^()!%])/y;
+  const re = /\s*(\d+\.?\d*|\.\d+|asin|acos|atan|sin|cos|tan|log|ln|sqrt|cbrt|pi|ans|e|[ABCXYM]|[-+*\/^()!%])/y;
   const t = [];
   let pos = 0;
   while (pos < s.length) {
@@ -410,7 +411,7 @@ function calcEval(raw, deg, ans) {
   let i = 0;
   const peek = () => t[i];
   const isNumTok = x => x !== undefined && /^[\d.]/.test(x);
-  const startsOperand = x => x !== undefined && (isNumTok(x) || x === "(" || x === "pi" || x === "e" || x === "ans" || FUNCS.includes(x));
+  const startsOperand = x => x !== undefined && (isNumTok(x) || x === "(" || x === "pi" || x === "e" || x === "ans" || /^[ABCXYM]$/.test(x) || FUNCS.includes(x));
 
   const applyFn = (f, x) => {
     switch (f) {
@@ -483,6 +484,7 @@ function calcEval(raw, deg, ans) {
     if (tok === "pi") return Math.PI;
     if (tok === "e") return Math.E;
     if (tok === "ans") return ans;
+    if (/^[ABCXYM]$/.test(tok)) return vars[tok] || 0;
     if (FUNCS.includes(tok)) {
       if (t[i++] !== "(") throw calcErr("Syntax ERROR");
       const arg = parseExpr(); closeParen();
@@ -510,29 +512,59 @@ function formatCalc(v) {
 const CALC_TOKEN_END = /(sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|e\^\(|10\^\(|Ans|.)$/;
 
 function calcReduce(s, a) {
+  const clear = { store: false, note: "", frac: false };
   switch (a.type) {
     case "shift": return { ...s, shift: !s.shift };
-    case "mode":  return { ...s, deg: !s.deg, shift: false };
-    case "ac":    return { ...s, expr: "", result: null, error: false, justEval: false, shift: false };
+    case "mode":  return { ...s, ...clear, deg: !s.deg, shift: false };
+    case "ac":    return { ...s, ...clear, expr: "", result: null, error: false, justEval: false, shift: false };
     case "del": {
       const base = s.justEval && s.error ? "" : s.expr;
-      return { ...s, expr: base.replace(CALC_TOKEN_END, ""), result: null, error: false, justEval: false, shift: false };
+      return { ...s, ...clear, expr: base.replace(CALC_TOKEN_END, ""), result: null, error: false, justEval: false, shift: false };
+    }
+    case "sto": return { ...s, store: !s.store, note: s.store ? "" : "Now tap A, B, C, X, Y or M", frac: false, shift: false };
+    case "clearvars": return { ...s, ...clear, vars: { ...CALC_VARS0 }, note: "Memory cleared" };
+    case "mplus": {
+      let v = s.ans;
+      if (!s.justEval && s.expr.trim()) {
+        try { v = calcEval(s.expr, s.deg, s.ans, s.vars); }
+        catch (e) { return { ...s, ...clear, result: e.calc ? e.message : "Syntax ERROR", error: true, justEval: true, shift: false }; }
+      }
+      const M = Number((s.vars.M + a.sign * v).toPrecision(12));
+      return { ...s, store: false, frac: false, shift: false, vars: { ...s.vars, M }, note: `M = ${formatCalc(M)}` };
+    }
+    case "frac": {
+      let st = s;
+      if (!st.justEval) { if (!st.expr.trim()) return s; st = calcReduce(st, { type: "eq" }); }
+      if (st.error) return st;
+      if (st.frac) return { ...st, result: formatCalc(st.ans), frac: false, note: "", shift: false };
+      const f = calcFractionStr(st.ans, true);
+      if (f === null) return { ...st, note: "No simple fraction for this value", shift: false };
+      return { ...st, result: f, frac: true, note: "", shift: false };
     }
     case "ins": {
+      if (a.kind === "var" && s.store) {
+        let v = s.ans;
+        if (!s.justEval && s.expr.trim()) {
+          try { v = calcEval(s.expr, s.deg, s.ans, s.vars); }
+          catch (e) { return { ...s, ...clear, result: e.calc ? e.message : "Syntax ERROR", error: true, justEval: true, shift: false }; }
+        }
+        return { ...s, ...clear, vars: { ...s.vars, [a.text]: v }, ans: v, result: formatCalc(v), error: false, justEval: true,
+                 note: `${a.text} ← ${formatCalc(v)}`, shift: false };
+      }
       let expr = s.expr;
       if (s.justEval) expr = (a.kind === "op" && !s.error) ? "Ans" : "";
       if (a.text === "." && (expr.match(/[0-9.]*$/)[0]).includes(".")) return { ...s, shift: false };
-      return { ...s, expr: expr + a.text, result: null, error: false, justEval: false, shift: false };
+      return { ...s, ...clear, expr: expr + a.text, result: null, error: false, justEval: false, shift: false };
     }
     case "eq": {
       if (!s.expr.trim()) return s;
       try {
-        const v = calcEval(s.expr, s.deg, s.ans);
+        const v = calcEval(s.expr, s.deg, s.ans, s.vars);
         const text = formatCalc(v);
-        return { ...s, result: text, error: false, ans: v, justEval: true, shift: false,
+        return { ...s, ...clear, result: text, error: false, ans: v, justEval: true, shift: false,
                  hist: [{ expr: s.expr, result: text }, ...s.hist].slice(0, 6) };
       } catch (e) {
-        return { ...s, result: e.calc ? e.message : "Syntax ERROR", error: true, justEval: true, shift: false };
+        return { ...s, ...clear, result: e.calc ? e.message : "Syntax ERROR", error: true, justEval: true, shift: false };
       }
     }
     default: return s;
@@ -561,6 +593,14 @@ const CALC_KEYS = [
     { label:"π", act:calcIns("π","num"), style:"fn" },
     { label:"e", act:calcIns("e","num"), style:"fn" },
     { label:"%", act:calcIns("%","op"),  style:"fn" } ],
+  [ { label:"S⇔D", act:{type:"frac"}, style:"fn" },
+    { label:"STO",  act:{type:"sto"},  style:"sto" },
+    { label:"M+",   act:{type:"mplus",sign:1},  style:"fn" },
+    { label:"M−",   act:{type:"mplus",sign:-1}, style:"fn" },
+    { label:"M",    act:calcIns("M","var"), style:"var" } ],
+  [ { label:"A", act:calcIns("A","var"), style:"var" }, { label:"B", act:calcIns("B","var"), style:"var" },
+    { label:"C", act:calcIns("C","var"), style:"var" }, { label:"X", act:calcIns("X","var"), style:"var" },
+    { label:"Y", act:calcIns("Y","var"), style:"var" } ],
   [ { label:"7", act:calcIns("7","num"), style:"num" }, { label:"8", act:calcIns("8","num"), style:"num" },
     { label:"9", act:calcIns("9","num"), style:"num" },
     { label:"×", act:calcIns("×","op"), style:"op" }, { label:"÷", act:calcIns("÷","op"), style:"op" } ],
@@ -574,6 +614,249 @@ const CALC_KEYS = [
     { label:"=", act:{type:"eq"}, style:"eq", span:3 } ],
 ];
 // CALC-END
+
+// CALC2-START
+// ── Fractions, equation solver and matrix maths for the scientific calculator ──
+const calcRound = v => { const r = Number(v.toPrecision(12)); return r === 0 ? 0 : r; };
+
+// Turn a decimal into the simplest fraction (denominator up to 10,000). Returns null when
+// there isn't a convincing one (e.g. π, √2), so we never show a misleading fraction.
+function calcFractionOf(v, maxDen = 10000) {
+  if (!Number.isFinite(v)) return null;
+  if (Number.isInteger(v)) return { n: v, d: 1 };
+  const sign = v < 0 ? -1 : 1, x = Math.abs(v);
+  let h0 = 0, h1 = 1, k0 = 1, k1 = 0, b = x;
+  for (let it = 0; it < 40; it++) {
+    const a = Math.floor(b);
+    const h2 = a * h1 + h0, k2 = a * k1 + k0;
+    if (k2 > maxDen) break;
+    h0 = h1; h1 = h2; k0 = k1; k1 = k2;
+    if (Math.abs(x - h1 / k1) <= 2e-11 * Math.max(1, x)) return { n: sign * h1, d: k1 };
+    const fr = b - a;
+    if (fr < 1e-12) break;
+    b = 1 / fr;
+  }
+  return null;
+}
+
+function calcFractionStr(v, withMixed) {
+  const f = calcFractionOf(v);
+  if (!f) return null;
+  const a = Math.abs(f.n), neg = f.n < 0 ? "−" : "";
+  if (f.d === 1) return `${neg}${a}`;
+  let s = `${neg}${a}/${f.d}`;
+  if (withMixed && a > f.d) s += ` = ${neg}${Math.floor(a / f.d)} ${a % f.d}/${f.d}`;
+  return s;
+}
+
+function calcFmtComplex(z, fmtRaw) {
+  const fmt = x => fmtRaw(x).replace(/^-/, "−");
+  const re = z.re, im = z.im;
+  if (im === 0) return fmt(re);
+  const imAbs = Math.abs(im);
+  const imStr = (imAbs === 1 ? "" : fmt(imAbs)) + "i";
+  if (re === 0) return (im < 0 ? "−" : "") + imStr;
+  return `${fmt(re)} ${im < 0 ? "−" : "+"} ${imStr}`;
+}
+
+function calcQuadratic(a, b, c) {
+  if (a === 0) throw new Error("a must not be 0 (otherwise it isn't a quadratic).");
+  const D = b * b - 4 * a * c;
+  const scale = Math.max(b * b, Math.abs(4 * a * c));
+  if (Math.abs(D) <= 1e-12 * scale) {
+    const r = calcRound(-b / (2 * a));
+    return { type: "double", disc: 0, roots: [{ re: r, im: 0 }, { re: r, im: 0 }] };
+  }
+  if (D > 0) {
+    const sq = Math.sqrt(D);
+    const q = -0.5 * (b + (b >= 0 ? sq : -sq));
+    let x1 = q / a, x2 = c / q;
+    if (x1 > x2) [x1, x2] = [x2, x1];
+    return { type: "real", disc: D, roots: [{ re: calcRound(x1), im: 0 }, { re: calcRound(x2), im: 0 }] };
+  }
+  const re = calcRound(-b / (2 * a)), im = calcRound(Math.sqrt(-D) / (2 * Math.abs(a)));
+  return { type: "complex", disc: D, roots: [{ re, im }, { re, im: -im }] };
+}
+
+function calcCubic(a, b, c, d) {
+  if (a === 0) throw new Error("a must not be 0 (otherwise it isn't a cubic).");
+  const B = b / a, C = c / a, Dd = d / a;
+  const p = C - B * B / 3, q = 2 * B * B * B / 27 - B * C / 3 + Dd;
+  const disc = (q / 2) ** 2 + (p / 3) ** 3;
+  let t;
+  if (disc > 0) {
+    const sq = Math.sqrt(disc);
+    t = Math.cbrt(-q / 2 + sq) + Math.cbrt(-q / 2 - sq);
+  } else if (Math.abs(p) < 1e-300) {
+    t = 0;
+  } else {
+    const arg = Math.max(-1, Math.min(1, (3 * q / (2 * p)) * Math.sqrt(-3 / p)));
+    t = 2 * Math.sqrt(-p / 3) * Math.cos(Math.acos(arg) / 3);
+  }
+  let x0 = t - B / 3;
+  for (let i = 0; i < 4; i++) { // Newton polish (only accepted when it is a small, safe step)
+    const f = ((x0 + B) * x0 + C) * x0 + Dd, fp = (3 * x0 + 2 * B) * x0 + C;
+    if (fp !== 0 && Number.isFinite(f / fp) && Math.abs(f / fp) < 1e-6 * (1 + Math.abs(x0))) x0 -= f / fp;
+  }
+  const B2 = B + x0, C2 = C + B2 * x0; // deflate: x³+Bx²+Cx+D = (x−x0)(x²+B2·x+C2)
+  const quad = calcQuadratic(1, B2, C2);
+  const real = [{ re: calcRound(x0), im: 0 }, ...quad.roots.filter(r => r.im === 0)].sort((u, v) => u.re - v.re);
+  const cplx = quad.roots.filter(r => r.im !== 0);
+  return { roots: [...real, ...cplx], nReal: real.length };
+}
+
+// Solve n×n linear system; M is n rows of [coefficients..., constant].
+function calcSolveLinear(M) {
+  const n = M.length, A = M.map(r => r.slice());
+  let maxAbs = 0;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) maxAbs = Math.max(maxAbs, Math.abs(A[i][j]));
+  const fail = () => new Error("No single answer: the equations are dependent or contradict each other.");
+  if (maxAbs === 0) throw fail();
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let r = col + 1; r < n; r++) if (Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv = r;
+    if (Math.abs(A[piv][col]) <= 1e-12 * maxAbs) throw fail();
+    [A[col], A[piv]] = [A[piv], A[col]];
+    for (let r = col + 1; r < n; r++) {
+      const f = A[r][col] / A[col][col];
+      for (let j = col; j <= n; j++) A[r][j] -= f * A[col][j];
+    }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    let s = A[i][n];
+    for (let j = i + 1; j < n; j++) s -= A[i][j] * x[j];
+    x[i] = s / A[i][i];
+  }
+  return x.map(calcRound);
+}
+
+const EQ_DEFS = {
+  quad:  { label: "Quadratic",  title: "ax² + bx + c = 0",       fields: ["a  (x²)", "b  (x)", "c"] },
+  cubic: { label: "Cubic",      title: "ax³ + bx² + cx + d = 0", fields: ["a  (x³)", "b  (x²)", "c  (x)", "d"] },
+  lin2:  { label: "2 unknowns", title: "Two equations, two unknowns (x, y)",  vars: ["x", "y"] },
+  lin3:  { label: "3 unknowns", title: "Three equations, three unknowns (x, y, z)", vars: ["x", "y", "z"] },
+};
+
+// nums: the filled-in coefficients, in order. Returns { rows:[{label, z:{re,im}}], note }.
+function calcSolveEquation(kind, nums) {
+  if (kind === "quad") {
+    const r = calcQuadratic(nums[0], nums[1], nums[2]);
+    const note = r.type === "real" ? "Two different real roots"
+      : r.type === "double" ? "One repeated real root"
+      : "Two complex roots (discriminant is negative)";
+    return { rows: r.roots.map((z, i) => ({ label: `x${"₁₂"[i]}`, z })), note };
+  }
+  if (kind === "cubic") {
+    const r = calcCubic(nums[0], nums[1], nums[2], nums[3]);
+    return { rows: r.roots.map((z, i) => ({ label: `x${"₁₂₃"[i]}`, z })),
+             note: r.nReal === 3 ? "Three real roots" : "One real root and two complex roots" };
+  }
+  const n = kind === "lin2" ? 2 : 3, names = EQ_DEFS[kind].vars, M = [];
+  for (let i = 0; i < n; i++) M.push(nums.slice(i * (n + 1), (i + 1) * (n + 1)));
+  const x = calcSolveLinear(M);
+  return { rows: x.map((v, i) => ({ label: names[i], z: { re: v, im: 0 } })), note: "Unique solution" };
+}
+
+// ── Matrices (arrays of arrays of numbers) ──
+const calcMakeMat = (r, c, old = []) =>
+  ({ r, c, v: Array.from({ length: r }, (_, i) => Array.from({ length: c }, (_, j) => (old[i] && old[i][j]) || "")) });
+
+function calcCleanMat(M) {
+  let mx = 0;
+  M.forEach(r => r.forEach(x => { mx = Math.max(mx, Math.abs(x)); }));
+  return M.map(r => r.map(x => (Math.abs(x) <= 1e-12 * mx ? 0 : calcRound(x))));
+}
+const matDim = M => `${M.length}×${M[0].length}`;
+function matSquare(M) { if (M.length !== M[0].length) throw new Error(`Matrix must be square (it is ${matDim(M)}).`); }
+
+function calcMatDet(M) {
+  matSquare(M);
+  const n = M.length, A = M.map(r => r.slice());
+  let maxAbs = 0;
+  A.forEach(r => r.forEach(x => { maxAbs = Math.max(maxAbs, Math.abs(x)); }));
+  if (maxAbs === 0) return 0;
+  let det = 1;
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let r = col + 1; r < n; r++) if (Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv = r;
+    if (Math.abs(A[piv][col]) <= 1e-12 * maxAbs) return 0;
+    if (piv !== col) { [A[col], A[piv]] = [A[piv], A[col]]; det = -det; }
+    det *= A[col][col];
+    for (let r = col + 1; r < n; r++) {
+      const f = A[r][col] / A[col][col];
+      for (let j = col; j < n; j++) A[r][j] -= f * A[col][j];
+    }
+  }
+  return calcRound(det);
+}
+
+function calcMatInv(M) {
+  matSquare(M);
+  const n = M.length;
+  let maxAbs = 0;
+  M.forEach(r => r.forEach(x => { maxAbs = Math.max(maxAbs, Math.abs(x)); }));
+  const A = M.map((r, i) => [...r, ...Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))]);
+  const singular = () => new Error("Matrix is singular (determinant = 0), so it has no inverse.");
+  if (maxAbs === 0) throw singular();
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let r = col + 1; r < n; r++) if (Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv = r;
+    if (Math.abs(A[piv][col]) <= 1e-12 * maxAbs) throw singular();
+    [A[col], A[piv]] = [A[piv], A[col]];
+    const pv = A[col][col];
+    for (let j = 0; j < 2 * n; j++) A[col][j] /= pv;
+    for (let r = 0; r < n; r++) {
+      if (r === col) continue;
+      const f = A[r][col];
+      if (f !== 0) for (let j = 0; j < 2 * n; j++) A[r][j] -= f * A[col][j];
+    }
+  }
+  return calcCleanMat(A.map(r => r.slice(n)));
+}
+
+function calcMatrixOp(op, A, B, k) {
+  const same = () => { if (A.length !== B.length || A[0].length !== B[0].length) throw new Error(`Matrices must be the same size to add or subtract (A is ${matDim(A)}, B is ${matDim(B)}).`); };
+  const mul = (P, Q, pn, qn) => {
+    if (P[0].length !== Q.length) throw new Error(`Can't multiply ${pn}×${qn}: ${pn} is ${matDim(P)} and ${qn} is ${matDim(Q)}. The columns of the first must equal the rows of the second.`);
+    return calcCleanMat(P.map(row => Q[0].map((_, j) => row.reduce((s, x, t) => s + x * Q[t][j], 0))));
+  };
+  const tr = M => M[0].map((_, j) => M.map(r => r[j]));
+  switch (op) {
+    case "add": same(); return { type: "matrix", m: calcCleanMat(A.map((r, i) => r.map((x, j) => x + B[i][j]))) };
+    case "sub": same(); return { type: "matrix", m: calcCleanMat(A.map((r, i) => r.map((x, j) => x - B[i][j]))) };
+    case "mul": return { type: "matrix", m: mul(A, B, "A", "B") };
+    case "mulba": return { type: "matrix", m: mul(B, A, "B", "A") };
+    case "detA": return { type: "scalar", value: calcMatDet(A) };
+    case "detB": return { type: "scalar", value: calcMatDet(B) };
+    case "invA": return { type: "matrix", m: calcMatInv(A) };
+    case "invB": return { type: "matrix", m: calcMatInv(B) };
+    case "trA": return { type: "matrix", m: tr(A) };
+    case "trB": return { type: "matrix", m: tr(B) };
+    case "kA": return { type: "matrix", m: calcCleanMat(A.map(r => r.map(x => x * k))) };
+    case "kB": return { type: "matrix", m: calcCleanMat(B.map(r => r.map(x => x * k))) };
+    default: throw new Error("Pick an operation.");
+  }
+}
+const MAT_OPS = [
+  { id:"add", label:"A + B", need:"AB" }, { id:"sub", label:"A − B", need:"AB" },
+  { id:"mul", label:"A × B", need:"AB" }, { id:"mulba", label:"B × A", need:"AB" },
+  { id:"detA", label:"det A", need:"A" },  { id:"detB", label:"det B", need:"B" },
+  { id:"invA", label:"A⁻¹", need:"A" },    { id:"invB", label:"B⁻¹", need:"B" },
+  { id:"trA", label:"Aᵀ", need:"A" },      { id:"trB", label:"Bᵀ", need:"B" },
+  { id:"kA", label:"k × A", need:"A", k:true }, { id:"kB", label:"k × B", need:"B", k:true },
+];
+// CALC2-END
+
+// Small text input used in the equation and matrix grids. Module-level so it keeps focus while typing.
+function CalcCell({ value, onChange, C, bad }) {
+  return (
+    <input type="text" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false}
+      value={value} placeholder="0" onChange={e=>onChange(e.target.value)}
+      style={{width:"100%",minWidth:0,boxSizing:"border-box",padding:"9px 3px",textAlign:"center",borderRadius:9,
+        border:`1.5px solid ${bad?"#c0392b":C.border}`,background:bad?"rgba(192,57,43,0.12)":C.bg,color:C.ink,fontSize:14,outline:"none"}}/>
+  );
+}
 
 async function fileToBase64(file) {
   return new Promise((resolve,reject) => {
@@ -897,11 +1180,18 @@ export default function ChemBaseBUK() {
   const [antoine, setAntoine]   = useState({substance:"water",T:""});
   const [periodicSearch, setPeriodicSearch] = useState("");
   const [calc, setCalc] = useState(CALC_INIT);
+  const [calcTab, setCalcTab] = useState("calc"); // "calc" | "eq" | "mat"
+  const [calcFrac, setCalcFrac] = useState(false);
+  const [eqKind, setEqKind] = useState("quad");
+  const [eqVals, setEqVals] = useState({ quad:["","",""], cubic:["","","",""], lin2:Array(6).fill(""), lin3:Array(12).fill("") });
+  const [mats, setMats] = useState({ A:calcMakeMat(2,2), B:calcMakeMat(2,2) });
+  const [matOp, setMatOp] = useState("mul");
+  const [matK, setMatK] = useState("");
   const calcDo = act => setCalc(prev => calcReduce(prev, act));
 
   // Keyboard support for the scientific calculator (PC): digits, + - * / ^ ( ) . ! %, Enter, Backspace, Esc.
   useEffect(() => {
-    if (tab !== "toolbox" || toolboxView !== "calc") return;
+    if (tab !== "toolbox" || toolboxView !== "calc" || calcTab !== "calc") return;
     const onKey = e => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const tag = e.target && e.target.tagName;
@@ -914,11 +1204,14 @@ export default function ChemBaseBUK() {
       else if (k === "Enter" || k === "=") act = { type:"eq" };
       else if (k === "Backspace") act = { type:"del" };
       else if (k === "Escape") act = { type:"ac" };
+      else if (k === "e") act = calcIns("e", "num");
+      else if (k === "p") act = calcIns("π", "num");
+      else if (k.length === 1 && "ABCXYM".includes(k.toUpperCase())) act = calcIns(k.toUpperCase(), "var");
       if (act) { e.preventDefault(); calcDo(act); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, toolboxView]);
+  }, [tab, toolboxView, calcTab]);
 
   // ChemBot - multi-session history
   const [chatSessions, setChatSessions] = useState(() => {
@@ -1070,8 +1363,49 @@ export default function ChemBaseBUK() {
 
   const calcPreview = (() => {
     if (toolboxView !== "calc" || calc.justEval || !calc.expr) return null;
-    try { const f = formatCalc(calcEval(calc.expr, calc.deg, calc.ans)); return f === calc.expr ? null : f; }
+    try { const f = formatCalc(calcEval(calc.expr, calc.deg, calc.ans, calc.vars)); return f === calc.expr ? null : f; }
     catch { return null; }
+  })();
+
+  // ── Scientific calculator: equation solver + matrix tabs ──
+  const cellVal = s => {
+    const txt = String(s).trim();
+    if (txt === "") return { v: 0 };
+    try { return { v: calcEval(txt, true, calc.ans, calc.vars) }; } catch { return { err: true }; }
+  };
+  const fmtV = v => (calcFrac ? (calcFractionStr(v, false) ?? formatCalc(v)) : formatCalc(v));
+  const calcMemChips = Object.entries(calc.vars).filter(([, v]) => v !== 0);
+  const setEqCell = (i, v) => setEqVals(prev => ({ ...prev, [eqKind]: prev[eqKind].map((x, j) => (j === i ? v : x)) }));
+  const matResize = (name, r, c) => setMats(prev => ({ ...prev, [name]: calcMakeMat(r, c, prev[name].v) }));
+  const matCell = (name, ri, ci, v) => setMats(prev => ({ ...prev, [name]: { ...prev[name],
+    v: prev[name].v.map((row, i) => (i === ri ? row.map((x, j) => (j === ci ? v : x)) : row)) } }));
+
+  const eqParsed = (toolboxView === "calc" && calcTab === "eq") ? eqVals[eqKind].map(cellVal) : [];
+  const eqResult = (() => {
+    if (toolboxView !== "calc" || calcTab !== "eq") return null;
+    if (eqParsed.some(p => p.err)) return { error: "Some entries aren't valid numbers. They are marked in red." };
+    try { return calcSolveEquation(eqKind, eqParsed.map(p => p.v)); }
+    catch (e) { return { error: e.message }; }
+  })();
+
+  const matResult = (() => {
+    if (toolboxView !== "calc" || calcTab !== "mat") return null;
+    const op = MAT_OPS.find(o => o.id === matOp);
+    const needA = op.need.includes("A"), needB = op.need.includes("B");
+    const toNums = m => m.v.map(row => row.map(cellVal));
+    const pa = needA ? toNums(mats.A) : null, pb = needB ? toNums(mats.B) : null;
+    const bad = mm => mm && mm.some(row => row.some(c => c.err));
+    if (bad(pa) || bad(pb)) return { error: "Some entries aren't valid numbers. They are marked in red." };
+    let k = 0;
+    if (op.k) {
+      if (matK.trim() === "") return { error: "Enter a value for k." };
+      const kv = cellVal(matK);
+      if (kv.err) return { error: "k isn't a valid number." };
+      k = kv.v;
+    }
+    try {
+      return calcMatrixOp(matOp, pa && pa.map(r => r.map(c => c.v)), pb && pb.map(r => r.map(c => c.v)), k);
+    } catch (e) { return { error: e.message }; }
   })();
 
   const antoineOutOfRange = (() => {
@@ -1569,59 +1903,215 @@ export default function ChemBaseBUK() {
               {toolboxView==="calc" && (
                 <div style={{maxWidth:420,margin:"0 auto"}}>
                   <style>{`.calc-key{transition:transform .06s,filter .06s;-webkit-tap-highlight-color:transparent}.calc-key:active{transform:scale(.94);filter:brightness(.92)}`}</style>
-                  <div style={{background:dark?"linear-gradient(180deg,#1d2e25,#16241d)":"linear-gradient(180deg,#dfeadb,#cadbc4)",border:`1.5px solid ${C.border}`,borderRadius:16,padding:"10px 14px 12px",marginBottom:12,boxShadow:"inset 0 2px 6px rgba(0,0,0,0.12)",color:dark?"#d7efe0":"#16281d"}}>
-                    <div style={{display:"flex",gap:6,height:18,alignItems:"center",marginBottom:4}}>
-                      <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"rgba(0,0,0,0.12)"}}>{calc.deg?"DEG":"RAD"}</span>
-                      {calc.shift && <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"#f5a623",color:"#fff"}}>SHIFT</span>}
-                    </div>
-                    <div style={{minHeight:40,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:17,lineHeight:1.35,wordBreak:"break-all",opacity:0.9}}>
-                      {calc.expr || <span style={{opacity:0.4}}>0</span>}
-                    </div>
-                    <div style={{minHeight:42,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:32,fontWeight:"var(--fw-xheavy)",lineHeight:1.2,wordBreak:"break-all",color:calc.error?"#c0392b":"inherit"}}>
-                      {calc.result!==null ? calc.result : (calcPreview!==null ? <span style={{opacity:0.45}}>{calcPreview}</span> : "")}
-                    </div>
+
+                  <div style={{display:"flex",gap:4,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:14,padding:4,marginBottom:14}}>
+                    {[["calc","Calculate"],["eq","Equations"],["mat","Matrix"]].map(([id,label])=>(
+                      <button key={id} onClick={()=>setCalcTab(id)}
+                        style={{flex:1,padding:"9px 4px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:"var(--fw-heavy)",
+                          background:calcTab===id?C.green:"transparent",color:calcTab===id?"#fff":C.green}}>{label}</button>
+                    ))}
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-                    {CALC_KEYS.flat().map(k=>{
-                      const useShift = calc.shift && k.sa;
-                      const label = k.style==="mode" ? (calc.deg?"DEG":"RAD") : (useShift ? k.sl : k.label);
-                      const act = useShift ? k.sa : k.act;
-                      const S = {
-                        fn:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:14},
-                        mode: {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:12},
-                        num:  {background:C.card,color:C.ink,border:`1.5px solid ${C.border}`,fontSize:18},
-                        op:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:20},
-                        eq:   {background:C.green,color:"#fff",border:`1.5px solid ${C.green}`,fontSize:22},
-                        ac:   {background:"#c0392b",color:"#fff",border:"1.5px solid #c0392b",fontSize:14},
-                        del:  {background:"#e67e22",color:"#fff",border:"1.5px solid #e67e22",fontSize:14},
-                        shift:{background:calc.shift?"#f5a623":C.greenLight,color:calc.shift?"#fff":C.green,border:`1.5px solid ${calc.shift?"#f5a623":C.border}`,fontSize:12},
-                      }[k.style];
-                      return (
-                        <button key={k.label+(k.span||"")} className="calc-key" onClick={()=>calcDo(act)}
-                          style={{...S,gridColumn:k.span?`span ${k.span}`:undefined,position:"relative",height:48,borderRadius:12,fontWeight:"var(--fw-xheavy)",cursor:"pointer",fontFamily:"inherit",padding:0,touchAction:"manipulation",userSelect:"none"}}>
-                          {label}
-                          {k.sl && !calc.shift && <span style={{position:"absolute",top:2,right:5,fontSize:8.5,fontWeight:600,color:"#d98a00"}}>{k.sl}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {calc.hist.length>0 && (
-                    <div style={{marginTop:16}}>
-                      <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1,margin:"0 4px 8px"}}>Recent · tap to reuse the answer</div>
-                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                        {calc.hist.map((h,idx)=>(
-                          <button key={idx} onClick={()=>calcDo(calcIns(h.result,"num"))}
-                            style={{...card,padding:"9px 12px",display:"flex",justifyContent:"space-between",gap:10,alignItems:"baseline",cursor:"pointer",fontFamily:"inherit",color:C.ink,textAlign:"left",width:"100%",boxSizing:"border-box"}}>
-                            <span style={{fontSize:12.5,color:C.muted,wordBreak:"break-all",minWidth:0}}>{h.expr}</span>
-                            <span style={{fontSize:14,fontWeight:"var(--fw-xheavy)",color:C.green,flexShrink:0}}>= {h.result}</span>
-                          </button>
-                        ))}
+
+                  {calcTab==="calc" && (
+                    <div>
+                      <div style={{background:dark?"linear-gradient(180deg,#1d2e25,#16241d)":"linear-gradient(180deg,#dfeadb,#cadbc4)",border:`1.5px solid ${C.border}`,borderRadius:16,padding:"10px 14px 12px",marginBottom:12,boxShadow:"inset 0 2px 6px rgba(0,0,0,0.12)",color:dark?"#d7efe0":"#16281d"}}>
+                        <div style={{display:"flex",gap:6,minHeight:18,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}>
+                          <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"rgba(0,0,0,0.12)"}}>{calc.deg?"DEG":"RAD"}</span>
+                          {calc.shift && <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"#f5a623",color:"#fff"}}>SHIFT</span>}
+                          {calc.store && <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"#f5a623",color:"#fff"}}>STO</span>}
+                          {calc.note && <span style={{marginLeft:"auto",fontSize:11,opacity:0.85}}>{calc.note}</span>}
+                        </div>
+                        <div style={{minHeight:40,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:17,lineHeight:1.35,wordBreak:"break-all",opacity:0.9}}>
+                          {calc.expr || <span style={{opacity:0.4}}>0</span>}
+                        </div>
+                        <div style={{minHeight:42,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:(calc.result||"").length>14?22:32,fontWeight:"var(--fw-xheavy)",lineHeight:1.2,wordBreak:"break-word",color:calc.error?"#c0392b":"inherit"}}>
+                          {calc.result!==null ? calc.result : (calcPreview!==null ? <span style={{opacity:0.45}}>{calcPreview}</span> : "")}
+                        </div>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                        {CALC_KEYS.flat().map(k=>{
+                          const useShift = calc.shift && k.sa;
+                          const label = k.style==="mode" ? (calc.deg?"DEG":"RAD") : (useShift ? k.sl : k.label);
+                          const act = useShift ? k.sa : k.act;
+                          const S = {
+                            fn:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:14},
+                            mode: {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:12},
+                            num:  {background:C.card,color:C.ink,border:`1.5px solid ${C.border}`,fontSize:18},
+                            op:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:20},
+                            eq:   {background:C.green,color:"#fff",border:`1.5px solid ${C.green}`,fontSize:22},
+                            ac:   {background:"#c0392b",color:"#fff",border:"1.5px solid #c0392b",fontSize:14},
+                            del:  {background:"#e67e22",color:"#fff",border:"1.5px solid #e67e22",fontSize:14},
+                            shift:{background:calc.shift?"#f5a623":C.greenLight,color:calc.shift?"#fff":C.green,border:`1.5px solid ${calc.shift?"#f5a623":C.border}`,fontSize:12},
+                            sto:  {background:calc.store?"#f5a623":C.greenLight,color:calc.store?"#fff":C.green,border:`1.5px solid ${calc.store?"#f5a623":C.border}`,fontSize:12},
+                            var:  {background:calc.store?"#fff3e0":C.greenLight,color:calc.store?"#b36b00":C.green,border:`1.5px solid ${calc.store?"#f5a623":C.border}`,fontSize:15},
+                          }[k.style];
+                          return (
+                            <button key={k.label+(k.span||"")} className="calc-key" onClick={()=>calcDo(act)}
+                              style={{...S,gridColumn:k.span?`span ${k.span}`:undefined,position:"relative",height:48,borderRadius:12,fontWeight:"var(--fw-xheavy)",cursor:"pointer",fontFamily:"inherit",padding:0,touchAction:"manipulation",userSelect:"none"}}>
+                              {label}
+                              {k.sl && !calc.shift && <span style={{position:"absolute",top:2,right:5,fontSize:8.5,fontWeight:600,color:"#d98a00"}}>{k.sl}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {calcMemChips.length>0 && (
+                        <div style={{marginTop:14,...card,padding:"10px 12px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                          <span style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1}}>Memory</span>
+                          {calcMemChips.map(([k,v])=>(
+                            <button key={k} onClick={()=>calcDo(calcIns(k,"var"))}
+                              style={{background:C.greenLight,color:C.green,border:`1px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>{k} = {formatCalc(v)}</button>
+                          ))}
+                          <button onClick={()=>calcDo({type:"clearvars"})} style={{marginLeft:"auto",background:"none",border:"none",color:"#c0392b",fontSize:12,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>Clear</button>
+                        </div>
+                      )}
+                      {calc.hist.length>0 && (
+                        <div style={{marginTop:16}}>
+                          <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1,margin:"0 4px 8px"}}>Recent · tap to reuse the answer</div>
+                          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                            {calc.hist.map((h,idx)=>(
+                              <button key={idx} onClick={()=>calcDo(calcIns(h.result,"num"))}
+                                style={{...card,padding:"9px 12px",display:"flex",justifyContent:"space-between",gap:10,alignItems:"baseline",cursor:"pointer",fontFamily:"inherit",color:C.ink,textAlign:"left",width:"100%",boxSizing:"border-box"}}>
+                                <span style={{fontSize:12.5,color:C.muted,wordBreak:"break-all",minWidth:0}}>{h.expr}</span>
+                                <span style={{fontSize:14,fontWeight:"var(--fw-xheavy)",color:C.green,flexShrink:0}}>= {h.result}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div style={{marginTop:14,padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.7}}>
+                        <b>SHIFT</b> unlocks the orange keys (sin⁻¹, 10ˣ, eˣ, ∛, x³). <b>MODE</b> switches degrees/radians. <b>S⇔D</b> turns an answer into a fraction and back (only when a clean fraction exists). <b>STO</b> then A, B, C, X, Y or M saves the current answer; tap that letter any time to use it. <b>M+</b> / <b>M−</b> add to or subtract from M. On a PC you can type on your keyboard too.
                       </div>
                     </div>
                   )}
-                  <div style={{marginTop:14,padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.6}}>
-                    Tap SHIFT for the orange functions (sin⁻¹, 10ˣ, eˣ, ∛, x³). MODE switches degrees/radians. Unclosed brackets close themselves. On a PC you can type on your keyboard too.
-                  </div>
+
+                  {calcTab==="eq" && (
+                    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                        {Object.entries(EQ_DEFS).map(([id,d])=>(
+                          <button key={id} onClick={()=>setEqKind(id)}
+                            style={{background:eqKind===id?C.green:C.card,color:eqKind===id?"#fff":C.ink,border:`1.5px solid ${eqKind===id?C.green:C.border}`,borderRadius:20,padding:"7px 14px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>{d.label}</button>
+                        ))}
+                      </div>
+                      <div style={{...card,padding:16}}>
+                        <div style={{fontSize:13,fontWeight:"var(--fw-xheavy)",marginBottom:12}}>{EQ_DEFS[eqKind].title}</div>
+                        {EQ_DEFS[eqKind].fields ? (
+                          <div style={{display:"grid",gridTemplateColumns:`repeat(${EQ_DEFS[eqKind].fields.length},1fr)`,gap:10}}>
+                            {EQ_DEFS[eqKind].fields.map((f,i)=>(
+                              <label key={f} style={{display:"block",minWidth:0}}>
+                                <span style={{display:"block",fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,marginBottom:5,textAlign:"center",whiteSpace:"nowrap"}}>{f}</span>
+                                <CalcCell value={eqVals[eqKind][i]} bad={!!eqParsed[i]?.err} C={C} onChange={v=>setEqCell(i,v)}/>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                            {Array.from({length:EQ_DEFS[eqKind].vars.length}).map((_,r)=>{
+                              const nv = EQ_DEFS[eqKind].vars.length;
+                              return (
+                                <div key={r} style={{display:"flex",alignItems:"center",gap:5}}>
+                                  {EQ_DEFS[eqKind].vars.map((vn,c)=>(
+                                    <span key={vn} style={{display:"flex",alignItems:"center",gap:5,flex:1,minWidth:0}}>
+                                      <CalcCell value={eqVals[eqKind][r*(nv+1)+c]} bad={!!eqParsed[r*(nv+1)+c]?.err} C={C} onChange={v=>setEqCell(r*(nv+1)+c,v)}/>
+                                      <span style={{fontSize:13,color:C.muted,whiteSpace:"nowrap"}}>{vn}{c<nv-1?" +":" ="}</span>
+                                    </span>
+                                  ))}
+                                  <span style={{flex:1,minWidth:0}}>
+                                    <CalcCell value={eqVals[eqKind][r*(nv+1)+nv]} bad={!!eqParsed[r*(nv+1)+nv]?.err} C={C} onChange={v=>setEqCell(r*(nv+1)+nv,v)}/>
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <div style={{fontSize:11.5,color:C.muted,marginTop:12,lineHeight:1.5}}>Blank boxes count as 0. You can type values like 1/2 or √(2), and use A, B, C, X, Y, M or Ans from the calculator memory.</div>
+                      </div>
+                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <span style={{fontSize:12,color:C.muted,fontWeight:"var(--fw-heavy)"}}>Show answers as</span>
+                        {[["Decimal",false],["Fraction",true]].map(([l,v])=>(
+                          <button key={l} onClick={()=>setCalcFrac(v)} style={{background:calcFrac===v?C.green:C.card,color:calcFrac===v?"#fff":C.ink,border:`1.5px solid ${calcFrac===v?C.green:C.border}`,borderRadius:16,padding:"5px 12px",fontSize:12,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                        ))}
+                      </div>
+                      {eqResult && eqResult.error && (
+                        <div style={{padding:"12px 16px",background:"#fdecea",border:"1px solid #e5a39b",borderRadius:12,fontSize:13,color:"#a93226",lineHeight:1.5}}>⚠️ {eqResult.error}</div>
+                      )}
+                      {eqResult && eqResult.rows && (
+                        <div style={{background:`linear-gradient(135deg,${LIGHT.greenDark},${LIGHT.green})`,borderRadius:16,padding:"16px",color:"#fff"}}>
+                          <div style={{fontSize:11,opacity:0.8,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Solution · {eqResult.note}</div>
+                          {eqResult.rows.map(r=>(
+                            <div key={r.label} style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"baseline",padding:"6px 0",borderTop:"1px solid rgba(255,255,255,0.18)"}}>
+                              <span style={{fontSize:16,opacity:0.9}}>{r.label} =</span>
+                              <span style={{fontSize:20,fontWeight:"var(--fw-xheavy)",textAlign:"right",wordBreak:"break-word"}}>{calcFmtComplex(r.z,fmtV)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {calcTab==="mat" && (
+                    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                      {["A","B"].map(name=>{
+                        const m = mats[name];
+                        return (
+                          <div key={name} style={{...card,padding:14}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                              <span style={{fontWeight:"var(--fw-xheavy)",fontSize:15}}>Matrix {name}</span>
+                              <span style={{marginLeft:"auto",fontSize:12,color:C.muted}}>size</span>
+                              <select value={m.r} onChange={e=>matResize(name,+e.target.value,m.c)} style={{padding:"5px 6px",borderRadius:8,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:13}}>
+                                {[1,2,3,4].map(n=><option key={n} value={n}>{n}</option>)}
+                              </select>
+                              <span style={{fontSize:13,color:C.muted}}>×</span>
+                              <select value={m.c} onChange={e=>matResize(name,m.r,+e.target.value)} style={{padding:"5px 6px",borderRadius:8,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:13}}>
+                                {[1,2,3,4].map(n=><option key={n} value={n}>{n}</option>)}
+                              </select>
+                            </div>
+                            <div style={{display:"grid",gridTemplateColumns:`repeat(${m.c},1fr)`,gap:6}}>
+                              {m.v.map((row,ri)=>row.map((val,ci)=>(
+                                <CalcCell key={ri+"-"+ci} value={val} bad={!!cellVal(val).err} C={C} onChange={v=>matCell(name,ri,ci,v)}/>
+                              )))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div>
+                        <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1,margin:"0 4px 8px"}}>Operation</div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                          {MAT_OPS.map(o=>(
+                            <button key={o.id} onClick={()=>setMatOp(o.id)}
+                              style={{background:matOp===o.id?C.green:C.card,color:matOp===o.id?"#fff":C.ink,border:`1.5px solid ${matOp===o.id?C.green:C.border}`,borderRadius:20,padding:"7px 13px",fontSize:13,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>{o.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                      {MAT_OPS.find(o=>o.id===matOp)?.k && (
+                        <div style={{...card,padding:14,display:"flex",alignItems:"center",gap:10}}>
+                          <span style={{fontSize:14,fontWeight:"var(--fw-xheavy)"}}>k =</span>
+                          <div style={{width:120}}><CalcCell value={matK} bad={matK.trim()!=="" && !!cellVal(matK).err} C={C} onChange={setMatK}/></div>
+                        </div>
+                      )}
+                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <span style={{fontSize:12,color:C.muted,fontWeight:"var(--fw-heavy)"}}>Show answers as</span>
+                        {[["Decimal",false],["Fraction",true]].map(([l,v])=>(
+                          <button key={l} onClick={()=>setCalcFrac(v)} style={{background:calcFrac===v?C.green:C.card,color:calcFrac===v?"#fff":C.ink,border:`1.5px solid ${calcFrac===v?C.green:C.border}`,borderRadius:16,padding:"5px 12px",fontSize:12,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                        ))}
+                      </div>
+                      {matResult && matResult.error && (
+                        <div style={{padding:"12px 16px",background:"#fdecea",border:"1px solid #e5a39b",borderRadius:12,fontSize:13,color:"#a93226",lineHeight:1.5}}>⚠️ {matResult.error}</div>
+                      )}
+                      {matResult && matResult.type==="scalar" && (
+                        <ToolResult label="Determinant" value={fmtV(matResult.value)}/>
+                      )}
+                      {matResult && matResult.type==="matrix" && (
+                        <div style={{background:`linear-gradient(135deg,${LIGHT.greenDark},${LIGHT.green})`,borderRadius:16,padding:"16px",color:"#fff"}}>
+                          <div style={{fontSize:11,opacity:0.8,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Result · {matResult.m.length}×{matResult.m[0].length}</div>
+                          <div style={{display:"grid",gridTemplateColumns:`repeat(${matResult.m[0].length},1fr)`,gap:6}}>
+                            {matResult.m.map((row,ri)=>row.map((x,ci)=>(
+                              <div key={ri+"-"+ci} style={{background:"rgba(255,255,255,0.16)",borderRadius:9,padding:"10px 4px",textAlign:"center",fontSize:15,fontWeight:"var(--fw-xheavy)",wordBreak:"break-word",minWidth:0}}>{fmtV(x)}</div>
+                            )))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
