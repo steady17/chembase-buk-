@@ -2480,23 +2480,6 @@ export default function ChemBaseBUK() {
                           </div>
                         </div>
                       )}
-                      <div style={{...card,marginTop:14,padding:"14px 14px 6px"}}>
-                        <div style={{fontSize:13,fontWeight:"var(--fw-xheavy)",marginBottom:2}}>Fractions, mixed numbers and powers</div>
-                        <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Use the arrow keys to move between the boxes.</div>
-                        {[
-                          {ex:<CalcExprView expr="⟨3|4⟩"/>, title:"Fraction", steps:"Press the fraction key. Type the top number, press the right arrow, type the bottom number, then press the right arrow again to carry on."},
-                          {ex:<CalcExprView expr="⟪2|3|4⟫"/>, title:"Mixed number", steps:"Press SHIFT, then the fraction key. Type the whole number, right arrow, the top, right arrow, the bottom, right arrow. This one is 2 and 3 over 4."},
-                          {ex:<CalcExprView expr="2^⟦12⟧"/>, title:"Power", steps:"Type the number, press the power key, then type any power you like, for example 12. Press the right arrow to leave the power."},
-                          {ex:<CalcResultView text="5/4 = 1 1/4"/>, title:"Answer as a fraction", wide:true, steps:"After you press =, press S⇔D to see the answer as a fraction and as a mixed number. Press S⇔D again to go back to the decimal."},
-                        ].map((r,i,arr)=>(
-                          <div key={r.title} style={{display:"flex",flexDirection:r.wide?"column":"row",alignItems:r.wide?"stretch":"center",gap:r.wide?8:12,padding:"10px 0",borderTop:i?`1px solid ${C.border}`:"none"}}>
-                            <div style={{flex:r.wide?"0 0 auto":"0 0 92px",minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"6px 4px",fontSize:18,overflow:"hidden",fontWeight:"var(--fw-xheavy)",color:C.ink}}>{r.ex}</div>
-                            <div style={{flex:"1 1 0",minWidth:0,fontSize:12.5,lineHeight:1.55,color:C.muted}}>
-                              <b style={{color:C.ink}}>{r.title}.</b> {r.steps}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     </div>
                   )}
 
