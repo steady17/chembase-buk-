@@ -1088,6 +1088,99 @@ function CalcCell({ value, onChange, C, bad }) {
   );
 }
 
+// Full-screen picture viewer: pinch to zoom, drag to move, double tap to zoom in or out,
+// mouse wheel and +/- buttons on computers.
+function ImageZoomViewer({ src, onClose }) {
+  const boxRef = useRef(null);
+  const [v, setV] = useState({ s: 1, x: 0, y: 0 });
+  const vRef = useRef(v);
+  const ptrs = useRef(new Map());
+  const gesture = useRef({ dist: 0, moved: false, lastTap: 0 });
+  const MAX = 6;
+  const apply = nv => { vRef.current = nv; setV(nv); };
+  const centerOf = () => { const r = boxRef.current.getBoundingClientRect(); return { cx: r.left + r.width/2, cy: r.top + r.height/2 }; };
+  // Zoom to ns while keeping the point (mx,my) of the screen still.
+  const zoomAt = (ns, mx, my) => {
+    const { s, x, y } = vRef.current;
+    ns = Math.min(MAX, Math.max(1, ns));
+    if (ns <= 1) return apply({ s: 1, x: 0, y: 0 });
+    const { cx, cy } = centerOf();
+    const k = ns / s;
+    apply({ s: ns, x: (mx - cx) - k * (mx - cx - x), y: (my - cy) - k * (my - cy - y) });
+  };
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  useEffect(() => {
+    const el = boxRef.current;
+    const onWheel = e => { e.preventDefault(); zoomAt(vRef.current.s * (e.deltaY < 0 ? 1.2 : 1/1.2), e.clientX, e.clientY); };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  const down = e => {
+    gesture.current.bg = e.target === boxRef.current;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    gesture.current.moved = false;
+    if (ptrs.current.size === 2) {
+      const [a, b] = [...ptrs.current.values()];
+      gesture.current.dist = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+  };
+  const move = e => {
+    const p = ptrs.current.get(e.pointerId); if (!p) return;
+    const nx = e.clientX, ny = e.clientY;
+    if (ptrs.current.size === 2) {
+      ptrs.current.set(e.pointerId, { x: nx, y: ny });
+      const [a, b] = [...ptrs.current.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (gesture.current.dist > 0) zoomAt(vRef.current.s * d / gesture.current.dist, (a.x + b.x)/2, (a.y + b.y)/2);
+      gesture.current.dist = d; gesture.current.moved = true;
+    } else if (ptrs.current.size === 1 && vRef.current.s > 1) {
+      const dx = nx - p.x, dy = ny - p.y;
+      if (Math.abs(dx) + Math.abs(dy) > 0) gesture.current.moved = true;
+      ptrs.current.set(e.pointerId, { x: nx, y: ny });
+      const { s, x, y } = vRef.current;
+      apply({ s, x: x + dx, y: y + dy });
+    } else {
+      if (Math.abs(nx - p.x) + Math.abs(ny - p.y) > 6) gesture.current.moved = true;
+    }
+  };
+  const up = e => {
+    const had = ptrs.current.delete(e.pointerId);
+    if (!had) return;
+    gesture.current.dist = 0;
+    if (ptrs.current.size === 1) { const [id, q] = [...ptrs.current.entries()][0]; ptrs.current.set(id, q); }
+    if (ptrs.current.size === 0 && !gesture.current.moved) {
+      const now = Date.now();
+      if (now - gesture.current.lastTap < 300) {
+        gesture.current.lastTap = 0;
+        zoomAt(vRef.current.s > 1 ? 1 : 2.5, e.clientX, e.clientY);
+      } else {
+        gesture.current.lastTap = now;
+        // A single tap on the dark background (not on the picture) closes the viewer.
+        if (gesture.current.bg) onClose();
+      }
+    }
+  };
+  const btn = { background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", fontSize:22, width:42, height:42, borderRadius:21, cursor:"pointer", lineHeight:1 };
+  const mid = () => { const { cx, cy } = centerOf(); return [cx, cy]; };
+  return createPortal(
+    <div ref={boxRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:100000,display:"flex",alignItems:"center",justifyContent:"center",touchAction:"none",overflow:"hidden",userSelect:"none"}}>
+      <img src={src} alt="" draggable={false}
+        style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",transform:`translate(${v.x}px,${v.y}px) scale(${v.s})`,transition:ptrs.current.size?"none":"transform 0.15s",willChange:"transform"}}/>
+      <button onClick={onClose} onPointerDown={e=>e.stopPropagation()} aria-label="Close" style={{...btn,position:"absolute",top:14,right:14}}>✕</button>
+      <div onPointerDown={e=>e.stopPropagation()} onPointerUp={e=>e.stopPropagation()} style={{position:"absolute",bottom:22,left:"50%",transform:"translateX(-50%)",display:"flex",gap:12}}>
+        <button aria-label="Zoom out" style={btn} onClick={()=>zoomAt(vRef.current.s/1.5, ...mid())}>−</button>
+        <button aria-label="Reset zoom" style={{...btn,fontSize:14,width:58}} onClick={()=>apply({s:1,x:0,y:0})}>{Math.round(v.s*100)}%</button>
+        <button aria-label="Zoom in" style={btn} onClick={()=>zoomAt(vRef.current.s*1.5, ...mid())}>+</button>
+      </div>
+    </div>, document.body);
+}
+
 async function fileToBase64(file) {
   return new Promise((resolve,reject) => {
     const r = new FileReader();
@@ -2201,12 +2294,7 @@ export default function ChemBaseBUK() {
               </div>
             )}
           </div>
-          {chatViewer && createPortal(
-            <div onClick={()=>setChatViewer(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:100000,display:"flex",alignItems:"center",justifyContent:"center",padding:12}}>
-              <img src={chatViewer} alt="" style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:8}}/>
-              <button onClick={()=>setChatViewer(null)} aria-label="Close" style={{position:"absolute",top:14,right:14,background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",fontSize:22,width:40,height:40,borderRadius:20,cursor:"pointer"}}>✕</button>
-            </div>
-          , document.body)}
+          {chatViewer && <ImageZoomViewer src={chatViewer} onClose={()=>setChatViewer(null)}/>}
           {/* Fixed input bar */}
           <div style={{padding:"8px 10px 8px 10px",borderTop:`1px solid ${C.border}`,background:C.bg,flexShrink:0,boxSizing:"border-box",width:"100%"}}>
             {chatFileBusy && (
