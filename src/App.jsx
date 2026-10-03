@@ -318,6 +318,7 @@ const TOOLBOX_TOOLS = [
     { id:"periodic",  icon:"⚛️", title:"Periodic Table", desc:"All 118 elements, searchable" },
   ]},
   { group:"Calculators", items:[
+    { id:"calc",     icon:"🔢", title:"Scientific Calculator", desc:"Casio-style: trig, logs, powers, factorial, Ans memory" },
     { id:"reynolds", icon:"🌊", title:"Reynolds Number", desc:"Re = ρvD/μ — laminar, transitional or turbulent" },
     { id:"gas",      icon:"🎈", title:"Ideal Gas Law",   desc:"PV = nRT — solve for P, V, n or T" },
     { id:"antoine",  icon:"🌡️", title:"Vapor Pressure",  desc:"Antoine equation for common solvents" },
@@ -360,6 +361,219 @@ function ToolResult({ label, value, sub, children }) {
     </div>
   );
 }
+
+// CALC-START
+// ── Scientific calculator engine (no eval — a small hand-written parser) ──
+const CALC_INIT = { expr:"", result:null, error:false, justEval:false, ans:0, deg:true, shift:false, hist:[] };
+
+function calcErr(msg) { const e = new Error(msg); e.calc = true; return e; }
+
+function calcFactorial(x) {
+  if (!Number.isInteger(x) || x < 0 || x > 170) throw calcErr("Math ERROR");
+  let r = 1;
+  for (let i = 2; i <= x; i++) r *= i;
+  return r;
+}
+
+function calcTrig(kind, x, deg) {
+  if (deg) {
+    const r = ((x % 360) + 360) % 360;
+    if (Number.isInteger(r)) { // exact values at multiples of 90°, so sin 180° is 0, not 1.2e-16
+      if (kind === "sin") { if (r % 180 === 0) return 0; if (r === 90) return 1; if (r === 270) return -1; }
+      if (kind === "cos") { if (r === 90 || r === 270) return 0; if (r === 0) return 1; if (r === 180) return -1; }
+      if (kind === "tan") { if (r % 180 === 0) return 0; if (r === 90 || r === 270) throw calcErr("Math ERROR"); }
+    }
+    x = x * Math.PI / 180;
+  }
+  const v = Math[kind](x);
+  return Math.abs(v) < 1e-15 ? 0 : v;
+}
+
+function calcEval(raw, deg, ans) {
+  const s = raw
+    .replace(/−/g, "-").replace(/×/g, "*").replace(/÷/g, "/").replace(/π/g, "pi")
+    .replace(/√/g, "sqrt").replace(/∛/g, "cbrt").replace(/Ans/g, "ans")
+    .replace(/sin⁻¹/g, "asin").replace(/cos⁻¹/g, "acos").replace(/tan⁻¹/g, "atan");
+  const re = /\s*(\d+\.?\d*|\.\d+|asin|acos|atan|sin|cos|tan|log|ln|sqrt|cbrt|pi|ans|e|[-+*\/^()!%])/y;
+  const t = [];
+  let pos = 0;
+  while (pos < s.length) {
+    re.lastIndex = pos;
+    const m = re.exec(s);
+    if (!m) { if (s.slice(pos).trim() === "") break; throw calcErr("Syntax ERROR"); }
+    t.push(m[1]);
+    pos = re.lastIndex;
+  }
+  if (!t.length) throw calcErr("Syntax ERROR");
+
+  const FUNCS = ["asin","acos","atan","sin","cos","tan","log","ln","sqrt","cbrt"];
+  let i = 0;
+  const peek = () => t[i];
+  const isNumTok = x => x !== undefined && /^[\d.]/.test(x);
+  const startsOperand = x => x !== undefined && (isNumTok(x) || x === "(" || x === "pi" || x === "e" || x === "ans" || FUNCS.includes(x));
+
+  const applyFn = (f, x) => {
+    switch (f) {
+      case "sin": case "cos": case "tan": return calcTrig(f, x, deg);
+      case "asin": case "acos": {
+        if (x < -1 || x > 1) throw calcErr("Math ERROR");
+        const r = Math[f](x); return deg ? r * 180 / Math.PI : r;
+      }
+      case "atan": { const r = Math.atan(x); return deg ? r * 180 / Math.PI : r; }
+      case "log": if (x <= 0) throw calcErr("Math ERROR"); return Math.log10(x);
+      case "ln":  if (x <= 0) throw calcErr("Math ERROR"); return Math.log(x);
+      case "sqrt": if (x < 0) throw calcErr("Math ERROR"); return Math.sqrt(x);
+      case "cbrt": return Math.cbrt(x);
+      default: throw calcErr("Syntax ERROR");
+    }
+  };
+
+  const parseExpr = () => {
+    let v = parseTerm();
+    while (peek() === "+" || peek() === "-") {
+      const op = t[i++]; const r = parseTerm();
+      v = op === "+" ? v + r : v - r;
+    }
+    return v;
+  };
+  const parseTerm = () => {
+    let v = parseUnary();
+    for (;;) {
+      const p = peek();
+      if (p === "*") { i++; v *= parseUnary(); }
+      else if (p === "/") { i++; const r = parseUnary(); if (r === 0) throw calcErr("Math ERROR"); v /= r; }
+      else if (startsOperand(p)) { v *= parseUnary(); } // implicit multiplication: 2π, 3(4+1), 2sin(30)
+      else break;
+    }
+    return v;
+  };
+  const parseUnary = () => {
+    if (peek() === "-") { i++; return -parseUnary(); }
+    if (peek() === "+") { i++; return parseUnary(); }
+    return parsePower();
+  };
+  const parsePower = () => {
+    const base = parsePostfix();
+    if (peek() === "^") {
+      i++;
+      const ex = parseUnary(); // right-associative, allows 2^-3
+      if (base === 0 && ex === 0) throw calcErr("Math ERROR");
+      const r = Math.pow(base, ex);
+      if (!Number.isFinite(r)) throw calcErr("Math ERROR");
+      return r;
+    }
+    return base;
+  };
+  const parsePostfix = () => {
+    let v = parsePrimary();
+    while (peek() === "!" || peek() === "%") {
+      if (t[i++] === "!") v = calcFactorial(v); else v = v / 100;
+    }
+    return v;
+  };
+  const closeParen = () => {
+    if (peek() === ")") i++;
+    else if (peek() !== undefined) throw calcErr("Syntax ERROR"); // missing ")" at the very end is auto-closed
+  };
+  const parsePrimary = () => {
+    const tok = t[i++];
+    if (tok === undefined) throw calcErr("Syntax ERROR");
+    if (isNumTok(tok)) { const n = parseFloat(tok); if (isNaN(n)) throw calcErr("Syntax ERROR"); return n; }
+    if (tok === "(") { const v = parseExpr(); closeParen(); return v; }
+    if (tok === "pi") return Math.PI;
+    if (tok === "e") return Math.E;
+    if (tok === "ans") return ans;
+    if (FUNCS.includes(tok)) {
+      if (t[i++] !== "(") throw calcErr("Syntax ERROR");
+      const arg = parseExpr(); closeParen();
+      return applyFn(tok, arg);
+    }
+    throw calcErr("Syntax ERROR");
+  };
+
+  const v = parseExpr();
+  if (i < t.length) throw calcErr("Syntax ERROR");
+  if (!Number.isFinite(v)) throw calcErr("Math ERROR");
+  return Number(v.toPrecision(12));
+}
+
+function formatCalc(v) {
+  if (v === 0 || Object.is(v, -0)) return "0";
+  const a = Math.abs(v);
+  if (a >= 1e10 || a < 1e-4) {
+    const [m, e] = v.toExponential(9).split("e");
+    return `${m.replace(/\.?0+$/, "")}×10^${Number(e)}`;
+  }
+  return String(Number(v.toPrecision(10)));
+}
+
+const CALC_TOKEN_END = /(sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|e\^\(|10\^\(|Ans|.)$/;
+
+function calcReduce(s, a) {
+  switch (a.type) {
+    case "shift": return { ...s, shift: !s.shift };
+    case "mode":  return { ...s, deg: !s.deg, shift: false };
+    case "ac":    return { ...s, expr: "", result: null, error: false, justEval: false, shift: false };
+    case "del": {
+      const base = s.justEval && s.error ? "" : s.expr;
+      return { ...s, expr: base.replace(CALC_TOKEN_END, ""), result: null, error: false, justEval: false, shift: false };
+    }
+    case "ins": {
+      let expr = s.expr;
+      if (s.justEval) expr = (a.kind === "op" && !s.error) ? "Ans" : "";
+      if (a.text === "." && (expr.match(/[0-9.]*$/)[0]).includes(".")) return { ...s, shift: false };
+      return { ...s, expr: expr + a.text, result: null, error: false, justEval: false, shift: false };
+    }
+    case "eq": {
+      if (!s.expr.trim()) return s;
+      try {
+        const v = calcEval(s.expr, s.deg, s.ans);
+        const text = formatCalc(v);
+        return { ...s, result: text, error: false, ans: v, justEval: true, shift: false,
+                 hist: [{ expr: s.expr, result: text }, ...s.hist].slice(0, 6) };
+      } catch (e) {
+        return { ...s, result: e.calc ? e.message : "Syntax ERROR", error: true, justEval: true, shift: false };
+      }
+    }
+    default: return s;
+  }
+}
+
+const calcIns = (text, kind) => ({ type: "ins", text, kind });
+const CALC_KEYS = [
+  [ { label:"SHIFT", act:{type:"shift"}, style:"shift" },
+    { label:"MODE",  act:{type:"mode"},  style:"mode" },
+    { label:"Ans",   act:calcIns("Ans","num"), style:"fn" },
+    { label:"DEL",   act:{type:"del"}, style:"del" },
+    { label:"AC",    act:{type:"ac"},  style:"ac" } ],
+  [ { label:"sin", act:calcIns("sin(","num"), sl:"sin⁻¹", sa:calcIns("sin⁻¹(","num"), style:"fn" },
+    { label:"cos", act:calcIns("cos(","num"), sl:"cos⁻¹", sa:calcIns("cos⁻¹(","num"), style:"fn" },
+    { label:"tan", act:calcIns("tan(","num"), sl:"tan⁻¹", sa:calcIns("tan⁻¹(","num"), style:"fn" },
+    { label:"log", act:calcIns("log(","num"), sl:"10ˣ",   sa:calcIns("10^(","num"),   style:"fn" },
+    { label:"ln",  act:calcIns("ln(","num"),  sl:"eˣ",    sa:calcIns("e^(","num"),    style:"fn" } ],
+  [ { label:"x²",  act:calcIns("^2","op"), sl:"x³", sa:calcIns("^3","op"), style:"fn" },
+    { label:"xʸ",  act:calcIns("^","op"), style:"fn" },
+    { label:"√",   act:calcIns("√(","num"), sl:"∛", sa:calcIns("∛(","num"), style:"fn" },
+    { label:"x⁻¹", act:calcIns("^(-1)","op"), style:"fn" },
+    { label:"n!",  act:calcIns("!","op"), style:"fn" } ],
+  [ { label:"(", act:calcIns("(","num"), style:"fn" },
+    { label:")", act:calcIns(")","num"), style:"fn" },
+    { label:"π", act:calcIns("π","num"), style:"fn" },
+    { label:"e", act:calcIns("e","num"), style:"fn" },
+    { label:"%", act:calcIns("%","op"),  style:"fn" } ],
+  [ { label:"7", act:calcIns("7","num"), style:"num" }, { label:"8", act:calcIns("8","num"), style:"num" },
+    { label:"9", act:calcIns("9","num"), style:"num" },
+    { label:"×", act:calcIns("×","op"), style:"op" }, { label:"÷", act:calcIns("÷","op"), style:"op" } ],
+  [ { label:"4", act:calcIns("4","num"), style:"num" }, { label:"5", act:calcIns("5","num"), style:"num" },
+    { label:"6", act:calcIns("6","num"), style:"num" },
+    { label:"+", act:calcIns("+","op"), style:"op" }, { label:"−", act:calcIns("−","op"), style:"op" } ],
+  [ { label:"1", act:calcIns("1","num"), style:"num" }, { label:"2", act:calcIns("2","num"), style:"num" },
+    { label:"3", act:calcIns("3","num"), style:"num" },
+    { label:"EXP", act:calcIns("×10^","op"), style:"fn" }, { label:"(−)", act:calcIns("−","num"), style:"fn" } ],
+  [ { label:"0", act:calcIns("0","num"), style:"num" }, { label:".", act:calcIns(".","num"), style:"num" },
+    { label:"=", act:{type:"eq"}, style:"eq", span:3 } ],
+];
+// CALC-END
 
 async function fileToBase64(file) {
   return new Promise((resolve,reject) => {
@@ -682,6 +896,29 @@ export default function ChemBaseBUK() {
   const [idealGas, setIdealGas] = useState({solveFor:"P",P:"",V:"",n:"",T:""});
   const [antoine, setAntoine]   = useState({substance:"water",T:""});
   const [periodicSearch, setPeriodicSearch] = useState("");
+  const [calc, setCalc] = useState(CALC_INIT);
+  const calcDo = act => setCalc(prev => calcReduce(prev, act));
+
+  // Keyboard support for the scientific calculator (PC): digits, + - * / ^ ( ) . ! %, Enter, Backspace, Esc.
+  useEffect(() => {
+    if (tab !== "toolbox" || toolboxView !== "calc") return;
+    const onKey = e => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = e.target && e.target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const k = e.key;
+      const OPS = { "+":"+", "-":"−", "*":"×", "/":"÷", "^":"^", "!":"!", "%":"%" };
+      let act = null;
+      if (/^[0-9]$/.test(k) || k === "." || k === "(" || k === ")") act = calcIns(k, "num");
+      else if (OPS[k]) act = calcIns(OPS[k], "op");
+      else if (k === "Enter" || k === "=") act = { type:"eq" };
+      else if (k === "Backspace") act = { type:"del" };
+      else if (k === "Escape") act = { type:"ac" };
+      if (act) { e.preventDefault(); calcDo(act); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tab, toolboxView]);
 
   // ChemBot - multi-session history
   const [chatSessions, setChatSessions] = useState(() => {
@@ -829,6 +1066,12 @@ export default function ChemBaseBUK() {
     const sub = ANTOINE_SUBSTANCES[antoine.substance];
     const logP = sub.A - sub.B/(sub.C + t);
     return Math.pow(10, logP);
+  })();
+
+  const calcPreview = (() => {
+    if (toolboxView !== "calc" || calc.justEval || !calc.expr) return null;
+    try { const f = formatCalc(calcEval(calc.expr, calc.deg, calc.ans)); return f === calc.expr ? null : f; }
+    catch { return null; }
   })();
 
   const antoineOutOfRange = (() => {
@@ -1322,6 +1565,65 @@ export default function ChemBaseBUK() {
                   <div style={{fontSize:12.5,color:C.muted,marginTop:2}}>{activeTool.desc}</div>
                 </div>
               </div>
+
+              {toolboxView==="calc" && (
+                <div style={{maxWidth:420,margin:"0 auto"}}>
+                  <style>{`.calc-key{transition:transform .06s,filter .06s;-webkit-tap-highlight-color:transparent}.calc-key:active{transform:scale(.94);filter:brightness(.92)}`}</style>
+                  <div style={{background:dark?"linear-gradient(180deg,#1d2e25,#16241d)":"linear-gradient(180deg,#dfeadb,#cadbc4)",border:`1.5px solid ${C.border}`,borderRadius:16,padding:"10px 14px 12px",marginBottom:12,boxShadow:"inset 0 2px 6px rgba(0,0,0,0.12)",color:dark?"#d7efe0":"#16281d"}}>
+                    <div style={{display:"flex",gap:6,height:18,alignItems:"center",marginBottom:4}}>
+                      <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"rgba(0,0,0,0.12)"}}>{calc.deg?"DEG":"RAD"}</span>
+                      {calc.shift && <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"#f5a623",color:"#fff"}}>SHIFT</span>}
+                    </div>
+                    <div style={{minHeight:40,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:17,lineHeight:1.35,wordBreak:"break-all",opacity:0.9}}>
+                      {calc.expr || <span style={{opacity:0.4}}>0</span>}
+                    </div>
+                    <div style={{minHeight:42,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:32,fontWeight:"var(--fw-xheavy)",lineHeight:1.2,wordBreak:"break-all",color:calc.error?"#c0392b":"inherit"}}>
+                      {calc.result!==null ? calc.result : (calcPreview!==null ? <span style={{opacity:0.45}}>{calcPreview}</span> : "")}
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                    {CALC_KEYS.flat().map(k=>{
+                      const useShift = calc.shift && k.sa;
+                      const label = k.style==="mode" ? (calc.deg?"DEG":"RAD") : (useShift ? k.sl : k.label);
+                      const act = useShift ? k.sa : k.act;
+                      const S = {
+                        fn:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:14},
+                        mode: {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:12},
+                        num:  {background:C.card,color:C.ink,border:`1.5px solid ${C.border}`,fontSize:18},
+                        op:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:20},
+                        eq:   {background:C.green,color:"#fff",border:`1.5px solid ${C.green}`,fontSize:22},
+                        ac:   {background:"#c0392b",color:"#fff",border:"1.5px solid #c0392b",fontSize:14},
+                        del:  {background:"#e67e22",color:"#fff",border:"1.5px solid #e67e22",fontSize:14},
+                        shift:{background:calc.shift?"#f5a623":C.greenLight,color:calc.shift?"#fff":C.green,border:`1.5px solid ${calc.shift?"#f5a623":C.border}`,fontSize:12},
+                      }[k.style];
+                      return (
+                        <button key={k.label+(k.span||"")} className="calc-key" onClick={()=>calcDo(act)}
+                          style={{...S,gridColumn:k.span?`span ${k.span}`:undefined,position:"relative",height:48,borderRadius:12,fontWeight:"var(--fw-xheavy)",cursor:"pointer",fontFamily:"inherit",padding:0,touchAction:"manipulation",userSelect:"none"}}>
+                          {label}
+                          {k.sl && !calc.shift && <span style={{position:"absolute",top:2,right:5,fontSize:8.5,fontWeight:600,color:"#d98a00"}}>{k.sl}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {calc.hist.length>0 && (
+                    <div style={{marginTop:16}}>
+                      <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1,margin:"0 4px 8px"}}>Recent · tap to reuse the answer</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {calc.hist.map((h,idx)=>(
+                          <button key={idx} onClick={()=>calcDo(calcIns(h.result,"num"))}
+                            style={{...card,padding:"9px 12px",display:"flex",justifyContent:"space-between",gap:10,alignItems:"baseline",cursor:"pointer",fontFamily:"inherit",color:C.ink,textAlign:"left",width:"100%",boxSizing:"border-box"}}>
+                            <span style={{fontSize:12.5,color:C.muted,wordBreak:"break-all",minWidth:0}}>{h.expr}</span>
+                            <span style={{fontSize:14,fontWeight:"var(--fw-xheavy)",color:C.green,flexShrink:0}}>= {h.result}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{marginTop:14,padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.6}}>
+                    Tap SHIFT for the orange functions (sin⁻¹, 10ˣ, eˣ, ∛, x³). MODE switches degrees/radians. Unclosed brackets close themselves. On a PC you can type on your keyboard too.
+                  </div>
+                </div>
+              )}
 
               {toolboxView==="gpa" && (
                 <div>
