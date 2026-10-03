@@ -321,10 +321,10 @@ const TOOLBOX_TOOLS = [
     { id:"constants", icon:"📐", title:"Constants",      desc:"R, Avogadro's number, STP values, g, water properties" },
     { id:"periodic",  icon:"⚛️", title:"Periodic Table", desc:"All 118 elements, searchable" },
   ]},
-  { group:"Calculators", items:[
-    { id:"calc",     icon:"🔢", title:"Scientific Calculator", desc:"Casio-style: trig, fractions, memory, equation solver, matrices" },
-    { id:"reynolds", icon:"🌊", title:"Reynolds Number", desc:"Re = ρvD/μ — laminar, transitional or turbulent" },
-    { id:"gas",      icon:"🎈", title:"Ideal Gas Law",   desc:"PV = nRT — solve for P, V, n or T" },
+  { group:"Engineering tools", items:[
+    { id:"calc",     icon:"🔢", title:"Scientific Calculator", desc:"Trig, fractions, powers, memory, equations and matrices" },
+    { id:"reynolds", icon:"🌊", title:"Reynolds Number", desc:"Re = ρvD/μ: laminar, transitional or turbulent" },
+    { id:"gas",      icon:"🎈", title:"Ideal Gas Law",   desc:"PV = nRT: solve for P, V, n or T" },
     { id:"antoine",  icon:"🌡️", title:"Vapor Pressure",  desc:"Antoine equation for common solvents" },
   ]},
 ];
@@ -332,7 +332,7 @@ const TOOLBOX_TOOLS = [
 // Friendly number formatting for tool results (keeps 7 significant figures,
 // thousands separators, and switches to scientific notation only at extremes).
 function formatNum(n) {
-  if (n === null || n === undefined || !Number.isFinite(n)) return "—";
+  if (n === null || n === undefined || !Number.isFinite(n)) return "...";
   if (n === 0) return "0";
   const abs = Math.abs(n);
   if (abs >= 1e9 || abs < 1e-4) return n.toExponential(4);
@@ -394,8 +394,47 @@ function calcTrig(kind, x, deg) {
   return Math.abs(v) < 1e-15 ? 0 : v;
 }
 
+// Tracks which brackets/templates are still open, innermost last. Used by the ▶ key and to
+// auto-close anything left open when "=" is pressed.
+function calcOpenStack(expr) {
+  const st = [];
+  for (const ch of expr) {
+    const top = st[st.length - 1];
+    if (ch === "⟨") st.push("frac1");
+    else if (ch === "⟪") st.push("mix1");
+    else if (ch === "(") st.push("paren");
+    else if (ch === "|") { if (top === "frac1") st[st.length - 1] = "frac2"; else if (top === "mix1") st[st.length - 1] = "mix2"; else if (top === "mix2") st[st.length - 1] = "mix3"; }
+    else if (ch === ")") { if (top === "paren") st.pop(); }
+    else if (ch === "⟩") { if (top === "frac2") st.pop(); }
+    else if (ch === "⟫") { if (top === "mix3") st.pop(); }
+  }
+  return st;
+}
+const CALC_CLOSER = { paren: ")", frac2: "⟩", frac1: "|⟩", mix1: "||⟫", mix2: "|⟫", mix3: "⟫" };
+
+// Fraction templates ⟨top|bottom⟩ and mixed numbers ⟪whole|top|bottom⟫ become ordinary brackets.
+function calcExpandTemplates(input) {
+  const stack = calcOpenStack(input);
+  let s = input;
+  for (let k = stack.length - 1; k >= 0; k--) s += CALC_CLOSER[stack[k]];
+  const NT = "[^⟨⟩⟪⟫|]*";
+  const fracRe = new RegExp(`⟨(${NT})\\|(${NT})⟩`);
+  const mixRe = new RegExp(`⟪(${NT})\\|(${NT})\\|(${NT})⟫`);
+  for (let guard = 0; guard < 500; guard++) {
+    const before = s;
+    s = s.replace(fracRe, (m, a, b) => `((${a})÷(${b}))`);
+    s = s.replace(mixRe, (m, w, n, d) => {
+      const neg = /^\s*[-−]/.test(w), w2 = w.replace(/^\s*[-−]/, "");
+      return neg ? `(−((${w2})+(${n})÷(${d})))` : `((${w})+(${n})÷(${d}))`;
+    });
+    if (s === before) break;
+  }
+  if (/[⟨⟩⟪⟫|]/.test(s)) throw calcErr("Syntax ERROR");
+  return s;
+}
+
 function calcEval(raw, deg, ans, vars = {}) {
-  const s = raw
+  const s = calcExpandTemplates(raw)
     .replace(/−/g, "-").replace(/×/g, "*").replace(/÷/g, "/").replace(/π/g, "pi")
     .replace(/√/g, "sqrt").replace(/∛/g, "cbrt").replace(/Ans/g, "ans")
     .replace(/sin⁻¹/g, "asin").replace(/cos⁻¹/g, "acos").replace(/tan⁻¹/g, "atan");
@@ -513,7 +552,7 @@ function formatCalc(v) {
   return String(Number(v.toPrecision(10)));
 }
 
-const CALC_TOKEN_END = /(sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|e\^\(|10\^\(|Ans|.)$/;
+const CALC_TOKEN_END = /(\^\((?:2|3|-1)\)|sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|e\^\(|10\^\(|Ans|.)$/;
 
 function calcReduce(s, a) {
   const clear = { store: false, note: "", frac: false };
@@ -524,6 +563,13 @@ function calcReduce(s, a) {
     case "del": {
       const base = s.justEval && s.error ? "" : s.expr;
       return { ...s, ...clear, expr: base.replace(CALC_TOKEN_END, ""), result: null, error: false, justEval: false, shift: false };
+    }
+    case "next": {
+      if (s.justEval) return { ...s, shift: false };
+      const top = calcOpenStack(s.expr).pop();
+      const NEXT = { frac1: "|", frac2: "⟩", mix1: "|", mix2: "|", mix3: "⟫", paren: ")" };
+      if (!top) return { ...s, shift: false };
+      return { ...s, ...clear, expr: s.expr + NEXT[top], result: null, error: false, justEval: false, shift: false };
     }
     case "sto": return { ...s, store: !s.store, note: s.store ? "" : "Now tap A, B, C, X, Y or M", frac: false, shift: false };
     case "clearvars": return { ...s, ...clear, vars: { ...CALC_VARS0 }, note: "Memory cleared" };
@@ -587,24 +633,24 @@ const CALC_KEYS = [
     { label:"tan", act:calcIns("tan(","num"), sl:"tan⁻¹", sa:calcIns("tan⁻¹(","num"), style:"fn" },
     { label:"log", act:calcIns("log(","num"), sl:"10ˣ",   sa:calcIns("10^(","num"),   style:"fn" },
     { label:"ln",  act:calcIns("ln(","num"),  sl:"eˣ",    sa:calcIns("e^(","num"),    style:"fn" } ],
-  [ { label:"x²",  act:calcIns("^2","op"), sl:"x³", sa:calcIns("^3","op"), style:"fn" },
-    { label:"xʸ",  act:calcIns("^","op"), style:"fn" },
+  [ { label:"□/□", act:calcIns("⟨","num"), sl:"□ □/□", sa:calcIns("⟪","num"), style:"fn" },
+    { label:"x□",  act:calcIns("^(","op"), style:"fn" },
+    { label:"x²",  act:calcIns("^(2)","op"), sl:"x³", sa:calcIns("^(3)","op"), style:"fn" },
     { label:"√",   act:calcIns("√(","num"), sl:"∛", sa:calcIns("∛(","num"), style:"fn" },
-    { label:"x⁻¹", act:calcIns("^(-1)","op"), style:"fn" },
-    { label:"n!",  act:calcIns("!","op"), style:"fn" } ],
-  [ { label:"(", act:calcIns("(","num"), style:"fn" },
-    { label:")", act:calcIns(")","num"), style:"fn" },
-    { label:"π", act:calcIns("π","num"), style:"fn" },
+    { label:"x⁻¹", act:calcIns("^(-1)","op"), style:"fn" } ],
+  [ { label:"n!", act:calcIns("!","op"), style:"fn" },
+    { label:"%",  act:calcIns("%","op"),  style:"fn" },
+    { label:"(",  act:calcIns("(","num"), style:"fn" },
+    { label:")",  act:calcIns(")","num"), style:"fn" },
+    { label:"▶",  act:{type:"next"}, style:"next" } ],
+  [ { label:"π", act:calcIns("π","num"), style:"fn" },
     { label:"e", act:calcIns("e","num"), style:"fn" },
-    { label:"%", act:calcIns("%","op"),  style:"fn" } ],
-  [ { label:"S⇔D", act:{type:"frac"}, style:"fn" },
-    { label:"STO",  act:{type:"sto"},  style:"sto" },
-    { label:"M+",   act:{type:"mplus",sign:1},  style:"fn" },
-    { label:"M−",   act:{type:"mplus",sign:-1}, style:"fn" },
-    { label:"M",    act:calcIns("M","var"), style:"var" } ],
+    { label:"S⇔D", act:{type:"frac"}, style:"fn" },
+    { label:"STO", act:{type:"sto"},  style:"sto" },
+    { label:"M+",  act:{type:"mplus",sign:1}, sl:"M−", sa:{type:"mplus",sign:-1}, style:"fn" } ],
   [ { label:"A", act:calcIns("A","var"), style:"var" }, { label:"B", act:calcIns("B","var"), style:"var" },
     { label:"C", act:calcIns("C","var"), style:"var" }, { label:"X", act:calcIns("X","var"), style:"var" },
-    { label:"Y", act:calcIns("Y","var"), style:"var" } ],
+    { label:"Y", act:calcIns("Y","var"), style:"var" }, { label:"M", act:calcIns("M","var"), style:"var" } ],
   [ { label:"7", act:calcIns("7","num"), style:"num" }, { label:"8", act:calcIns("8","num"), style:"num" },
     { label:"9", act:calcIns("9","num"), style:"num" },
     { label:"×", act:calcIns("×","op"), style:"op" }, { label:"÷", act:calcIns("÷","op"), style:"op" } ],
@@ -851,6 +897,49 @@ const MAT_OPS = [
   { id:"kA", label:"k × A", need:"A", k:true }, { id:"kB", label:"k × B", need:"B", k:true },
 ];
 // CALC2-END
+
+// Shows the calculator's expression the way a textbook does: stacked fractions and raised powers.
+function CalcExprView({ expr }) {
+  let key = 0;
+  const slot = () => <span key={key++} className="calc-slot"/>;
+  const endOfTemplate = (s, i) => { let d = 0; for (let j = i; j < s.length; j++) { if (s[j] === "⟨" || s[j] === "⟪") d++; else if (s[j] === "⟩" || s[j] === "⟫") { d--; if (d === 0) return j; } } return -1; };
+  const endOfParen = (s, i) => { let d = 0; for (let j = i; j < s.length; j++) { if (s[j] === "(") d++; else if (s[j] === ")") { d--; if (d === 0) return j; } } return -1; };
+  const splitTop = inner => { const parts = []; let d = 0, st = 0; for (let j = 0; j < inner.length; j++) { const c = inner[j]; if (c === "⟨" || c === "⟪") d++; else if (c === "⟩" || c === "⟫") d--; else if (c === "|" && d === 0) { parts.push(inner.slice(st, j)); st = j + 1; } } parts.push(inner.slice(st)); return parts; };
+  const render = s => {
+    const out = []; let buf = ""; let i = 0;
+    const flush = () => { if (buf) { out.push(buf); buf = ""; } };
+    const part = p => (p === undefined || p === "" ? slot() : render(p));
+    while (i < s.length) {
+      const ch = s[i];
+      if (ch === "⟨" || ch === "⟪") {
+        flush();
+        let j = endOfTemplate(s, i); const closed = j !== -1; if (!closed) j = s.length;
+        const parts = splitTop(s.slice(i + 1, j)), mixed = ch === "⟪";
+        out.push(
+          <span key={key++} style={{display:"inline-flex",alignItems:"center"}}>
+            {mixed && <span style={{marginRight:2}}>{part(parts[0])}</span>}
+            <span className="calc-frac"><span>{part(mixed ? parts[1] : parts[0])}</span><span>{part(mixed ? parts[2] : parts[1])}</span></span>
+          </span>
+        );
+        i = closed ? j + 1 : j;
+      } else if (ch === "^") {
+        if (s[i + 1] === "(") {
+          flush();
+          let j = endOfParen(s, i + 1); const closed = j !== -1; if (!closed) j = s.length;
+          out.push(<sup key={key++} className="calc-sup">{part(s.slice(i + 2, j))}</sup>);
+          i = closed ? j + 1 : j;
+        } else {
+          const m = s.slice(i + 1).match(/^[-−]?[0-9.]+/);
+          if (m) { flush(); out.push(<sup key={key++} className="calc-sup">{m[0]}</sup>); i += 1 + m[0].length; }
+          else { buf += "^"; i++; }
+        }
+      } else { buf += ch; i++; }
+    }
+    flush();
+    return out;
+  };
+  return <>{render(expr)}</>;
+}
 
 // Small text input used in the equation and matrix grids. Module-level so it keeps focus while typing.
 function CalcCell({ value, onChange, C, bad }) {
@@ -1208,6 +1297,8 @@ export default function ChemBaseBUK() {
       else if (k === "Enter" || k === "=") act = { type:"eq" };
       else if (k === "Backspace") act = { type:"del" };
       else if (k === "Escape") act = { type:"ac" };
+      else if (k === "ArrowRight") act = { type:"next" };
+      else if (k === "f") act = calcIns("⟨", "num");
       else if (k === "e") act = calcIns("e", "num");
       else if (k === "p") act = calcIns("π", "num");
       else if (k.length === 1 && "ABCXYM".includes(k.toUpperCase())) act = calcIns(k.toUpperCase(), "var");
@@ -1656,7 +1747,7 @@ export default function ChemBaseBUK() {
               <div style={{fontWeight:"var(--fw-heavy)",fontSize:15,marginBottom:12}}>Quick Access</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[
-                  {icon:"📂",title:"Past Questions",desc:"100L – 300L courses",action:()=>setTab("pq"),color:C.green},
+                  {icon:"📂",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
                   {icon:"🤖",title:"ChemBot AI",desc:"Free AI study assistant",action:()=>setTab("ai"),color:"#1565c0"},
                   {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:"#b8860b"},
                   {icon:"🧰",title:"ChemE Toolbox",desc:"GPA, unit converter & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:"#6a1b9a"},
@@ -1871,7 +1962,6 @@ export default function ChemBaseBUK() {
                 <div style={{fontSize:34,lineHeight:1}}>🧰</div>
                 <div style={{minWidth:0}}>
                   <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)"}}>ChemE Toolbox</div>
-                  <div style={{fontSize:12.5,opacity:0.85,marginTop:2}}>Everything a Chemical Engineering student needs, in one place.</div>
                 </div>
               </div>
               {TOOLBOX_TOOLS.map(g=>(
@@ -1909,7 +1999,7 @@ export default function ChemBaseBUK() {
 
               {toolboxView==="calc" && (
                 <div style={{maxWidth:420,margin:"0 auto"}}>
-                  <style>{`.calc-key{transition:transform .06s,filter .06s;-webkit-tap-highlight-color:transparent}.calc-key:active{transform:scale(.94);filter:brightness(.92)}`}</style>
+                  <style>{`.calc-key{transition:transform .06s,filter .06s;-webkit-tap-highlight-color:transparent}.calc-key:active{transform:scale(.94);filter:brightness(.92)}.calc-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 4px;line-height:1.2}.calc-frac>span{padding:0 4px;min-width:10px;text-align:center}.calc-frac>span:first-child{border-bottom:1.5px solid currentColor}.calc-slot{display:inline-block;width:0.65em;height:0.95em;border:1.5px dashed currentColor;opacity:.45;vertical-align:middle;border-radius:2px}.calc-sup{font-size:0.68em;vertical-align:0.6em;line-height:0}.calc-caret{display:inline-block;width:2px;height:1.05em;background:currentColor;vertical-align:text-bottom;margin-left:1px;animation:calcblink 1s steps(1) infinite}@keyframes calcblink{50%{opacity:0}}`}</style>
 
                   <div style={{display:"flex",gap:4,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:14,padding:4,marginBottom:14}}>
                     {[["calc","Calculate"],["eq","Equations"],["mat","Matrix"]].map(([id,label])=>(
@@ -1929,37 +2019,43 @@ export default function ChemBaseBUK() {
                           {calc.note && <span style={{marginLeft:"auto",fontSize:11,opacity:0.85}}>{calc.note}</span>}
                         </div>
                         <div style={{minHeight:40,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:17,lineHeight:1.35,wordBreak:"break-all",opacity:0.9}}>
-                          {calc.expr || <span style={{opacity:0.4}}>0</span>}
+                          {calc.expr ? <CalcExprView expr={calc.expr}/> : <span style={{opacity:0.4}}>0</span>}
+                          {!calc.justEval && <span className="calc-caret"/>}
                         </div>
                         <div style={{minHeight:42,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:(calc.result||"").length>14?22:32,fontWeight:"var(--fw-xheavy)",lineHeight:1.2,wordBreak:"break-word",color:calc.error?"#c0392b":"inherit"}}>
                           {calc.result!==null ? calc.result : (calcPreview!==null ? <span style={{opacity:0.45}}>{calcPreview}</span> : "")}
                         </div>
                       </div>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-                        {CALC_KEYS.flat().map(k=>{
-                          const useShift = calc.shift && k.sa;
-                          const label = k.style==="mode" ? (calc.deg?"DEG":"RAD") : (useShift ? k.sl : k.label);
-                          const act = useShift ? k.sa : k.act;
-                          const S = {
-                            fn:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:14},
-                            mode: {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:12},
-                            num:  {background:C.card,color:C.ink,border:`1.5px solid ${C.border}`,fontSize:18},
-                            op:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:20},
-                            eq:   {background:C.green,color:"#fff",border:`1.5px solid ${C.green}`,fontSize:22},
-                            ac:   {background:"#c0392b",color:"#fff",border:"1.5px solid #c0392b",fontSize:14},
-                            del:  {background:"#e67e22",color:"#fff",border:"1.5px solid #e67e22",fontSize:14},
-                            shift:{background:calc.shift?"#f5a623":C.greenLight,color:calc.shift?"#fff":C.green,border:`1.5px solid ${calc.shift?"#f5a623":C.border}`,fontSize:12},
-                            sto:  {background:calc.store?"#f5a623":C.greenLight,color:calc.store?"#fff":C.green,border:`1.5px solid ${calc.store?"#f5a623":C.border}`,fontSize:12},
-                            var:  {background:calc.store?"#fff3e0":C.greenLight,color:calc.store?"#b36b00":C.green,border:`1.5px solid ${calc.store?"#f5a623":C.border}`,fontSize:15},
-                          }[k.style];
-                          return (
-                            <button key={k.label+(k.span||"")} className="calc-key" onClick={()=>calcDo(act)}
-                              style={{...S,gridColumn:k.span?`span ${k.span}`:undefined,position:"relative",height:48,borderRadius:12,fontWeight:"var(--fw-xheavy)",cursor:"pointer",fontFamily:"inherit",padding:0,touchAction:"manipulation",userSelect:"none"}}>
-                              {label}
-                              {k.sl && !calc.shift && <span style={{position:"absolute",top:2,right:5,fontSize:8.5,fontWeight:600,color:"#d98a00"}}>{k.sl}</span>}
-                            </button>
-                          );
-                        })}
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        {CALC_KEYS.map((row,ri)=>(
+                          <div key={ri} style={{display:"grid",gridTemplateColumns:`repeat(${row.some(k=>k.span)?5:row.length},1fr)`,gap:8}}>
+                            {row.map(k=>{
+                              const useShift = calc.shift && k.sa;
+                              const label = k.style==="mode" ? (calc.deg?"DEG":"RAD") : (useShift ? k.sl : k.label);
+                              const act = useShift ? k.sa : k.act;
+                              const S = {
+                                fn:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:14},
+                                mode: {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:12},
+                                num:  {background:C.card,color:C.ink,border:`1.5px solid ${C.border}`,fontSize:18},
+                                op:   {background:C.greenLight,color:C.green,border:`1.5px solid ${C.border}`,fontSize:20},
+                                eq:   {background:C.green,color:"#fff",border:`1.5px solid ${C.green}`,fontSize:22},
+                                ac:   {background:"#c0392b",color:"#fff",border:"1.5px solid #c0392b",fontSize:14},
+                                del:  {background:"#e67e22",color:"#fff",border:"1.5px solid #e67e22",fontSize:14},
+                                next: {background:C.green,color:"#fff",border:`1.5px solid ${C.green}`,fontSize:15},
+                                shift:{background:calc.shift?"#f5a623":C.greenLight,color:calc.shift?"#fff":C.green,border:`1.5px solid ${calc.shift?"#f5a623":C.border}`,fontSize:12},
+                                sto:  {background:calc.store?"#f5a623":C.greenLight,color:calc.store?"#fff":C.green,border:`1.5px solid ${calc.store?"#f5a623":C.border}`,fontSize:12},
+                                var:  {background:calc.store?"#fff3e0":C.greenLight,color:calc.store?"#b36b00":C.green,border:`1.5px solid ${calc.store?"#f5a623":C.border}`,fontSize:15},
+                              }[k.style];
+                              return (
+                                <button key={k.label+(k.span||"")} className="calc-key" onClick={()=>calcDo(act)}
+                                  style={{...S,gridColumn:k.span?`span ${k.span}`:undefined,position:"relative",height:48,borderRadius:12,fontWeight:"var(--fw-xheavy)",cursor:"pointer",fontFamily:"inherit",padding:0,touchAction:"manipulation",userSelect:"none"}}>
+                                  {label}
+                                  {k.sl && !calc.shift && <span style={{position:"absolute",top:2,right:5,fontSize:8.5,fontWeight:600,color:"#d98a00"}}>{k.sl}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
                       </div>
                       {calcMemChips.length>0 && (
                         <div style={{marginTop:14,...card,padding:"10px 12px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -1978,7 +2074,7 @@ export default function ChemBaseBUK() {
                             {calc.hist.map((h,idx)=>(
                               <button key={idx} onClick={()=>calcDo(calcIns(h.result,"num"))}
                                 style={{...card,padding:"9px 12px",display:"flex",justifyContent:"space-between",gap:10,alignItems:"baseline",cursor:"pointer",fontFamily:"inherit",color:C.ink,textAlign:"left",width:"100%",boxSizing:"border-box"}}>
-                                <span style={{fontSize:12.5,color:C.muted,wordBreak:"break-all",minWidth:0}}>{h.expr}</span>
+                                <span style={{fontSize:12.5,color:C.muted,wordBreak:"break-all",minWidth:0}}><CalcExprView expr={h.expr}/></span>
                                 <span style={{fontSize:14,fontWeight:"var(--fw-xheavy)",color:C.green,flexShrink:0}}>= {h.result}</span>
                               </button>
                             ))}
@@ -1986,7 +2082,7 @@ export default function ChemBaseBUK() {
                         </div>
                       )}
                       <div style={{marginTop:14,padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.7}}>
-                        <b>SHIFT</b> unlocks the orange keys (sin⁻¹, 10ˣ, eˣ, ∛, x³). <b>MODE</b> switches degrees/radians. <b>S⇔D</b> turns an answer into a fraction and back (only when a clean fraction exists). <b>STO</b> then A, B, C, X, Y or M saves the current answer; tap that letter any time to use it. <b>M+</b> / <b>M−</b> add to or subtract from M. On a PC you can type on your keyboard too.
+                        <b>□/□</b> writes a fraction: type the top, press <b>▶</b>, type the bottom, press <b>▶</b> again to carry on. <b>SHIFT</b> then <b>□/□</b> gives a mixed number (whole, top, bottom). <b>x□</b> raises to any power: type the power (for example 12), then press <b>▶</b>. <b>▶</b> always steps out of the fraction, power or bracket you are in. <b>x²</b> and <b>x⁻¹</b> are quick powers. <b>SHIFT</b> unlocks the orange keys, <b>MODE</b> switches degrees and radians, <b>S⇔D</b> turns an answer into a fraction and back, <b>STO</b> then a letter saves the answer, and <b>M+</b> adds to M (<b>SHIFT</b> for M−). On a PC you can type on your keyboard, press <b>f</b> for a fraction and the right arrow for ▶.
                       </div>
                     </div>
                   )}
@@ -2030,7 +2126,7 @@ export default function ChemBaseBUK() {
                             })}
                           </div>
                         )}
-                        <div style={{fontSize:11.5,color:C.muted,marginTop:12,lineHeight:1.5}}>Blank boxes count as 0. You can type values like 1/2 or √(2), and use A, B, C, X, Y, M or Ans from the calculator memory.</div>
+                        <div style={{fontSize:11.5,color:C.muted,marginTop:12,lineHeight:1.5}}>Blank boxes count as 0. You can type values like 1/2 or √(2), and use A, B, C, X, Y, M or Ans from the memory.</div>
                       </div>
                       <div style={{display:"flex",gap:6,alignItems:"center"}}>
                         <span style={{fontSize:12,color:C.muted,fontWeight:"var(--fw-heavy)"}}>Show answers as</span>
@@ -2140,10 +2236,10 @@ export default function ChemBaseBUK() {
                     ))}
                   </div>
                   <button onClick={addGpaCourse} style={{width:"100%",background:C.greenLight,border:`1.5px dashed ${C.green}`,color:C.green,padding:"10px",borderRadius:10,fontWeight:"var(--fw-heavy)",fontSize:13,cursor:"pointer",marginBottom:18}}>+ Add Course</button>
-                  <ToolResult label="Your GPA" value={gpaResult??"—"}
+                  <ToolResult label="Your GPA" value={gpaResult??"..."}
                     sub={gpaResult?(gpaResult>=4.5?"Excellent! Keep it up 🎉":gpaResult>=3.5?"Good standing 👍":"Push harder next semester 💪"):"Enter units and grades above"}/>
                   <div style={{marginTop:16,padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted}}>
-                    Grade points: A=5, B=4, C=3, D=2, E=1, F=0 — standard BUK 5-point scale.
+                    Grade points: A=5, B=4, C=3, D=2, E=1, F=0 (the standard BUK 5-point scale).
                   </div>
                 </div>
               )}
@@ -2179,7 +2275,7 @@ export default function ChemBaseBUK() {
                         </select>
                       </label>
                     </div>
-                    <ToolResult label="Result" value={convResult!=null ? `${formatNum(convResult)} ${convToUnit}` : "—"}
+                    <ToolResult label="Result" value={convResult!=null ? `${formatNum(convResult)} ${convToUnit}` : "..."}
                       sub={convResult!=null ? `${convValue} ${convFromUnit} = ${formatNum(convResult)} ${convToUnit}` : (convCategory==="Temperature" && convValue!=="" ? "That is below absolute zero" : "Enter a value to convert")}/>
                   </div>
                 </div>
@@ -2228,10 +2324,10 @@ export default function ChemBaseBUK() {
                     <ToolField label="Diameter D" unit="m" value={reynolds.diameter} onChange={v=>setReynolds({...reynolds,diameter:v})} C={C}/>
                     <ToolField label="Viscosity μ" unit="Pa·s" value={reynolds.viscosity} onChange={v=>setReynolds({...reynolds,viscosity:v})} C={C}/>
                   </div>
-                  <ToolResult label="Reynolds number" value={reynoldsResult ? `Re = ${formatNum(reynoldsResult.re)}` : "—"}
+                  <ToolResult label="Reynolds number" value={reynoldsResult ? `Re = ${formatNum(reynoldsResult.re)}` : "..."}
                     sub={reynoldsResult ? `${reynoldsResult.regime} flow` : "Enter all four values (density, diameter and viscosity must be above 0)"}/>
                   <div style={{padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.6}}>
-                    Re &lt; 2100 → laminar · 2100–4000 → transitional · Re &gt; 4000 → turbulent (flow in a circular pipe).
+                    Re below 2100 is laminar, 2100 to 4000 is transitional, and above 4000 is turbulent (flow in a circular pipe).
                   </div>
                 </div>
               )}
@@ -2255,7 +2351,7 @@ export default function ChemBaseBUK() {
                     {idealGas.solveFor!=="T" && <ToolField label="Temperature T" unit="K" value={idealGas.T} onChange={v=>setIdealGas({...idealGas,T:v})} C={C}/>}
                   </div>
                   <ToolResult label={{P:"Pressure",V:"Volume",n:"Moles",T:"Temperature"}[idealGas.solveFor]}
-                    value={idealGasResult!=null ? `${formatNum(idealGasResult)} ${{P:"atm",V:"L",n:"mol",T:"K"}[idealGas.solveFor]}` : "—"}
+                    value={idealGasResult!=null ? `${formatNum(idealGasResult)} ${{P:"atm",V:"L",n:"mol",T:"K"}[idealGas.solveFor]}` : "..."}
                     sub={idealGasResult!=null ? "" : "Fill in the other three values (positive numbers, T in kelvin)"}/>
                   <div style={{padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted}}>
                     Uses R = 0.082057 L·atm/(mol·K). Temperature must be in kelvin (K = °C + 273.15).
@@ -2275,7 +2371,7 @@ export default function ChemBaseBUK() {
                   <div style={{...card,padding:16}}>
                     <ToolField label="Temperature T" unit="°C" value={antoine.T} onChange={v=>setAntoine({...antoine,T:v})} C={C}/>
                   </div>
-                  <ToolResult label="Vapor pressure" value={antoineResult!=null ? `${formatNum(antoineResult)} mmHg` : "—"}
+                  <ToolResult label="Vapor pressure" value={antoineResult!=null ? `${formatNum(antoineResult)} mmHg` : "..."}
                     sub={antoineResult!=null ? `${formatNum(antoineResult*0.133322)} kPa · ${formatNum(antoineResult/760)} atm` : "Enter a temperature"}/>
                   {antoineOutOfRange && (
                     <div style={{padding:"12px 16px",background:"#fff3e0",border:"1px solid #ffb74d",borderRadius:10,fontSize:12.5,color:"#8a5200"}}>
@@ -2445,7 +2541,7 @@ export default function ChemBaseBUK() {
       {viewingPQ && (
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:1000,display:"flex",flexDirection:"column"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:C.greenDark,flexShrink:0}}>
-            <div style={{color:"#fff",fontWeight:"var(--fw-heavy)",fontSize:14}}>{viewingPQ.code} — Past Questions</div>
+            <div style={{color:"#fff",fontWeight:"var(--fw-heavy)",fontSize:14}}>{viewingPQ.code}: Past Questions</div>
             <button onClick={()=>setViewingPQ(null)}
               style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",width:32,height:32,borderRadius:8,fontSize:16,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
               ✕
