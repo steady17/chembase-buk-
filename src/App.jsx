@@ -421,10 +421,13 @@ function PQViewer({ url, C }) {
 function renderMath(text, display=false) {
   try {
     if(window.katex) {
-      return <span dangerouslySetInnerHTML={{__html: window.katex.renderToString(text, {displayMode:display, throwOnError:false})}}/>;
+      // throwOnError:true so a malformed formula throws here instead of KaTeX
+      // silently embedding its own alarming red "katex-error" markup with the
+      // raw broken source in it — we fall back to plain, readable text instead.
+      return <span dangerouslySetInnerHTML={{__html: window.katex.renderToString(text, {displayMode:display, throwOnError:true})}}/>;
     }
   } catch(e) {}
-  return <span>{text}</span>;
+  return <span style={{opacity:0.85}}>{text}</span>;
 }
 
 function renderInline(text, k) {
@@ -438,8 +441,8 @@ function renderInline(text, k) {
     if(p.startsWith('$') && p.endsWith('$') && p.length>2) return <span key={`${k}-${i}`}>{renderMath(p.slice(1,-1), false)}</span>;
     if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",maxWidth:"100%",fontSize:"0.95em",overflowWrap:"break-word"}}>{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('\\(') && p.endsWith('\\)')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
-    if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:800}}>{p.slice(2,-2)}</strong>;
-    if(p.startsWith('*') && p.endsWith('*') && p.length>2) return <em key={`${k}-${i}`}>{p.slice(1,-1)}</em>;
+    if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:800}}>{renderInline(p.slice(2,-2), `${k}-${i}-b`)}</strong>;
+    if(p.startsWith('*') && p.endsWith('*') && p.length>2) return <em key={`${k}-${i}`}>{renderInline(p.slice(1,-1), `${k}-${i}-e`)}</em>;
     return <span key={`${k}-${i}`}>{p}</span>;
   });
 }
