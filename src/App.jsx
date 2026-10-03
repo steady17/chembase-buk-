@@ -562,6 +562,12 @@ function formatCalc(v) {
   return String(Number(v.toPrecision(10)));
 }
 
+// Display only: shows ×10^-5 as × 10⁻⁵. The plain text is still what gets recalled.
+function calcPretty(t) {
+  return typeof t !== "string" ? t : t.replace(/×10\^(-?\d+)/g, (_, e) =>
+    " × 10" + e.replace(/-/g, "⁻").replace(/\d/g, d => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]));
+}
+
 const CALC_TOKEN_END = /(\^⟦(?:2|3|[-−]1)⟧|sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|Ans|[\s\S])$/;
 const CALC_TOKEN_START = /^(\^⟦|sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|Ans|[\s\S])/;
 const CALC_TOKEN_BACK = /(\^⟦|sin⁻¹\(|cos⁻¹\(|tan⁻¹\(|sin\(|cos\(|tan\(|log\(|ln\(|√\(|∛\(|Ans|[\s\S])$/;
@@ -2265,14 +2271,14 @@ export default function ChemBaseBUK() {
                           <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"rgba(0,0,0,0.12)"}}>{calc.deg?"DEG":"RAD"}</span>
                           {calc.shift && <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"#f5a623",color:"#fff"}}>SHIFT</span>}
                           {calc.store && <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,padding:"1px 7px",borderRadius:6,background:"#f5a623",color:"#fff"}}>STO</span>}
-                          {calc.note && <span style={{marginLeft:"auto",fontSize:11,opacity:0.85}}>{calc.note}</span>}
+                          {calc.note && <span style={{marginLeft:"auto",fontSize:11,opacity:0.85}}>{calcPretty(calc.note)}</span>}
                         </div>
                         <div style={{minHeight:40,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:17,lineHeight:1.35,wordBreak:"break-all",opacity:0.9}}>
                           {calc.expr || !calc.justEval ? <CalcExprView expr={calc.expr} cur={calc.justEval ? null : calc.cur}/> : null}
                           {!calc.expr && <span style={{opacity:0.4}}>0</span>}
                         </div>
                         <div style={{minHeight:42,textAlign:"right",fontFamily:"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",fontSize:(calc.result||"").length>14?22:32,fontWeight:"var(--fw-xheavy)",lineHeight:1.2,wordBreak:"break-word",color:calc.error?"#c0392b":"inherit"}}>
-                          {calc.result!==null ? calc.result : (calcPreview!==null ? <span style={{opacity:0.45}}>{calcPreview}</span> : "")}
+                          {calc.result!==null ? calcPretty(calc.result) : (calcPreview!==null ? <span style={{opacity:0.45}}>{calcPretty(calcPreview)}</span> : "")}
                         </div>
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -2312,7 +2318,7 @@ export default function ChemBaseBUK() {
                           <span style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1}}>Memory</span>
                           {calcMemChips.map(([k,v])=>(
                             <button key={k} onClick={()=>calcDo(calcIns(k,"var"))}
-                              style={{background:C.greenLight,color:C.green,border:`1px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>{k} = {formatCalc(v)}</button>
+                              style={{background:C.greenLight,color:C.green,border:`1px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>{k} = {calcPretty(formatCalc(v))}</button>
                           ))}
                           <button onClick={()=>calcDo({type:"clearvars"})} style={{marginLeft:"auto",background:"none",border:"none",color:"#c0392b",fontSize:12,fontWeight:"var(--fw-heavy)",cursor:"pointer",fontFamily:"inherit"}}>Clear</button>
                         </div>
@@ -2325,7 +2331,7 @@ export default function ChemBaseBUK() {
                               <button key={idx} onClick={()=>calcDo(calcIns(h.result,"num"))}
                                 style={{...card,padding:"9px 12px",display:"flex",justifyContent:"space-between",gap:10,alignItems:"baseline",cursor:"pointer",fontFamily:"inherit",color:C.ink,textAlign:"left",width:"100%",boxSizing:"border-box"}}>
                                 <span style={{fontSize:12.5,color:C.muted,wordBreak:"break-all",minWidth:0}}><CalcExprView expr={h.expr}/></span>
-                                <span style={{fontSize:14,fontWeight:"var(--fw-xheavy)",color:C.green,flexShrink:0}}>= {h.result}</span>
+                                <span style={{fontSize:14,fontWeight:"var(--fw-xheavy)",color:C.green,flexShrink:0}}>= {calcPretty(h.result)}</span>
                               </button>
                             ))}
                           </div>
