@@ -221,9 +221,9 @@ const UNIT_CATEGORIES = {
   Mass:       { units:{ "kg":1, "g":0.001, "lb":0.45359237, "tonne":1000 } },
   Time:       { units:{ "s":1, "min":60, "hr":3600 } },
   Temperature:{ units:{ "°C":null, "K":null, "°F":null } }, // handled specially, not a plain factor
-  Pressure:   { units:{ "Pa":1, "kPa":1000, "MPa":1e6, "bar":100000, "atm":101325, "psi":6894.757, "mmHg":133.322, "torr":133.322 } },
+  Pressure:   { units:{ "Pa":1, "kPa":1000, "MPa":1e6, "bar":100000, "atm":101325, "psi":6894.757, "mmHg":101325/760, "torr":101325/760 } },
   Volume:     { units:{ "m³":1, "L":0.001, "mL":1e-6, "ft³":0.0283168466, "gal (US)":0.003785411784 } },
-  "Flow rate":{ units:{ "m³/s":1, "m³/hr":1/3600, "L/s":0.001, "L/min":0.001/60, "gal/min (US)":6.30902e-5, "ft³/s":0.0283168466 } },
+  "Flow rate":{ units:{ "m³/s":1, "m³/hr":1/3600, "L/s":0.001, "L/min":0.001/60, "gal/min (US)":0.003785411784/60, "ft³/s":0.0283168466 } },
   Density:    { units:{ "kg/m³":1, "g/cm³":1000, "lb/ft³":16.01846337 } },
   Energy:     { units:{ "J":1, "kJ":1000, "cal":4.184, "kcal":4184, "BTU":1055.05585 } },
   Power:      { units:{ "W":1, "kW":1000, "hp":745.69987 } },
@@ -241,6 +241,7 @@ function convertUnits(category, value, fromUnit, toUnit) {
     if (fromUnit === "°C") k = v + 273.15;
     else if (fromUnit === "°F") k = (v - 32) * 5/9 + 273.15;
     else k = v;
+    if (k < 0) return null; // below absolute zero
     if (toUnit === "°C") return k - 273.15;
     if (toUnit === "°F") return (k - 273.15) * 9/5 + 32;
     return k;
@@ -251,18 +252,18 @@ function convertUnits(category, value, fromUnit, toUnit) {
 
 const SCIENCE_CONSTANTS = [
   { name:"Universal gas constant", symbol:"R", value:"8.314", unit:"J/(mol·K)" },
-  { name:"Universal gas constant", symbol:"R", value:"0.08206", unit:"L·atm/(mol·K)" },
+  { name:"Universal gas constant", symbol:"R", value:"0.082057", unit:"L·atm/(mol·K)" },
   { name:"Avogadro's number", symbol:"Nₐ", value:"6.022 × 10²³", unit:"/mol" },
   { name:"Standard atmospheric pressure", symbol:"atm", value:"101,325", unit:"Pa" },
   { name:"Standard temperature (STP)", symbol:"T₀", value:"273.15", unit:"K (0 °C)" },
-  { name:"Molar volume of ideal gas at STP", symbol:"Vₘ", value:"22.414", unit:"L/mol" },
+  { name:"Molar volume of ideal gas (0 °C, 1 atm)", symbol:"Vₘ", value:"22.414", unit:"L/mol" },
   { name:"Faraday constant", symbol:"F", value:"96,485", unit:"C/mol" },
   { name:"Boltzmann constant", symbol:"k", value:"1.381 × 10⁻²³", unit:"J/K" },
   { name:"Speed of light", symbol:"c", value:"2.998 × 10⁸", unit:"m/s" },
   { name:"Planck's constant", symbol:"h", value:"6.626 × 10⁻³⁴", unit:"J·s" },
   { name:"Standard gravity", symbol:"g", value:"9.81", unit:"m/s²" },
   { name:"Density of water (4 °C)", symbol:"ρ", value:"1000", unit:"kg/m³" },
-  { name:"Specific heat of water", symbol:"Cₚ", value:"4186", unit:"J/(kg·K)" },
+  { name:"Specific heat of water", symbol:"Cₚ", value:"4184", unit:"J/(kg·K)" },
 ];
 
 // Antoine equation: log10(P) = A - B/(C + T) — P in mmHg, T in °C.
@@ -274,11 +275,14 @@ const ANTOINE_SUBSTANCES = {
   acetone:  { label:"Acetone",  A:7.11714, B:1210.595, C:229.664, range:[-13,55] },
 };
 
+// American spellings, so searching "sulfur" or "aluminum" still finds the element.
+const PERIODIC_ALT_NAMES = { S:"sulfur", Al:"aluminum", Cs:"cesium" };
+
 const PERIODIC_TABLE = [
   [1,"H","Hydrogen",1.008],[2,"He","Helium",4.003],[3,"Li","Lithium",6.94],[4,"Be","Beryllium",9.012],
   [5,"B","Boron",10.81],[6,"C","Carbon",12.011],[7,"N","Nitrogen",14.007],[8,"O","Oxygen",15.999],
   [9,"F","Fluorine",18.998],[10,"Ne","Neon",20.180],[11,"Na","Sodium",22.990],[12,"Mg","Magnesium",24.305],
-  [13,"Al","Aluminium",26.982],[14,"Si","Silicon",28.085],[15,"P","Phosphorus",30.974],[16,"S","Sulfur",32.06],
+  [13,"Al","Aluminium",26.982],[14,"Si","Silicon",28.085],[15,"P","Phosphorus",30.974],[16,"S","Sulphur",32.06],
   [17,"Cl","Chlorine",35.45],[18,"Ar","Argon",39.95],[19,"K","Potassium",39.098],[20,"Ca","Calcium",40.078],
   [21,"Sc","Scandium",44.956],[22,"Ti","Titanium",47.867],[23,"V","Vanadium",50.942],[24,"Cr","Chromium",51.996],
   [25,"Mn","Manganese",54.938],[26,"Fe","Iron",55.845],[27,"Co","Cobalt",58.933],[28,"Ni","Nickel",58.693],
@@ -301,7 +305,7 @@ const PERIODIC_TABLE = [
   [93,"Np","Neptunium",237],[94,"Pu","Plutonium",244],[95,"Am","Americium",243],[96,"Cm","Curium",247],
   [97,"Bk","Berkelium",247],[98,"Cf","Californium",251],[99,"Es","Einsteinium",252],[100,"Fm","Fermium",257],
   [101,"Md","Mendelevium",258],[102,"No","Nobelium",259],[103,"Lr","Lawrencium",266],[104,"Rf","Rutherfordium",267],
-  [105,"Db","Dubnium",268],[106,"Sg","Seaborgium",269],[107,"Bh","Bohrium",270],[108,"Hs","Hassium",269],
+  [105,"Db","Dubnium",268],[106,"Sg","Seaborgium",269],[107,"Bh","Bohrium",270],[108,"Hs","Hassium",270],
   [109,"Mt","Meitnerium",278],[110,"Ds","Darmstadtium",281],[111,"Rg","Roentgenium",282],[112,"Cn","Copernicium",285],
   [113,"Nh","Nihonium",286],[114,"Fl","Flerovium",289],[115,"Mc","Moscovium",290],[116,"Lv","Livermorium",293],
   [117,"Ts","Tennessine",294],[118,"Og","Oganesson",294],
@@ -332,7 +336,7 @@ function formatNum(n) {
   if (n === 0) return "0";
   const abs = Math.abs(n);
   if (abs >= 1e9 || abs < 1e-4) return n.toExponential(4);
-  return Number(n.toPrecision(7)).toLocaleString(undefined, { maximumFractionDigits: 8 });
+  return Number(n.toPrecision(7)).toLocaleString(undefined, { maximumFractionDigits: 12 });
 }
 
 // Labelled numeric input used across the calculators. Lives at module level so it
@@ -1332,17 +1336,18 @@ export default function ChemBaseBUK() {
   const reynoldsResult = (() => {
     const {density,velocity,diameter,viscosity} = reynolds;
     const [rho,v,d,mu] = [density,velocity,diameter,viscosity].map(parseFloat);
-    if ([rho,v,d,mu].some(isNaN) || mu<=0) return null;
+    if ([rho,v,d,mu].some(isNaN) || rho<=0 || d<=0 || mu<=0 || v<0) return null;
     const re = (rho*v*d)/mu;
-    const regime = re<2100 ? "Laminar" : re<4000 ? "Transitional" : "Turbulent";
+    const regime = re<2100 ? "Laminar" : re<=4000 ? "Transitional" : "Turbulent";
     return { re, regime };
   })();
 
-  // Ideal gas law: PV = nRT (P in atm, V in L, n in mol, T in K, R = 0.08206 L·atm/(mol·K))
+  // Ideal gas law: PV = nRT (P in atm, V in L, n in mol, T in K, R = 0.082057 L·atm/(mol·K))
   const idealGasResult = (() => {
-    const R = 0.08206;
+    const R = 0.082057;
     const {solveFor,P,V,n,T} = idealGas;
     const [p,v,mol,t] = [P,V,n,T].map(parseFloat);
+    if ([p,v,mol,t].some(x => !isNaN(x) && x < 0)) return null; // negative amounts/volumes/pressures/temperatures make no sense
     let r = null;
     if (solveFor==="P" && !isNaN(v)&&!isNaN(mol)&&!isNaN(t)&&v!==0) r = (mol*R*t)/v;
     else if (solveFor==="V" && !isNaN(p)&&!isNaN(mol)&&!isNaN(t)&&p!==0) r = (mol*R*t)/p;
@@ -1357,8 +1362,9 @@ export default function ChemBaseBUK() {
     const t = parseFloat(antoine.T);
     if (isNaN(t)) return null;
     const sub = ANTOINE_SUBSTANCES[antoine.substance];
-    const logP = sub.A - sub.B/(sub.C + t);
-    return Math.pow(10, logP);
+    if (sub.C + t === 0) return null;
+    const p = Math.pow(10, sub.A - sub.B/(sub.C + t));
+    return Number.isFinite(p) ? p : null;
   })();
 
   const calcPreview = (() => {
@@ -1430,7 +1436,8 @@ export default function ChemBaseBUK() {
   const periodicFiltered = PERIODIC_TABLE.filter(el => {
     const q = periodicSearch.trim().toLowerCase();
     if (!q) return true;
-    return el.name.toLowerCase().includes(q) || el.sym.toLowerCase()===q || String(el.num)===q;
+    const alt = PERIODIC_ALT_NAMES[el.sym] || "";
+    return el.name.toLowerCase().includes(q) || alt.includes(q) || el.sym.toLowerCase()===q || String(el.num)===q;
   });
 
   // ChemBot
@@ -2173,7 +2180,7 @@ export default function ChemBaseBUK() {
                       </label>
                     </div>
                     <ToolResult label="Result" value={convResult!=null ? `${formatNum(convResult)} ${convToUnit}` : "—"}
-                      sub={convResult!=null ? `${convValue} ${convFromUnit} = ${formatNum(convResult)} ${convToUnit}` : "Enter a value to convert"}/>
+                      sub={convResult!=null ? `${convValue} ${convFromUnit} = ${formatNum(convResult)} ${convToUnit}` : (convCategory==="Temperature" && convValue!=="" ? "That is below absolute zero" : "Enter a value to convert")}/>
                   </div>
                 </div>
               )}
@@ -2222,7 +2229,7 @@ export default function ChemBaseBUK() {
                     <ToolField label="Viscosity μ" unit="Pa·s" value={reynolds.viscosity} onChange={v=>setReynolds({...reynolds,viscosity:v})} C={C}/>
                   </div>
                   <ToolResult label="Reynolds number" value={reynoldsResult ? `Re = ${formatNum(reynoldsResult.re)}` : "—"}
-                    sub={reynoldsResult ? `${reynoldsResult.regime} flow` : "Enter all four values (viscosity must be above 0)"}/>
+                    sub={reynoldsResult ? `${reynoldsResult.regime} flow` : "Enter all four values (density, diameter and viscosity must be above 0)"}/>
                   <div style={{padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.6}}>
                     Re &lt; 2100 → laminar · 2100–4000 → transitional · Re &gt; 4000 → turbulent (flow in a circular pipe).
                   </div>
@@ -2249,9 +2256,9 @@ export default function ChemBaseBUK() {
                   </div>
                   <ToolResult label={{P:"Pressure",V:"Volume",n:"Moles",T:"Temperature"}[idealGas.solveFor]}
                     value={idealGasResult!=null ? `${formatNum(idealGasResult)} ${{P:"atm",V:"L",n:"mol",T:"K"}[idealGas.solveFor]}` : "—"}
-                    sub={idealGasResult!=null ? "" : "Fill in the other three values"}/>
+                    sub={idealGasResult!=null ? "" : "Fill in the other three values (positive numbers, T in kelvin)"}/>
                   <div style={{padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted}}>
-                    Uses R = 0.08206 L·atm/(mol·K). Temperature must be in kelvin (K = °C + 273.15).
+                    Uses R = 0.082057 L·atm/(mol·K). Temperature must be in kelvin (K = °C + 273.15).
                   </div>
                 </div>
               )}
