@@ -335,7 +335,12 @@ function formatNum(n) {
   if (n === null || n === undefined || !Number.isFinite(n)) return "...";
   if (n === 0) return "0";
   const abs = Math.abs(n);
-  if (abs >= 1e9 || abs < 1e-4) return n.toExponential(4);
+  if (abs >= 1e9 || abs < 1e-4) {
+    // Written the way it is on paper: 2 × 10⁻⁵
+    const [m, e] = n.toExponential(4).split("e");
+    const sup = String(Number(e)).replace(/-/g, "⁻").replace(/\d/g, d => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]);
+    return `${m.replace(/\.?0+$/, "")} × 10${sup}`;
+  }
   return Number(n.toPrecision(7)).toLocaleString(undefined, { maximumFractionDigits: 12 });
 }
 
@@ -1990,7 +1995,7 @@ export default function ChemBaseBUK() {
                   {icon:"📂",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
                   {icon:"🤖",title:"ChemBot AI",desc:"AI study assistant",action:()=>setTab("ai"),color:"#1565c0"},
                   {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:"#b8860b"},
-                  {icon:"🧰",title:"ChemE Toolbox",desc:"GPA, unit converter & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:"#6a1b9a"},
+                  {icon:"🧰",title:"ChemE Toolbox",desc:"Calculator, converters & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:"#6a1b9a"},
                 ].map((c,i)=>(
                   <div key={i} onClick={c.action} style={{...card,padding:"16px 14px",cursor:"pointer"}}>
                     <div style={{fontSize:26,marginBottom:8}}>{c.icon}</div>
@@ -2002,7 +2007,7 @@ export default function ChemBaseBUK() {
               <div style={{marginTop:16,marginBottom:8,padding:"14px 16px",background:C.greenLight,borderRadius:12,borderLeft:`4px solid ${C.green}`}}>
                 <div style={{fontWeight:"var(--fw-heavy)",color:C.green,fontSize:13}}>📢 Welcome to ChemBase BUK</div>
                 <p style={{margin:"6px 0 0",color:C.muted,fontSize:13,lineHeight:1.6}}>
-                  Your official NSChE BUK academic resource hub. Browse past questions, use ChemBot AI for instant solutions, ask for academic help, and calculate your GPA.
+                  Your official NSChE BUK academic resource hub. Browse past questions, use ChemBot AI for instant solutions (it can now read photos and PDFs), ask for academic help, and open the ChemE Toolbox for a scientific calculator, unit converter, GPA calculator, periodic table, constants and more.
                 </p>
               </div>
             </div>
