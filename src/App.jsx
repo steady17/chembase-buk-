@@ -539,17 +539,19 @@ export default function ChemBaseBUK() {
   });
   const [showHistory, setShowHistory] = useState(false);
   const chatHistory = chatSessions.find(s=>s.id===activeSessionId)?.messages || [];
-  const setChatHistory = (updater) => {
+  // Writes to a specific session by id — never re-reads activeSessionId from the
+  // outer closure, which can still be stale (null) on the second of two quick
+  // writes in the same send (user message, then the AI reply). Reading stale
+  // state there used to create a second orphan session holding only the AI's
+  // reply, stranding the user's own question in a session nobody saw again.
+  const appendToSession = (sessionId, updater) => {
     setChatSessions(prev => {
-      let sessionId = activeSessionId;
       let sessions = [...prev];
       let idx = sessions.findIndex(s=>s.id===sessionId);
       const currentMsgs = idx>=0 ? sessions[idx].messages : [];
       const newMsgs = typeof updater==="function" ? updater(currentMsgs) : updater;
       if(idx<0) {
-        sessionId = Date.now().toString();
         sessions = [{id:sessionId, title:"New chat", messages:newMsgs, updatedAt:Date.now()}, ...sessions];
-        setActiveSessionId(sessionId);
       } else {
         const title = newMsgs[0]?.display || newMsgs[0]?.content || sessions[idx].title;
         sessions[idx] = {...sessions[idx], messages:newMsgs, updatedAt:Date.now(), title: typeof title==="string" ? title.slice(0,40) : sessions[idx].title};
@@ -657,10 +659,15 @@ export default function ChemBaseBUK() {
     } else {
       userContent = chatInput.trim() || userText;
     }
+    // Pin one concrete session id for BOTH writes below (user message, then AI
+    // reply) instead of letting each call re-derive it from activeSessionId —
+    // see appendToSession's comment for why that caused lost messages.
+    const sessionId = activeSessionId || Date.now().toString();
+    if (!activeSessionId) setActiveSessionId(sessionId);
     const newHistory = [...chatHistory,{role:"user",content:userContent,display:userText}];
-    setChatHistory(newHistory); setChatInput(""); setChatFile(null); setChatLoading(true);
-    try{ const r=await askDeepSeek(newHistory); setChatHistory(p=>[...p,{role:"assistant",content:r}]); }
-    catch(e){ setChatHistory(p=>[...p,{role:"assistant",content:`Error: ${e.message}`}]); }
+    appendToSession(sessionId, newHistory); setChatInput(""); setChatFile(null); setChatLoading(true);
+    try{ const r=await askDeepSeek(newHistory); appendToSession(sessionId, p=>[...p,{role:"assistant",content:r}]); }
+    catch(e){ appendToSession(sessionId, p=>[...p,{role:"assistant",content:`Error: ${e.message}`}]); }
     setChatLoading(false);
   };
 
