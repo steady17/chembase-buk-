@@ -1169,15 +1169,10 @@ function ImageZoomViewer({ src, onClose }) {
   const mid = () => { const { cx, cy } = centerOf(); return [cx, cy]; };
   return createPortal(
     <div ref={boxRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:100000,display:"flex",alignItems:"center",justifyContent:"center",touchAction:"none",overflow:"hidden",userSelect:"none"}}>
+      style={{position:"fixed",inset:0,background:"#000",zIndex:100000,display:"flex",alignItems:"center",justifyContent:"center",touchAction:"none",overflow:"hidden",userSelect:"none"}}>
       <img src={src} alt="" draggable={false}
-        style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",transform:`translate(${v.x}px,${v.y}px) scale(${v.s})`,transition:ptrs.current.size?"none":"transform 0.15s",willChange:"transform"}}/>
+        style={{width:"100%",height:"100%",objectFit:"contain",transform:`translate(${v.x}px,${v.y}px) scale(${v.s})`,transition:ptrs.current.size?"none":"transform 0.15s",willChange:"transform"}}/>
       <button onClick={onClose} onPointerDown={e=>e.stopPropagation()} aria-label="Close" style={{...btn,position:"absolute",top:14,right:14}}>✕</button>
-      <div onPointerDown={e=>e.stopPropagation()} onPointerUp={e=>e.stopPropagation()} style={{position:"absolute",bottom:22,left:"50%",transform:"translateX(-50%)",display:"flex",gap:12}}>
-        <button aria-label="Zoom out" style={btn} onClick={()=>zoomAt(vRef.current.s/1.5, ...mid())}>−</button>
-        <button aria-label="Reset zoom" style={{...btn,fontSize:14,width:58}} onClick={()=>apply({s:1,x:0,y:0})}>{Math.round(v.s*100)}%</button>
-        <button aria-label="Zoom in" style={btn} onClick={()=>zoomAt(vRef.current.s*1.5, ...mid())}>+</button>
-      </div>
     </div>, document.body);
 }
 
