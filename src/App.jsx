@@ -1131,7 +1131,8 @@ async function prepareChatImage(file) {
 }
 
 async function prepareChatPdf(file) {
-  const pdfjs = await import(/* @vite-ignore */ "/pdfjs/pdf.min.mjs");
+  // Loaded at run time from /public so the build never has to bundle it.
+  const pdfjs = await new Function("u", "return import(u)")("/pdfjs/pdf.min.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.mjs";
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   const total = doc.numPages;
