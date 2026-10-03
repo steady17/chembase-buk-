@@ -300,7 +300,7 @@ function ExcoPhoto({ src, name, size, ring, C, onClick }) {
       display:"flex",alignItems:"center",justifyContent:"center",
       boxShadow:`0 0 0 ${gap}px ${C.card}, 0 0 0 ${gap+frame}px ${C.green}`,
       overflow:"hidden",cursor:onClick?"pointer":"default"}}>
-      <span style={{color:"#fff",fontWeight:800,fontSize:size*0.32}}>{initialsOf(name)}</span>
+      <span style={{color:"#fff",fontWeight:700,fontSize:size*0.32}}>{initialsOf(name)}</span>
       {!broken && (
         <img src={src} alt={name} loading="lazy" onError={()=>setBroken(true)}
           style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>
@@ -441,7 +441,7 @@ function renderInline(text, k) {
     if(p.startsWith('$') && p.endsWith('$') && p.length>2) return <span key={`${k}-${i}`}>{renderMath(p.slice(1,-1), false)}</span>;
     if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",maxWidth:"100%",fontSize:"0.95em",overflowWrap:"break-word"}}>{renderMath(p.slice(2,-2), true)}</span>;
     if(p.startsWith('\\(') && p.endsWith('\\)')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
-    if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:800}}>{renderInline(p.slice(2,-2), `${k}-${i}-b`)}</strong>;
+    if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:700}}>{renderInline(p.slice(2,-2), `${k}-${i}-b`)}</strong>;
     if(p.startsWith('*') && p.endsWith('*') && p.length>2) return <em key={`${k}-${i}`}>{renderInline(p.slice(1,-1), `${k}-${i}-e`)}</em>;
     return <span key={`${k}-${i}`}>{p}</span>;
   });
@@ -496,7 +496,7 @@ function formatMsg(text) {
       i = nextIdx;
       continue;
     }
-    if(/^#{1,3}\s+/.test(t)) result.push(<div key={i} style={{fontWeight:900,fontSize:15,marginTop:10,marginBottom:2}}>{renderInline(t.replace(/^#{1,3}\s+/,""),i)}</div>);
+    if(/^#{1,3}\s+/.test(t)) result.push(<div key={i} style={{fontWeight:800,fontSize:15,marginTop:10,marginBottom:2}}>{renderInline(t.replace(/^#{1,3}\s+/,""),i)}</div>);
     else if(/^-{3,}$/.test(t)) result.push(<div key={i} style={{borderTop:"1px solid currentColor",opacity:0.2,margin:"8px 0"}}/>);
     else if(/^\d+\.\s/.test(t)) result.push(<div key={i} style={{paddingLeft:8,marginTop:4}}>{renderInline(t,i)}</div>);
     else if(t.startsWith("- ")||t.startsWith("* ")) result.push(<div key={i} style={{paddingLeft:12,marginTop:2}}>• {renderInline(t.slice(2),i)}</div>);
@@ -778,6 +778,10 @@ export default function ChemBaseBUK() {
     <style>{`
       .katex-display { overflow-x: hidden !important; overflow-y: hidden !important; max-width: 100%; margin: 0.4em 0 !important; }
       .katex { font-size: 0.92em; max-width: 100%; }
+      /* Windows/Chrome renders heavy font weights with harsher, chunkier edges
+         than mobile browsers do for the same CSS — smooth it out so bold text
+         looks as clean on a PC as it does on a phone. */
+      html, body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
     `}</style>
     <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:C.bg,color:C.ink,paddingBottom:tab==="ai"?0:80,overflow:tab==="ai"?"hidden":"auto",transition:"background 0.3s,color 0.3s"}}>
 
@@ -786,7 +790,7 @@ export default function ChemBaseBUK() {
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <img src={LOGO} alt="NSChE BUK" style={{width:42,height:42,borderRadius:"50%",objectFit:"cover",border:"2px solid rgba(255,255,255,0.3)"}}/>
           <div>
-            <div style={{fontWeight:900,fontSize:16,color:"#fff"}}>ChemBase BUK</div>
+            <div style={{fontWeight:800,fontSize:16,color:"#fff"}}>ChemBase BUK</div>
             <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>NSChE · BUK Chapter</div>
           </div>
         </div>
@@ -800,12 +804,12 @@ export default function ChemBaseBUK() {
             <div style={{position:"absolute",top:-50,right:-50,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}}/>
             <div style={{position:"absolute",bottom:-40,left:-40,width:140,height:140,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}}/>
             <img src={LOGO} alt="NSChE BUK" style={{width:95,height:95,borderRadius:"50%",objectFit:"cover",border:"3px solid rgba(255,255,255,0.4)",boxShadow:"0 4px 20px rgba(0,0,0,0.3)",marginBottom:14}}/>
-            <h1 style={{color:"#fff",margin:"0 0 6px",fontSize:26,fontWeight:900}}>ChemBase BUK</h1>
+            <h1 style={{color:"#fff",margin:"0 0 6px",fontSize:26,fontWeight:800}}>ChemBase BUK</h1>
             <p style={{color:"rgba(255,255,255,0.75)",margin:"0 0 24px",fontSize:13}}>Nigerian Society of Chemical Engineers · Bayero University Kano</p>
             <div style={{display:"flex",justifyContent:"center",gap:10,flexWrap:"wrap"}}>
               {[{v:allCourses.length,l:"Courses"},{v:"3",l:"Levels"},{v:"Free",l:"Always"}].map((s,i)=>(
                 <div key={i} style={{textAlign:"center",padding:"12px 20px",background:"rgba(255,255,255,0.15)",borderRadius:12,minWidth:75}}>
-                  <div style={{fontSize:22,fontWeight:900,color:"#fff"}}>{s.v}</div>
+                  <div style={{fontSize:22,fontWeight:800,color:"#fff"}}>{s.v}</div>
                   <div style={{fontSize:10,color:"rgba(255,255,255,0.75)",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{s.l}</div>
                 </div>
               ))}
@@ -827,7 +831,7 @@ export default function ChemBaseBUK() {
                     <div key={i} style={{...card,padding:"12px 16px",cursor:"pointer"}}
                       onClick={()=>{setLevel(c.level);setSemester(c.semester);setTab("pq");setGlobalSearch("");}}>
                       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:4}}>
-                        <span style={{background:C.greenLight,color:C.green,fontWeight:800,fontSize:11,padding:"2px 10px",borderRadius:20}}>{c.code}</span>
+                        <span style={{background:C.greenLight,color:C.green,fontWeight:700,fontSize:11,padding:"2px 10px",borderRadius:20}}>{c.code}</span>
                         <span style={{fontSize:11,color:C.muted}}>{c.level} · {c.semester}</span>
                       </div>
                       <div style={{fontWeight:600,fontSize:14}}>{c.name}</div>
@@ -840,7 +844,7 @@ export default function ChemBaseBUK() {
 
           {!isGlobalSearch && (
             <div style={{padding:"16px 16px 0",maxWidth:600,margin:"0 auto"}}>
-              <div style={{fontWeight:800,fontSize:15,marginBottom:12}}>Quick Access</div>
+              <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>Quick Access</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[
                   {icon:"📂",title:"Past Questions",desc:"100L – 300L courses",action:()=>setTab("pq"),color:C.green},
@@ -869,7 +873,7 @@ export default function ChemBaseBUK() {
       {/* PAST QUESTIONS */}
       {tab==="pq" && (
         <div style={{maxWidth:700,margin:"0 auto",padding:"20px 16px"}}>
-          <h2 style={{margin:"0 0 4px",fontWeight:900,fontSize:20}}>Past Questions</h2>
+          <h2 style={{margin:"0 0 4px",fontWeight:800,fontSize:20}}>Past Questions</h2>
           <p style={{margin:"0 0 14px",color:C.muted,fontSize:13}}>Select level and semester. Tap a course to download.</p>
 
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
@@ -904,7 +908,7 @@ export default function ChemBaseBUK() {
                   style={{padding:"13px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
                   <div style={{flex:1}}>
                     <div style={{display:"flex",gap:8,marginBottom:4,flexWrap:"wrap",alignItems:"center"}}>
-                      <span style={{background:C.greenLight,color:C.green,fontWeight:800,fontSize:11,padding:"2px 10px",borderRadius:20}}>{course.code}</span>
+                      <span style={{background:C.greenLight,color:C.green,fontWeight:700,fontSize:11,padding:"2px 10px",borderRadius:20}}>{course.code}</span>
                       <span style={{fontSize:11,color:C.muted}}>{course.units} units</span>
                     </div>
                     <div style={{fontWeight:600,fontSize:14,color:C.ink,lineHeight:1.4}}>{course.name}</div>
@@ -958,7 +962,7 @@ export default function ChemBaseBUK() {
           {/* Fixed header */}
           <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,background:C.bg,flexShrink:0,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div>
-              <h2 style={{margin:"0 0 1px",fontWeight:900,fontSize:18}}>🤖 ChemBot</h2>
+              <h2 style={{margin:"0 0 1px",fontWeight:800,fontSize:18}}>🤖 ChemBot</h2>
               <p style={{margin:0,color:C.muted,fontSize:12}}>Your free AI study assistant for Chemical Engineering.</p>
             </div>
             <div style={{display:"flex",gap:6,flexShrink:0}}>
@@ -972,11 +976,11 @@ export default function ChemBaseBUK() {
           {showHistory && (
             <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:C.bg,zIndex:20,display:"flex",flexDirection:"column"}}>
               <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <h3 style={{margin:0,fontWeight:900,fontSize:16}}>Chat History</h3>
+                <h3 style={{margin:0,fontWeight:800,fontSize:16}}>Chat History</h3>
                 <button onClick={()=>setShowHistory(false)} style={{background:"none",border:"none",color:C.muted,fontSize:18,cursor:"pointer"}}>✕</button>
               </div>
               <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
-                <button onClick={startNewChat} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"12px",borderRadius:10,fontWeight:800,fontSize:14,cursor:"pointer",marginBottom:14}}>+ Start New Chat</button>
+                <button onClick={startNewChat} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"12px",borderRadius:10,fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:14}}>+ Start New Chat</button>
                 {chatSessions.length===0 ? (
                   <div style={{textAlign:"center",color:C.muted,padding:30,fontSize:13}}>No conversations yet</div>
                 ) : chatSessions.sort((a,b)=>b.updatedAt-a.updatedAt).map(s=>(
@@ -996,7 +1000,7 @@ export default function ChemBaseBUK() {
             {chatHistory.length===0 && (
               <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",flex:1,padding:"24px 16px"}}>
                 <div style={{fontSize:40,marginBottom:8}}>🧪</div>
-                <div style={{fontWeight:800,fontSize:17,marginBottom:4,color:C.ink,textAlign:"center"}}>Ask me anything ChE</div>
+                <div style={{fontWeight:700,fontSize:17,marginBottom:4,color:C.ink,textAlign:"center"}}>Ask me anything ChE</div>
                 <div style={{fontSize:13,color:C.muted,marginBottom:20,textAlign:"center"}}>Step-by-step solutions. Upload images or PDFs too.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:10,width:"100%"}}>
                   {["What is material balance and how do I apply it?","Explain the difference between batch and continuous reactors","How do I calculate GPA on a 5-point scale?"].map(q=>(
@@ -1043,7 +1047,7 @@ export default function ChemBaseBUK() {
                 onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
                 placeholder={chatFile?"Add message...":"Ask a ChE question..."}
                 style={{flex:1,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.card,color:C.ink,minWidth:0}}/>
-              <button onClick={handleChatSend} disabled={chatLoading||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"10px 14px",borderRadius:10,fontWeight:800,fontSize:13,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||(!chatInput.trim()&&!chatFile)?0.5:1,flexShrink:0}}>Send</button>
+              <button onClick={handleChatSend} disabled={chatLoading||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"10px 14px",borderRadius:10,fontWeight:700,fontSize:13,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||(!chatInput.trim()&&!chatFile)?0.5:1,flexShrink:0}}>Send</button>
             </div>
           </div>
         </div>
@@ -1052,7 +1056,7 @@ export default function ChemBaseBUK() {
       {/* GPA CALCULATOR */}
       {tab==="gpa" && (
         <div style={{maxWidth:600,margin:"0 auto",padding:"20px 16px"}}>
-          <h2 style={{margin:"0 0 4px",fontWeight:900,fontSize:20}}>🧮 GPA Calculator</h2>
+          <h2 style={{margin:"0 0 4px",fontWeight:800,fontSize:20}}>🧮 GPA Calculator</h2>
           <p style={{margin:"0 0 18px",color:C.muted,fontSize:13}}>Enter your courses, units, and grades to compute your GPA.</p>
           <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
             {gpaCourses.map((c,idx)=>(
@@ -1072,7 +1076,7 @@ export default function ChemBaseBUK() {
           <button onClick={addGpaCourse} style={{width:"100%",background:C.greenLight,border:`1.5px dashed ${C.green}`,color:C.green,padding:"10px",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:18}}>+ Add Course</button>
           <div style={{background:`linear-gradient(135deg,${LIGHT.greenDark},${LIGHT.green})`,borderRadius:16,padding:"24px",textAlign:"center",color:"#fff"}}>
             <div style={{fontSize:12,opacity:0.8,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Your GPA</div>
-            <div style={{fontSize:40,fontWeight:900}}>{gpaResult??"—"}</div>
+            <div style={{fontSize:40,fontWeight:800}}>{gpaResult??"—"}</div>
             <div style={{fontSize:12,opacity:0.75,marginTop:6}}>
               {gpaResult?(gpaResult>=4.5?"Excellent! Keep it up 🎉":gpaResult>=3.5?"Good standing 👍":"Push harder next semester 💪"):"Enter units and grades above"}
             </div>
@@ -1088,7 +1092,7 @@ export default function ChemBaseBUK() {
         <div style={{maxWidth:700,margin:"0 auto",padding:"20px 16px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div>
-              <h2 style={{margin:"0 0 4px",fontWeight:900,fontSize:20}}>🙋 Academic Help</h2>
+              <h2 style={{margin:"0 0 4px",fontWeight:800,fontSize:20}}>🙋 Academic Help</h2>
               <p style={{margin:0,color:C.muted,fontSize:13}}>Post a question. Solutions uploaded by admin.</p>
             </div>
             <button onClick={handleAdminClick} style={{background:adminMode?C.green:C.greenLight,color:adminMode?"#fff":C.green,border:`1.5px solid ${C.green}`,borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{adminMode?"Admin ON":"Admin"}</button>
@@ -1109,10 +1113,10 @@ export default function ChemBaseBUK() {
           )}
 
           {!showAskForm
-            ? <button onClick={()=>setShowAskForm(true)} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"13px",borderRadius:12,fontWeight:800,fontSize:14,cursor:"pointer",marginBottom:18}}>+ Ask a Question</button>
+            ? <button onClick={()=>setShowAskForm(true)} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"13px",borderRadius:12,fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:18}}>+ Ask a Question</button>
             : (
               <div style={{...card,padding:"16px",marginBottom:18}}>
-                <div style={{fontWeight:800,fontSize:14,marginBottom:12}}>Ask Your Question</div>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:12}}>Ask Your Question</div>
                 <input placeholder="Your name" value={newQ.name} onChange={e=>setNewQ(p=>({...p,name:e.target.value}))}
                   style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:10,background:C.bg,color:C.ink}}/>
                 <input placeholder="Course code (e.g. TCH301)" value={newQ.course} onChange={e=>setNewQ(p=>({...p,course:e.target.value}))}
@@ -1145,7 +1149,7 @@ export default function ChemBaseBUK() {
                   {questions.map(q=>(
                     <div key={q.id} style={{...card,padding:"14px 16px"}}>
                       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
-                        <span style={{background:C.greenLight,color:C.green,fontWeight:800,fontSize:11,padding:"2px 10px",borderRadius:20}}>{q.course}</span>
+                        <span style={{background:C.greenLight,color:C.green,fontWeight:700,fontSize:11,padding:"2px 10px",borderRadius:20}}>{q.course}</span>
                         <span style={{fontSize:11,color:C.muted}}>by {q.name}</span>
                         {(q.answer_text||q.answer_file_url) && <span style={{background:"#e6f4ed",color:C.green,fontWeight:700,fontSize:10,padding:"2px 8px",borderRadius:20}}>✅ Answered</span>}
                         {adminMode && <button onClick={()=>deleteQuestion(q.id)} style={{marginLeft:"auto",background:"#fee2e2",color:"#c0392b",border:"none",borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑 Delete</button>}
@@ -1179,7 +1183,7 @@ export default function ChemBaseBUK() {
         <div style={{maxWidth:720,margin:"0 auto",padding:"20px 16px 32px"}}>
           <div style={{textAlign:"center",marginBottom:26}}>
             <div style={{fontSize:38,marginBottom:8}}>🏆</div>
-            <h2 style={{margin:"0 0 4px",fontWeight:900,fontSize:23}}>NSChE BUK Legacy</h2>
+            <h2 style={{margin:"0 0 4px",fontWeight:800,fontSize:23}}>NSChE BUK Legacy</h2>
             <p style={{margin:0,color:C.muted,fontSize:13}}>Honouring those who led before us</p>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:18}}>
@@ -1193,9 +1197,9 @@ export default function ChemBaseBUK() {
                     style={{background:`linear-gradient(135deg,${C.greenDark},${C.green})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
                     <div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{fontWeight:900,fontSize:17,color:"#fff",letterSpacing:0.2}}>Executive Set {exec.year}</div>
+                        <div style={{fontWeight:800,fontSize:17,color:"#fff",letterSpacing:0.2}}>Executive Set {exec.year}</div>
                         {i===0 && (
-                          <span style={{fontSize:9.5,fontWeight:800,color:C.greenDark,background:"#fff",padding:"2px 8px",borderRadius:20,letterSpacing:0.5,textTransform:"uppercase"}}>Current</span>
+                          <span style={{fontSize:9.5,fontWeight:700,color:C.greenDark,background:"#fff",padding:"2px 8px",borderRadius:20,letterSpacing:0.5,textTransform:"uppercase"}}>Current</span>
                         )}
                       </div>
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",marginTop:2}}>{exec.members.length} members</div>
@@ -1208,7 +1212,7 @@ export default function ChemBaseBUK() {
                       <div style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",marginBottom:22}}>
                         <ExcoPhoto src={president.photo} name={president.name} size={156} ring C={C}
                           onClick={()=>setZoomedExco({src:president.photo,name:president.name,role:president.role})}/>
-                        <div style={{marginTop:12,fontWeight:900,fontSize:17,color:C.ink}}>{president.name}</div>
+                        <div style={{marginTop:12,fontWeight:800,fontSize:17,color:C.ink}}>{president.name}</div>
                         <div style={{marginTop:4,fontSize:11.5,fontWeight:700,color:C.green,textTransform:"uppercase",letterSpacing:1}}>{president.role}</div>
                       </div>
                       <div style={{height:1,background:C.border,margin:"0 0 20px"}}/>
@@ -1236,7 +1240,7 @@ export default function ChemBaseBUK() {
       {viewingPQ && (
         <div style={{position:"fixed",inset:0,background:"#000",zIndex:1000,display:"flex",flexDirection:"column"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:C.greenDark,flexShrink:0}}>
-            <div style={{color:"#fff",fontWeight:800,fontSize:14}}>{viewingPQ.code} — Past Questions</div>
+            <div style={{color:"#fff",fontWeight:700,fontSize:14}}>{viewingPQ.code} — Past Questions</div>
             <button onClick={()=>setViewingPQ(null)}
               style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",width:32,height:32,borderRadius:8,fontSize:16,fontWeight:700,cursor:"pointer"}}>
               ✕
@@ -1261,7 +1265,7 @@ export default function ChemBaseBUK() {
               style={{width:"100%",height:"100%",objectFit:"cover"}}/>
           </div>
           <div style={{textAlign:"center"}}>
-            <div style={{fontWeight:900,fontSize:19,color:"#fff"}}>{zoomedExco.name}</div>
+            <div style={{fontWeight:800,fontSize:19,color:"#fff"}}>{zoomedExco.name}</div>
             <div style={{marginTop:4,fontSize:12.5,fontWeight:700,color:C.greenLight||"#9fe0bb",textTransform:"uppercase",letterSpacing:1}}>{zoomedExco.role}</div>
           </div>
           <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginTop:6}}>Tap anywhere to close</div>
