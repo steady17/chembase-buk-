@@ -309,7 +309,35 @@ function ExcoPhoto({ src, name, size, ring, C, onClick }) {
 
 function PQViewer({ url, C }) {
   const containerRef = useRef(null);
+  const pdfRef = useRef(null);
   const [status, setStatus] = useState("loading"); // loading | error | ready
+  const [zoom, setZoom] = useState(1);
+
+  async function renderAtZoom(zoomMultiplier) {
+    const container = containerRef.current;
+    const pdf = pdfRef.current;
+    if (!container || !pdf) return;
+    container.innerHTML = "";
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const fitScale = (container.clientWidth || 360) / page.getViewport({ scale: 1 }).width;
+      const viewport = page.getViewport({ scale: fitScale * zoomMultiplier });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.display = "block";
+      canvas.style.margin = "0 auto 10px";
+      canvas.style.borderRadius = "6px";
+      canvas.style.boxShadow = "0 2px 10px rgba(0,0,0,0.3)";
+      container.appendChild(canvas);
+
+      const ctx = canvas.getContext("2d");
+      await page.render({ canvasContext: ctx, viewport }).promise;
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -319,7 +347,7 @@ function PQViewer({ url, C }) {
       if (window.pdfjsLib) {
         window.pdfjsLib.GlobalWorkerOptions.workerSrc =
           "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
-        renderPdf();
+        loadPdf();
       } else if (tries < 100) {
         setTimeout(() => waitForPdfJs(tries + 1), 100);
       } else {
@@ -327,35 +355,13 @@ function PQViewer({ url, C }) {
       }
     }
 
-    async function renderPdf() {
+    async function loadPdf() {
       try {
-        const container = containerRef.current;
-        if (!container) return;
-        container.innerHTML = "";
-
         const pdf = await window.pdfjsLib.getDocument(url).promise;
         if (cancelled) return;
-
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-          if (cancelled) return;
-          const page = await pdf.getPage(pageNum);
-          const scale = Math.min(2, (container.clientWidth || 360) / page.getViewport({ scale: 1 }).width);
-          const viewport = page.getViewport({ scale });
-
-          const canvas = document.createElement("canvas");
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          canvas.style.width = "100%";
-          canvas.style.maxWidth = `${viewport.width}px`;
-          canvas.style.display = "block";
-          canvas.style.margin = "0 auto 10px";
-          canvas.style.borderRadius = "6px";
-          canvas.style.boxShadow = "0 2px 10px rgba(0,0,0,0.3)";
-          container.appendChild(canvas);
-
-          const ctx = canvas.getContext("2d");
-          await page.render({ canvasContext: ctx, viewport }).promise;
-        }
+        pdfRef.current = pdf;
+        setZoom(1);
+        await renderAtZoom(1);
         if (!cancelled) setStatus("ready");
       } catch (e) {
         if (!cancelled) setStatus("error");
@@ -367,8 +373,14 @@ function PQViewer({ url, C }) {
     return () => { cancelled = true; };
   }, [url]);
 
+  function adjustZoom(delta) {
+    const next = Math.max(0.5, Math.min(3, Math.round((zoom + delta) * 100) / 100));
+    setZoom(next);
+    renderAtZoom(next);
+  }
+
   return (
-    <div style={{flex:1,overflow:"auto",background:"#1a1a1a",padding:"14px 10px"}}>
+    <div style={{flex:1,position:"relative",overflow:"auto",background:"#1a1a1a",padding:"14px 10px"}}>
       {status==="loading" && (
         <div style={{color:"#fff",textAlign:"center",padding:"60px 20px",opacity:0.8}}>Loading PDF…</div>
       )}
@@ -379,6 +391,12 @@ function PQViewer({ url, C }) {
         </div>
       )}
       <div ref={containerRef}/>
+      {status==="ready" && (
+        <div style={{position:"fixed",right:14,bottom:20,display:"flex",flexDirection:"column",gap:8,zIndex:1001}}>
+          <button onClick={()=>adjustZoom(0.25)} style={{width:40,height:40,borderRadius:"50%",border:"none",background:C.green,color:"#fff",fontSize:20,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.4)"}}>+</button>
+          <button onClick={()=>adjustZoom(-0.25)} style={{width:40,height:40,borderRadius:"50%",border:"none",background:C.green,color:"#fff",fontSize:20,fontWeight:700,cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.4)"}}>−</button>
+        </div>
+      )}
     </div>
   );
 }
