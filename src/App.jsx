@@ -2303,7 +2303,7 @@ export default function ChemBaseBUK() {
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                         <div style={{width:30,height:30,borderRadius:"50%",background:`linear-gradient(135deg,${LIGHT.greenDark},${LIGHT.green})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0,boxShadow:`0 0 0 2px ${C.greenLight},0 2px 6px rgba(0,0,0,0.18)`}}>🤖</div>
                         <span style={{fontSize:14,fontWeight:"var(--fw-xheavy)",color:C.ink,letterSpacing:0.2}}>ChemBot</span>
-                        <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",color:C.green,background:C.greenLight,border:`1px solid ${C.border}`,borderRadius:20,padding:"1px 7px",letterSpacing:0.6}}>AI</span>
+                        <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",color:C.green,background:C.greenLight,border:`1px solid ${C.border}`,borderRadius:20,padding:"1px 7px",letterSpacing:0.6}}>NSChE AI</span>
                       </div>
                     )}
                     {m.role==="assistant"?formatMsg(m.content):(m.attach ? (
