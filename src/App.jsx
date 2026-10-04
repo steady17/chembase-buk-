@@ -1826,7 +1826,11 @@ export default function ChemBaseBUK() {
   const speakToken = useRef(0);
   const speakKeep = useRef(null);
   const ttsSupported = typeof window!=="undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance!=="undefined";
-  const stopSpeak = () => { speakToken.current++; try{ window.speechSynthesis?.cancel(); }catch(e){} setSpeakingIdx(null); };
+  const natAudio = useRef(null);          // the sound element of the Gemini voice
+  const geminiDown = useRef(false);       // true after the server said no (no key / free limit): use the phone voice
+  const stopSpeak = () => { speakToken.current++; try{ window.speechSynthesis?.cancel(); }catch(e){}
+    try{ if(natAudio.current){ natAudio.current.pause(); natAudio.current=null; } }catch(e){}
+    setSpeakingIdx(null); };
   const speakRate = useRef(1);
   const speakSession = useRef(null);      // {idx, chunks, n} - what is being read right now
   const voicesRef = useRef([]);           // English voices of this phone, best first
@@ -1874,17 +1878,50 @@ export default function ChemBaseBUK() {
   };
   const cycleRate = () => {
     const order=[1,1.25,1.5,0.85]; const nxt=order[(order.indexOf(rateLabel)+1)%order.length];
-    setRateLabel(nxt); speakRate.current=nxt; try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
+    setRateLabel(nxt); speakRate.current=nxt; try{ if(natAudio.current) natAudio.current.playbackRate=nxt; }catch(e){} try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
     restartChunk();
   };
+  // Gemini voice (through our /api/tts). Returns the chunks it could NOT read (empty = all done).
+  const runGemini = async (chunks, token) => {
+    const fetchSound = async (n)=>{
+      try{
+        const r = await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:chunks[n]})});
+        if(!r.ok){ if(r.status===503||r.status===429||r.status===502) geminiDown.current=true; return null; }
+        return URL.createObjectURL(await r.blob());
+      }catch(e){ return null; }
+    };
+    let pending = fetchSound(0);
+    for(let n=0;n<chunks.length;n++){
+      const url = await pending;
+      if(speakToken.current!==token){ if(url) URL.revokeObjectURL(url); return []; }
+      if(!url) return chunks.slice(n);                 // problem: the phone voice reads the rest
+      if(n+1<chunks.length) pending = fetchSound(n+1); // get the next piece ready while this one plays
+      await new Promise(res=>{
+        const au = new Audio(url); natAudio.current = au;
+        au.playbackRate = speakRate.current;
+        au.onended = res; au.onerror = res;
+        au.play().catch(res);
+      });
+      URL.revokeObjectURL(url);
+    }
+    return [];
+  };
   const speakMsg = async (idx, text) => {
-    if(!ttsSupported) return;
     if(speakingIdx===idx){ stopSpeak(); return; }
-    const synth = window.speechSynthesis;
-    try{ synth.cancel(); }catch(e){}
-    const chunks = speechChunks(text); if(!chunks.length) return;
+    const synth = ttsSupported ? window.speechSynthesis : null;
+    try{ synth && synth.cancel(); }catch(e){}
+    try{ if(natAudio.current){ natAudio.current.pause(); natAudio.current=null; } }catch(e){}
+    let chunks = speechChunks(text); if(!chunks.length) return;
     const token = ++speakToken.current;
     setSpeakingIdx(idx);
+    if(!geminiDown.current){
+      const big = speechChunks(text, 450);
+      const rest = await runGemini(big, token);
+      if(speakToken.current!==token) return;
+      if(!rest.length){ natAudio.current=null; setSpeakingIdx(null); return; }
+      chunks = speechChunks(rest.join(" "));
+    }
+    if(!ttsSupported){ setSpeakingIdx(null); return; }
     if(!voicesRef.current.length) await loadVoices();
     if(speakToken.current!==token) return; // stopped while waiting
     runSession({ idx, chunks, n: 0 });
@@ -2519,7 +2556,7 @@ export default function ChemBaseBUK() {
                 </div>
                 {m.role==="assistant" && (
                   <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:2,flexWrap:"wrap"}}>
-                    {ttsSupported && (
+                    {(
                       <button onClick={()=>speakMsg(i,m.content)} aria-label={speakingIdx===i?"Stop reading":"Read this answer aloud"}
                         style={{display:"flex",alignItems:"center",gap:5,background:speakingIdx===i?C.green:C.greenLight,border:`1.5px solid ${speakingIdx===i?C.green:C.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:speakingIdx===i?"#fff":C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
                         {speakingIdx===i
@@ -2528,7 +2565,7 @@ export default function ChemBaseBUK() {
                         {speakingIdx===i?"Stop":"Listen"}
                       </button>
                     )}
-                    {ttsSupported && speakingIdx===i && (
+                    {speakingIdx===i && (
                       <button onClick={cycleRate} aria-label="Change reading speed"
                         style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer",minWidth:40}}>
                         {rateLabel}×
