@@ -2,6 +2,23 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { speechChunks, pickVoice, englishVoices, shareable } from "./speech.js";
 
+const CHEME_FACTS = [
+  "Water is densest at about 4 °C. That is why ice floats and lakes freeze from the top down.",
+  "The Haber–Bosch process turns nitrogen and hydrogen into ammonia. The fertilizer made from it helps feed roughly half of the world.",
+  "Distillation separates liquids by their boiling points. Refinery columns use it to split crude oil into petrol, kerosene, diesel and more.",
+  "A catalyst speeds up a reaction without being used up, by giving it an easier path with a lower activation energy.",
+  "One mole of any substance contains 6.022 × 10²³ particles. That number is Avogadro's number.",
+  "At 0 °C and 1 atm, one mole of an ideal gas takes up about 22.4 litres.",
+  "Le Chatelier's principle: when you disturb a system at equilibrium, it shifts to oppose the change.",
+  "Heat flows from hot to cold by itself, never the other way. That is the second law of thermodynamics in daily life.",
+  "The Reynolds number tells you if flow is smooth (laminar) or turbulent. In a pipe, turbulence is expected above Re of about 4000.",
+  "The Dangote Refinery in Lagos is designed to process 650,000 barrels of crude oil per day.",
+  "Chemical engineers think in unit operations: any plant is a chain of steps like mixing, heating, separating and reacting.",
+  "The pH scale is logarithmic. A solution at pH 3 is ten times more acidic than one at pH 4.",
+  "Just one gram of activated carbon can have a surface area of more than 500 m², which is why it cleans water so well.",
+  "Absolute zero is 0 K, or −273.15 °C. It is the lowest temperature possible in theory.",
+  "In a steady-state process nothing builds up: what comes in must go out, after you count what is made and what is used.",
+];
 const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
 
@@ -2333,7 +2350,7 @@ export default function ChemBaseBUK() {
       {/* HOME */}
       {tab==="home" && (
         <div>
-          <div style={{background:`radial-gradient(circle at 80% 0%,rgba(255,255,255,0.16) 0%,rgba(255,255,255,0) 45%),linear-gradient(150deg,${LIGHT.greenDark} 0%,${LIGHT.green} 65%,#22b05f 100%)`,padding:"38px 24px 44px",textAlign:"center",position:"relative",overflow:"hidden",borderRadius:"0 0 28px 28px",boxShadow:"0 10px 28px rgba(8,92,44,0.25)"}}>
+          <div style={{background:`radial-gradient(circle at 80% 0%,rgba(255,255,255,0.16) 0%,rgba(255,255,255,0) 45%),linear-gradient(150deg,${LIGHT.greenDark} 0%,${LIGHT.green} 65%,#22b05f 100%)`,padding:"36px 24px 52px",textAlign:"center",position:"relative",overflow:"hidden",borderRadius:"0 0 32px 32px",boxShadow:"0 10px 28px rgba(8,92,44,0.25)"}}>
             <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.13) 1.2px, transparent 1.4px)",backgroundSize:"18px 18px",opacity:0.55,pointerEvents:"none"}}/>
             <div style={{position:"absolute",top:-60,right:-60,width:200,height:200,borderRadius:"50%",background:"rgba(255,255,255,0.07)"}}/>
             <div style={{position:"absolute",bottom:-50,left:-50,width:160,height:160,borderRadius:"50%",background:"rgba(255,255,255,0.06)"}}/>
@@ -2341,6 +2358,7 @@ export default function ChemBaseBUK() {
               <div style={{position:"absolute",inset:-8,borderRadius:"50%",background:"rgba(255,255,255,0.18)",filter:"blur(10px)"}}/>
               <img src={LOGO} alt="NSChE BUK" style={{position:"relative",width:100,height:100,borderRadius:"50%",objectFit:"cover",border:"3px solid rgba(255,255,255,0.7)",boxShadow:"0 6px 24px rgba(0,0,0,0.35)",background:"#fff"}}/>
             </div>
+            <div style={{position:"relative",color:"rgba(255,255,255,0.85)",fontSize:13,marginBottom:4}}>{(()=>{ const h=new Date().getHours(); return h<12?"Good morning ☀️":h<17?"Good afternoon 👋":"Good evening 🌙"; })()}</div>
             <h1 style={{position:"relative",color:"#fff",margin:"0 0 8px",fontSize:28,fontWeight:"var(--fw-xheavy)",letterSpacing:0.3}}>ChemBase BUK</h1>
             <div style={{position:"relative",display:"inline-block",background:"rgba(255,255,255,0.16)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 12px",fontSize:11,color:"#fff",letterSpacing:0.6,marginBottom:10}}>YOUR ACADEMIC HUB</div>
             <p style={{position:"relative",color:"rgba(255,255,255,0.82)",margin:"0 0 22px",fontSize:13,lineHeight:1.5}}>Nigerian Society of Chemical Engineers · Bayero University Kano</p>
@@ -2354,12 +2372,12 @@ export default function ChemBaseBUK() {
             </div>
           </div>
 
-          <div style={{padding:"20px 16px 0",maxWidth:600,margin:"0 auto"}}>
+          <div style={{padding:"0 16px 0",maxWidth:600,margin:"-26px auto 0",position:"relative",zIndex:2}}>
             <div style={{position:"relative"}}>
               <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:16}}>🔍</span>
               <input placeholder="Search any course across all levels..."
                 value={globalSearch} onChange={e=>setGlobalSearch(e.target.value)}
-                style={{width:"100%",padding:"12px 16px 12px 40px",borderRadius:12,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",boxSizing:"border-box",background:C.card,color:C.ink,boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}/>
+                style={{width:"100%",padding:"14px 16px 14px 42px",borderRadius:16,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",boxSizing:"border-box",background:C.card,color:C.ink,boxShadow:"0 8px 24px rgba(8,92,44,0.18)"}}/>
             </div>
             {isGlobalSearch && (
               <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
@@ -2399,7 +2417,12 @@ export default function ChemBaseBUK() {
                 ))}
               </div>
 
-              <div style={{marginTop:20,marginBottom:20,padding:"16px 16px 16px 18px",background:`linear-gradient(135deg,${C.greenLight} 0%,${C.card} 140%)`,borderRadius:16,border:`1.5px solid ${C.border}`,borderLeft:`5px solid ${C.green}`,boxShadow:"0 4px 14px rgba(14,122,60,0.08)",display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{marginTop:20,padding:"16px 18px",borderRadius:18,background:"linear-gradient(135deg,#fff7e0 0%,#ffeeba 100%)",border:"1.5px solid #f1d98a",boxShadow:"0 4px 14px rgba(184,134,11,0.12)"}}>
+                <div style={{fontWeight:"var(--fw-heavy)",fontSize:12,letterSpacing:0.8,color:"#8a6508",marginBottom:6}}>💡 CHEME FACT OF THE DAY</div>
+                <div style={{fontSize:13.5,lineHeight:1.65,color:"#4a3a08"}}>{CHEME_FACTS[Math.floor(Date.now()/86400000)%CHEME_FACTS.length]}</div>
+              </div>
+
+              <div style={{marginTop:16,marginBottom:20,padding:"16px 16px 16px 18px",background:`linear-gradient(135deg,${C.greenLight} 0%,${C.card} 140%)`,borderRadius:16,border:`1.5px solid ${C.border}`,borderLeft:`5px solid ${C.green}`,boxShadow:"0 4px 14px rgba(14,122,60,0.08)",display:"flex",gap:12,alignItems:"flex-start"}}>
                 <div style={{width:38,height:38,flexShrink:0,borderRadius:12,background:C.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 3px 10px rgba(14,122,60,0.35)"}}>📢</div>
                 <div>
                   <div style={{fontWeight:"var(--fw-heavy)",color:C.green,fontSize:14}}>Welcome to ChemBase BUK</div>
@@ -2408,6 +2431,7 @@ export default function ChemBaseBUK() {
                   </p>
                 </div>
               </div>
+              <div style={{textAlign:"center",fontSize:11,color:C.muted,padding:"4px 0 14px",letterSpacing:0.4}}>Made by students, for students · NSChE BUK</div>
             </div>
           )}
         </div>
