@@ -2294,10 +2294,11 @@ export default function ChemBaseBUK() {
               </div>
             )}
             {chatHistory.map((m,i)=>(
-              <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",gap:4}}>
-                <div style={{display:"flex",alignItems:"flex-start",gap:8,flexDirection:m.role==="user"?"row-reverse":"row"}}>
-                  {m.role==="assistant" && <div style={{width:28,height:28,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:13,marginTop:2}}>🤖</div>}
-                  <div style={{maxWidth:m.role==="user"?"85%":"96%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.green:C.card,color:m.role==="user"?"#fff":C.ink,fontSize:14,lineHeight:1.7,border:m.role==="assistant"?`1px solid ${C.border}`:"none",overflowWrap:"break-word",minWidth:0}}>
+              <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",gap:4,marginBottom:m.role==="assistant"?10:0}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:8,flexDirection:m.role==="user"?"row-reverse":"row",width:m.role==="user"?"auto":"100%",maxWidth:"100%"}}>
+                  <div style={m.role==="user"
+                    ? {maxWidth:"85%",padding:"10px 14px",borderRadius:"18px 18px 4px 18px",background:C.green,color:"#fff",fontSize:14.5,lineHeight:1.7,overflowWrap:"break-word",minWidth:0}
+                    : {width:"100%",padding:"2px 2px",color:C.ink,fontSize:15,lineHeight:1.75,overflowWrap:"break-word",minWidth:0}}>
                     {m.role==="assistant"?formatMsg(m.content):(m.attach ? (
                       <div>
                         {m.attach.thumb
@@ -2314,7 +2315,7 @@ export default function ChemBaseBUK() {
                 </div>
                 {m.role==="assistant" && (
                   <button onClick={()=>{const msg=encodeURIComponent("ChemBot (ChemBase BUK):\n\n"+m.content);window.open(`https://wa.me/?text=${msg}`,"_blank");}}
-                    style={{marginLeft:36,background:"#25d366",border:"none",borderRadius:8,padding:"4px 10px",fontSize:11,color:"#fff",fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
+                    style={{marginLeft:2,background:"#25d366",border:"none",borderRadius:8,padding:"4px 10px",fontSize:11,color:"#fff",fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
                     Share on WhatsApp
                   </button>
                 )}
