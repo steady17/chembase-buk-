@@ -2300,9 +2300,10 @@ export default function ChemBaseBUK() {
                     ? {maxWidth:"85%",padding:"10px 14px",borderRadius:"18px 18px 4px 18px",background:C.green,color:"#fff",fontSize:14.5,lineHeight:1.7,overflowWrap:"break-word",minWidth:0}
                     : {width:"100%",padding:"2px 2px",color:C.ink,fontSize:15,lineHeight:1.75,overflowWrap:"break-word",minWidth:0}}>
                     {m.role==="assistant" && (
-                      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
-                        <div style={{width:24,height:24,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>🤖</div>
-                        <span style={{fontSize:12,fontWeight:"var(--fw-heavy)",color:C.muted}}>ChemBot</span>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                        <div style={{width:30,height:30,borderRadius:"50%",background:`linear-gradient(135deg,${LIGHT.greenDark},${LIGHT.green})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0,boxShadow:`0 0 0 2px ${C.greenLight},0 2px 6px rgba(0,0,0,0.18)`}}>🤖</div>
+                        <span style={{fontSize:14,fontWeight:"var(--fw-xheavy)",color:C.ink,letterSpacing:0.2}}>ChemBot</span>
+                        <span style={{fontSize:10,fontWeight:"var(--fw-heavy)",color:C.green,background:C.greenLight,border:`1px solid ${C.border}`,borderRadius:20,padding:"1px 7px",letterSpacing:0.6}}>AI</span>
                       </div>
                     )}
                     {m.role==="assistant"?formatMsg(m.content):(m.attach ? (
