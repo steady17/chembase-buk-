@@ -2294,6 +2294,10 @@ export default function ChemBaseBUK() {
     <>
     <style>{`
       /* long equations scroll sideways instead of being cut off */
+      @keyframes cbRise { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+      .cb-rise { animation: cbRise .45s ease both; transition: transform .15s ease; }
+      .cb-rise:active { transform: scale(0.97); }
+      @media (prefers-reduced-motion: reduce) { .cb-rise { animation:none; } }
       .katex-display, .cb-mathscroll { overflow-x: auto !important; overflow-y: hidden !important; max-width: 100%; margin: 0.4em 0 !important; padding: 2px 2px 8px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: rgba(14,122,60,0.55) transparent; }
       .katex-display::-webkit-scrollbar, .cb-mathscroll::-webkit-scrollbar { height: 6px; }
       .katex-display::-webkit-scrollbar-thumb, .cb-mathscroll::-webkit-scrollbar-thumb { background: rgba(14,122,60,0.5); border-radius: 6px; }
@@ -2340,9 +2344,9 @@ export default function ChemBaseBUK() {
             <h1 style={{position:"relative",color:"#fff",margin:"0 0 8px",fontSize:28,fontWeight:"var(--fw-xheavy)",letterSpacing:0.3}}>ChemBase BUK</h1>
             <div style={{position:"relative",display:"inline-block",background:"rgba(255,255,255,0.16)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 12px",fontSize:11,color:"#fff",letterSpacing:0.6,marginBottom:10}}>YOUR ACADEMIC HUB</div>
             <p style={{position:"relative",color:"rgba(255,255,255,0.82)",margin:"0 0 22px",fontSize:13,lineHeight:1.5}}>Nigerian Society of Chemical Engineers · Bayero University Kano</p>
-            <div style={{position:"relative",display:"flex",justifyContent:"center",gap:10,flexWrap:"wrap"}}>
+            <div style={{position:"relative",display:"flex",justifyContent:"center",gap:10}}>
               {[{v:allCourses.length,l:"Courses"},{v:"3",l:"Levels"},{v:"Free",l:"Always"}].map((s,i)=>(
-                <div key={i} style={{textAlign:"center",padding:"11px 20px",background:"rgba(255,255,255,0.16)",border:"1px solid rgba(255,255,255,0.28)",borderRadius:14,minWidth:78,backdropFilter:"blur(4px)"}}>
+                <div key={i} style={{textAlign:"center",padding:"11px 6px",background:"rgba(255,255,255,0.16)",border:"1px solid rgba(255,255,255,0.28)",borderRadius:14,flex:"1 1 0",maxWidth:104,backdropFilter:"blur(4px)"}}>
                   <div style={{fontSize:22,fontWeight:"var(--fw-xheavy)",color:"#fff"}}>{s.v}</div>
                   <div style={{fontSize:10,color:"rgba(255,255,255,0.8)",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{s.l}</div>
                 </div>
@@ -2378,7 +2382,7 @@ export default function ChemBaseBUK() {
 
           {!isGlobalSearch && (
             <div style={{padding:"16px 16px 0",maxWidth:600,margin:"0 auto"}}>
-              <div style={{fontWeight:"var(--fw-heavy)",fontSize:15,marginBottom:12}}>Quick Access</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16,marginBottom:14}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Quick Access</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[
                   {icon:"📂",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
@@ -2386,8 +2390,8 @@ export default function ChemBaseBUK() {
                   {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:"#b8860b"},
                   {icon:"🧰",title:"ChemE Toolbox",desc:"Calculator, converters & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:"#6a1b9a"},
                 ].map((c,i)=>(
-                  <div key={i} onClick={c.action} role="button" style={{...card,padding:"14px 14px 12px",cursor:"pointer",position:"relative",overflow:"hidden",borderTop:`3px solid ${c.color}`,display:"flex",flexDirection:"column",gap:2}}>
-                    <div style={{width:40,height:40,borderRadius:12,background:c.color+"1f",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,marginBottom:8}}>{c.icon}</div>
+                  <div key={i} onClick={c.action} role="button" className="cb-rise" style={{...card,padding:"15px 14px 13px",cursor:"pointer",position:"relative",overflow:"hidden",borderTop:`3px solid ${c.color}`,borderRadius:18,display:"flex",flexDirection:"column",gap:2,boxShadow:`0 6px 18px ${c.color}22`,background:`linear-gradient(160deg,${C.card} 55%,${c.color}12 140%)`,animationDelay:(i*70)+"ms"}}>
+                    <div style={{width:44,height:44,borderRadius:14,background:`linear-gradient(135deg,${c.color}30,${c.color}12)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,marginBottom:9}}>{c.icon}</div>
                     <div style={{fontWeight:"var(--fw-heavy)",fontSize:13.5,color:c.color}}>{c.title}</div>
                     <div style={{fontSize:12,color:C.muted,paddingRight:14}}>{c.desc}</div>
                     <span style={{position:"absolute",right:12,bottom:11,fontSize:16,color:c.color,opacity:0.7}}>›</span>
@@ -2395,35 +2399,14 @@ export default function ChemBaseBUK() {
                 ))}
               </div>
 
-              <div style={{fontWeight:"var(--fw-heavy)",fontSize:15,margin:"22px 0 10px"}}>Jump to your level</div>
-              <div style={{display:"flex",gap:10}}>
-                {Object.keys(courses).map(l=>(
-                  <button key={l} onClick={()=>{setLevel(l);setSemester("First Semester");setOpenCourse(null);setCourseSearch("");setTab("pq");}}
-                    style={{flex:1,padding:"12px 6px",borderRadius:14,border:`1.5px solid ${C.border}`,background:C.card,color:C.green,fontWeight:"var(--fw-heavy)",fontSize:14,cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{fontWeight:"var(--fw-heavy)",fontSize:15,margin:"22px 0 10px"}}>Ask ChemBot</div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {[
-                  "Explain the mass balance in simple words",
-                  "How do I calculate the heat of reaction?",
-                  "Give me tips to pass my next exam",
-                ].map((q,i)=>(
-                  <div key={i} onClick={()=>{setChatInput(q);setTab("ai");}} role="button"
-                    style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",background:C.card,border:`1.5px solid ${C.border}`,borderRadius:14,cursor:"pointer",fontSize:13,color:C.ink}}>
-                    <span style={{fontSize:16}}>💬</span><span style={{flex:1}}>{q}</span><span style={{color:C.green,fontSize:16}}>›</span>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{marginTop:22,marginBottom:16,padding:"14px 16px",background:C.greenLight,borderRadius:14,borderLeft:`4px solid ${C.green}`}}>
-                <div style={{fontWeight:"var(--fw-heavy)",color:C.green,fontSize:13}}>📢 Welcome to ChemBase BUK</div>
-                <p style={{margin:"6px 0 0",color:C.muted,fontSize:13,lineHeight:1.6}}>
-                  Your official NSChE BUK academic resource hub: past questions, ChemBot AI, academic help and the ChemE Toolbox, all free.
-                </p>
+              <div style={{marginTop:20,marginBottom:20,padding:"16px 16px 16px 18px",background:`linear-gradient(135deg,${C.greenLight} 0%,${C.card} 140%)`,borderRadius:16,border:`1.5px solid ${C.border}`,borderLeft:`5px solid ${C.green}`,boxShadow:"0 4px 14px rgba(14,122,60,0.08)",display:"flex",gap:12,alignItems:"flex-start"}}>
+                <div style={{width:38,height:38,flexShrink:0,borderRadius:12,background:C.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 3px 10px rgba(14,122,60,0.35)"}}>📢</div>
+                <div>
+                  <div style={{fontWeight:"var(--fw-heavy)",color:C.green,fontSize:14}}>Welcome to ChemBase BUK</div>
+                  <p style={{margin:"6px 0 0",color:C.muted,fontSize:13,lineHeight:1.65}}>
+                    Your official NSChE BUK academic resource hub. Browse past questions, use ChemBot AI for instant solutions, ask for academic help, and use the ChemE Toolbox for your coursework.
+                  </p>
+                </div>
               </div>
             </div>
           )}
