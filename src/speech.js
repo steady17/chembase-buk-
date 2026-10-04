@@ -45,35 +45,68 @@ const UNIT_WORDS = {   // [plural, singular] - "joules per mole"
   km: ["kilometres", "kilometre"], cm: ["centimetres", "centimetre"], mm: ["millimetres", "millimetre"], m: ["metres", "metre"],
   min: ["minutes", "minute"], s: ["seconds", "second"], h: ["hours", "hour"], Hz: ["hertz", "hertz"], V: ["volts", "volt"],
 };
-const UNIT_TOK = "(?:" + Object.keys(UNIT_WORDS).sort((a, b) => b.length - a.length).join("|") + ")(?:[²³])?";
-const UNIT_EXPR = UNIT_TOK + "(?:\\/" + UNIT_TOK + ")*";
+const UNIT_NAMES = Object.keys(UNIT_WORDS).sort((a, b) => b.length - a.length).join("|");
+// one unit, with an optional power:  m³   m^3   s^-1   s⁻¹
+const TOK = "(?:" + UNIT_NAMES + ")(?:\\^\\s*[-−]?\\d|⁻?[¹²³])?";
+// kg/m³   Pa·s   J/(mol·K)
+const CHAIN_DOT = "(?:" + TOK + "\\s*\\/\\s*\\(\\s*" + TOK + "(?:\\s*[·⋅]\\s*" + TOK + ")*\\s*\\)|" + TOK + "(?:\\s*[·⋅]\\s*" + TOK + "|\\s*\\/\\s*" + TOK + ")*)";
+// the same, but plain spaces also allowed:  J mol⁻¹ K⁻¹
+const CHAIN_SP = TOK + "(?:(?:\\s*[·⋅]\\s*|\\s*\\/\\s*\\(?\\s*|\\s+)" + TOK + "\\)?)*";
 
-function speakUnit(expr) {
-  return expr.split("/").map((part, i) => {
-    const pw = /²$/.test(part) ? " squared" : /³$/.test(part) ? " cubed" : "";
-    const w = UNIT_WORDS[part.replace(/[²³]$/, "")];
-    return (i === 0 ? w[0] : w[1]) + pw;
-  }).join(" per ");
+function powWord(n) { return n === 2 ? " squared" : n === 3 ? " cubed" : n > 3 ? " to the power of " + n : ""; }
+
+// "J mol⁻¹ K⁻¹" -> "joules per mole per kelvin",  "h⁻¹" -> "per hour",  "kg/m³" -> "kilograms per metre cubed"
+function speakChain(text, one) {
+  const t = text.replace(/⁻¹/g, "^-1").replace(/⁻²/g, "^-2").replace(/⁻³/g, "^-3")
+    .replace(/¹/g, "^1").replace(/²/g, "^2").replace(/³/g, "^3").replace(/\^\s*\{?\s*([-−]?\d)\s*\}?/g, "^$1").replace(/−/g, "-");
+  const nums = [], dens = [];
+  let afterSlash = false;
+  const re = new RegExp("(\\/)|(" + UNIT_NAMES + ")(?:\\^(-?\\d))?", "g");
+  let m;
+  while ((m = re.exec(t))) {
+    if (m[1]) { afterSlash = true; continue; }
+    const exp = m[3] !== undefined ? parseInt(m[3], 10) : 1;
+    const mag = Math.abs(exp);
+    const bottom = afterSlash !== (exp < 0);
+    (bottom ? dens : nums).push({ u: m[2], mag });
+  }
+  const numWords = nums.map((x, i) => UNIT_WORDS[x.u][i === nums.length - 1 && !one ? 0 : 1] + powWord(x.mag)).join(" ");
+  const denWords = dens.map((x) => "per " + UNIT_WORDS[x.u][1] + powWord(x.mag)).join(" ");
+  return [numWords, denWords].filter(Boolean).join(" ");
+}
+const hasNeg = (c) => /⁻|\^\s*[-−]/.test(c);
+
+// Units written as a power-of-minus-one chain, anywhere in the text:  "mol h⁻¹"  "s^-1"
+function negUnitChains(s) {
+  return s.replace(new RegExp("(^|[^A-Za-z\\\\])(" + CHAIN_SP + ")(?![A-Za-z])", "g"),
+    (m, pre, chain) => (hasNeg(chain) ? pre + " " + speakChain(chain) + " " : m));
 }
 // "285.8 kJ/mol" -> "285.8 kilojoules per mole"   (only straight after a number)
 function expandUnits(s) {
-  return s.replace(new RegExp("(\\d)\\s*(" + UNIT_EXPR + ")(?![A-Za-z0-9])", "g"), (_, d, u) => d + " " + speakUnit(u));
+  return s.replace(new RegExp("(\\d[\\d.,]*)\\s*(" + CHAIN_DOT + ")(?![A-Za-z0-9])", "g"), (_, d, u) => d + " " + speakChain(u, d === "1"));
 }
-// \text{kJ/mol} inside a formula: the whole thing is a unit
+// column titles like "Density (kg/m³)" and "Rate (mol/L/h)"
+function bracketUnits(s) {
+  return s.replace(new RegExp("\\(\\s*(" + CHAIN_SP + ")\\s*\\)", "g"), (m, c, off, str) =>
+    ((/[\/\^²³·⋅]/.test(c) || /[A-Za-z]{2,}/.test(c)) && str[off - 1] !== "/") ? ", in " + speakChain(c) + "," : m);
+}
+// a roman-type group inside a formula, e.g. \text{kJ/mol} or \mathrm{J\,mol^{-1}}: if it is only units, say them as units
 function unitOnly(inner) {
-  const t = inner.trim();
-  return new RegExp("^" + UNIT_EXPR + "$").test(t) ? speakUnit(t) : inner;
+  const clean = inner.replace(/\\[,;:! ]/g, " ").replace(/\\cdot/g, "·").trim();
+  return new RegExp("^" + CHAIN_SP + "$").test(clean) ? speakChain(clean) : inner;
 }
 
 const KNOWN_FORMULAS = { NaCl: "sodium chloride", NaOH: "sodium hydroxide", KOH: "potassium hydroxide", CaCO3: "calcium carbonate" };
 const SPELL = new Set(["CSTR", "PFR", "PQ", "PQs", "CGPA", "GPA", "BUK", "NSChE", "SIWES", "NSE", "LPG", "CNG", "PVC", "CFD", "PID", "HETP", "LMTD", "COD", "BOD", "TDS"]);
-// "H2SO4" -> "H 2 S O 4", "HCl" -> "H C L", "CSTR" -> "C S T R"
+const spellOne = (tok) => tok.replace(/([A-Z][a-z]?)(\d*)/g, (m, el, d) => el.toUpperCase().split("").join(" ") + (d ? " " + d : "") + " ").trim();
+// "H2SO4" -> "H 2 S O 4", "HCl" -> "H C L", "CSTR" -> "C S T R", "2H2O" -> "2 H 2 O", "O2" -> "O 2"
 function spellFormulas(s) {
-  return s.replace(/\b(?:[A-Z][a-z]?\d*){2,}\b/g, (tok) => {
-    if (KNOWN_FORMULAS[tok]) return KNOWN_FORMULAS[tok];
-    if (!(SPELL.has(tok) || /[a-z\d]/.test(tok))) return tok;
-    return tok.replace(/([A-Z][a-z]?)(\d*)/g, (m, el, d) => el.toUpperCase().split("").join(" ") + (d ? " " + d : "") + " ").trim();
+  s = s.replace(/\b(\d*)((?:[A-Z][a-z]?\d*){2,})\b/g, (m, coef, tok) => {
+    if (KNOWN_FORMULAS[tok]) return (coef ? coef + " " : "") + KNOWN_FORMULAS[tok];
+    if (!(SPELL.has(tok) || /[a-z\d]/.test(tok))) return m;
+    return (coef ? coef + " " : "") + spellOne(tok);
   });
+  return s.replace(/\b(\d*)([A-Z][a-z]?)(\d+)\b/g, (m, c, el, d) => (c ? c + " " : "") + el.toUpperCase().split("").join(" ") + " " + d);
 }
 function expandAbbreviations(s) {
   return s.replace(/\be\.g\./gi, "for example").replace(/\bi\.e\./gi, "that is").replace(/\betc\.(?=\s+[A-Z])/g, "and so on.").replace(/\betc\./gi, "and so on")
@@ -84,10 +117,17 @@ function expandAbbreviations(s) {
 // LaTeX -> plain spoken words
 export function mathToWords(tex) {
   let s = " " + tex + " ";
+  s = s.replace(/\^\s*\{\s*([-−]?\d)\s*\}/g, "^$1");
+  // \text{J mol}^{-1}  ->  \text{J mol^{-1}}  (the power belongs to the last unit)
+  s = s.replace(/\\(text|mathrm)\s*\{([^{}]*)\}\s*\^\s*\{?\s*([-−]?\d)\s*\}?/g, (_, w, c, e) => "\\" + w + "{" + c.trimEnd() + "^" + e + "}");
   s = s.replace(/\\(?:text|mathrm|mathbf|mathit|textbf|textit|operatorname|mathcal|boldsymbol)\s*\{([^{}]*)\}/g, (_, t) => " " + unitOnly(t) + " ");
   s = s.replace(/\\(?:left|right|big|Big|bigg|Bigg)\b\s*/g, " ");
-  s = s.replace(/\\[,;:!]/g, " ").replace(/\\ /g, " ");
+  s = s.replace(/\\[,;:!]/g, " ").replace(/\\ /g, " ").replace(/\\cdot(?=\s*[A-Za-z])/g, "·");
   s = s.replace(/\\\\/g, " ");
+  s = s.replace(/\^\s*\{\s*([-−]?\d)\s*\}/g, "^$1");
+  s = negUnitChains(s);
+  // 0.05(100 - D) -> "0.05 times (100 - D)"
+  s = s.replace(/(^|[^A-Za-z_0-9.])(\d+(?:\.\d+)?)\s*\(/g, "$1$2 times (").replace(/\)\s*\(/g, ") times (");
   s = s.replace(/&/g, " ");
   // limits: \int_0^1 -> "integral from 0 to 1 of"
   const strip = (x) => x.replace(/^\{|\}$/g, "");
@@ -102,8 +142,8 @@ export function mathToWords(tex) {
     s = s.replace(/\\sqrt\s*([A-Za-z0-9])/g, " square root of $1 ");
     s = s.replace(/\^\s*\{([^{}]*)\}/g, (_, p) => power(p));
     s = s.replace(/\^\s*(-?[A-Za-z0-9])/g, (_, p) => power(p));
-    s = s.replace(/_\s*\{([^{}]*)\}/g, (_, b) => (/^\d+$/.test(b.trim()) ? " " + b + " " : " sub " + b + " "));
-    s = s.replace(/_\s*([A-Za-z0-9])/g, (_, b) => (/^\d$/.test(b) ? " " + b + " " : " sub " + b + " "));
+    s = s.replace(/_\s*\{([^{}]*)\}/g, (_, b) => (/^\d+$/.test(b.trim()) ? b.trim() : " sub " + b + " "));
+    s = s.replace(/_\s*([A-Za-z0-9])/g, (_, b) => (/^\d$/.test(b) ? b : " sub " + b + " "));
     if (s === before) break;
   }
   s = s.replace(/\\([A-Za-z]+)/g, (_, w) => {
@@ -117,7 +157,12 @@ export function mathToWords(tex) {
   s = s.replace(/=/g, " equals ").replace(/\+/g, " plus ").replace(/[−–]/g, " minus ");
   s = s.replace(/(^|[\s(=,])-(?=[\dA-Za-z(])/g, "$1 minus ").replace(/-/g, " minus ");
   s = s.replace(/\*/g, " times ").replace(/\//g, " divided by ").replace(/</g, " less than ").replace(/>/g, " greater than ");
-  s = s.replace(/[()\[\]|]/g, " ").replace(/\s+/g, " ").trim();
+  for (let i = 0; i < 6; i++) {
+    const before = s;
+    s = s.replace(/\(([^()]*)\)/g, (m, inner) => (/ (plus|minus|equals|over|times|divided by) /.test(" " + inner + " ") ? " , " + inner + " , " : " " + inner + " "));
+    if (s === before) break;
+  }
+  s = s.replace(/[()\[\]|]/g, " ").replace(/\s+/g, " ").replace(/^[\s,]+|[\s,]+$/g, "");
   return s;
 }
 
@@ -145,18 +190,29 @@ export function speakable(md) {
   s = s.replace(/\\\[([\s\S]+?)\\\]/g, (_, t) => done(t));
   s = s.replace(/\\\(([\s\S]+?)\\\)/g, (_, t) => done(t));
   s = s.replace(/\$([^$\n]+?)\$/g, (_, t) => done(t));
-  // tables: short ones are read row by row, long ones are just announced
+  // tables: read every row, naming the column for each value:  "Water: Density 1000, Viscosity 0.001."
   {
     const out = []; let rows = [];
     const flush = () => {
       if (!rows.length) return;
-      if (rows.length > 5) out.push("A table with " + rows.length + " rows is shown on screen.");
-      else rows.forEach((r) => out.push(r));
+      const head = rows[0], body = rows.slice(1);
+      out.push("Table.");
+      if (!body.length) out.push(head.join(", ") + ".");
+      body.forEach((r) => {
+        const pairs = r.slice(1).map((c, i) => {
+          const h = head[i + 1] || "";
+          const um = h.match(/^(.*?)\s*\(([^)]*)\)\s*$/);                       // "Density (kg/m³)"
+          if (um && new RegExp("^" + CHAIN_SP + "$").test(um[2].trim()) && c) return (um[1] + " " + c + " " + speakChain(um[2])).trim();
+          return ((h ? h + " " : "") + c).trim();
+        }).filter(Boolean);
+        out.push((r[0] ? r[0] + (pairs.length ? ": " : "") : "") + pairs.join(", ") + ".");
+      });
+      out.push("End of table.");
       rows = [];
     };
     for (const line of s.split("\n")) {
       if (/^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes("-")) continue;
-      if (/^\s*\|.*\|\s*$/.test(line)) rows.push(line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()).filter(Boolean).join(", ") + ".");
+      if (/^\s*\|.*\|\s*$/.test(line)) rows.push(line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()));
       else { flush(); out.push(line); }
     }
     flush();
@@ -169,13 +225,18 @@ export function speakable(md) {
   s = s.replace(/\*\*|__|\*|~~/g, "");
   s = s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2B50}\u{2B06}]/gu, "");
   s = expandAbbreviations(s);
+  s = negUnitChains(s);
+  s = expandUnits(s);
+  s = bracketUnits(s);
+  s = s.replace(/(\w|\))\^\{?(-?\d+|[A-Za-z])\}?/g, (m, b, p) => b + power(p));      // x^2, 10^6 written without LaTeX
+  s = s.replace(/(^|[\s(])~(?=\s?\d)/g, "$1approximately ").replace(/ > /g, " greater than ").replace(/ < /g, " less than ");
   s = s.replace(/\b(\d+):(\d+)\b/g, (m, a, b) => (b.length === 2 && +a <= 24 && +b < 60 ? m : a + " to " + b));   // 1:2 -> "1 to 2", 3:30 stays a time
   s = expandUnits(s);
   s = unicodeToWords(s);
   s = s.replace(/\bChE\b/g, "Chemical Engineering");
   s = spellFormulas(s);
   s = s.replace(/([^.!?:;,\s])[ \t]*\n+/g, "$1. ").replace(/\n+/g, " ");
-  return s.replace(/\s+/g, " ").replace(/\s+([.,!?;:])/g, "$1").replace(/\.\s*\./g, ".").trim();
+  return s.replace(/\s+/g, " ").replace(/\(\s+/g, "(").replace(/\s+\)/g, ")").replace(/\s+([.,!?;:])/g, "$1").replace(/,\s*,/g, ",").replace(/\.\s*\./g, ".").trim();
 }
 
 // Browsers stop long speech after a while, so read it in small pieces.

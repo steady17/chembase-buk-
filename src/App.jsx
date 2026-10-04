@@ -1755,6 +1755,7 @@ export default function ChemBaseBUK() {
   };
   const toggleVoice = () => {
     if(listening||!voiceSupported) return;
+    try{ speakToken.current++; window.speechSynthesis?.cancel(); }catch(e){} setSpeakingIdx(null); // do not let the mic hear ChemBot
     voiceBase.current = chatInput; voiceText.current = chatInput; voiceOn.current = true;
     setHeard(""); setListening(true); startVoiceSession();
   };
