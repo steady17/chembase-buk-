@@ -2,6 +2,18 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { speechChunks, pickVoice, englishVoices, shareable } from "./speech.js";
 
+// Simple line icons (same style everywhere, take the colour of the text around them)
+const ICON_PATHS = {
+  home: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></>,
+  folder: <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>,
+  bot: <><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8 16h.01"/><path d="M16 16h.01"/></>,
+  help: <><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></>,
+  tools: <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>,
+  trophy: <><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></>,
+};
+function Icon({ name, size = 22, stroke = 2 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICON_PATHS[name]}</svg>;
+}
 const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
 
@@ -2280,12 +2292,12 @@ export default function ChemBaseBUK() {
   };
 
   const navItems = [
-    {id:"home",  label:"Home",     icon:"🏠"},
-    {id:"pq",    label:"PQs",      icon:"📂"},
-    {id:"ai",    label:"ChemBot",  icon:"🤖"},
-    {id:"help",  label:"Help",     icon:"🙋"},
-    {id:"toolbox",label:"Toolbox",  icon:"🧰"},
-    {id:"legacy",label:"Legacy",   icon:"🏆"},
+    {id:"home",  label:"Home",     icon:"home"},
+    {id:"pq",    label:"PQs",      icon:"folder"},
+    {id:"ai",    label:"ChemBot",  icon:"bot"},
+    {id:"help",  label:"Help",     icon:"help"},
+    {id:"toolbox",label:"Toolbox",  icon:"tools"},
+    {id:"legacy",label:"Legacy",   icon:"trophy"},
   ];
 
   const card = {background:C.card,borderRadius:14,border:`1.5px solid ${C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"};
@@ -2385,13 +2397,13 @@ export default function ChemBaseBUK() {
               <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16,marginBottom:14}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Quick Access</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[
-                  {icon:"📂",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
-                  {icon:"🤖",title:"ChemBot AI",desc:"AI study assistant",action:()=>setTab("ai"),color:"#1565c0"},
-                  {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:"#b8860b"},
-                  {icon:"🧰",title:"ChemE Toolbox",desc:"Calculator, converters & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:"#6a1b9a"},
+                  {icon:"folder",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
+                  {icon:"bot",title:"ChemBot AI",desc:"AI study assistant",action:()=>setTab("ai"),color:"#1565c0"},
+                  {icon:"help",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:"#b8860b"},
+                  {icon:"tools",title:"ChemE Toolbox",desc:"Calculator, converters & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:"#6a1b9a"},
                 ].map((c,i)=>(
                   <div key={i} onClick={c.action} role="button" className="cb-rise" style={{...card,padding:"15px 14px 13px",cursor:"pointer",position:"relative",overflow:"hidden",borderTop:`3px solid ${c.color}`,borderRadius:18,display:"flex",flexDirection:"column",gap:2,boxShadow:`0 6px 18px ${c.color}22`,background:`linear-gradient(160deg,${C.card} 55%,${c.color}12 140%)`,animationDelay:(i*70)+"ms"}}>
-                    <div style={{width:44,height:44,borderRadius:14,background:`linear-gradient(135deg,${c.color}30,${c.color}12)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,marginBottom:9}}>{c.icon}</div>
+                    <div style={{width:44,height:44,borderRadius:14,background:`linear-gradient(135deg,${c.color}30,${c.color}12)`,display:"flex",alignItems:"center",justifyContent:"center",color:c.color,marginBottom:9}}><Icon name={c.icon} size={24}/></div>
                     <div style={{fontWeight:"var(--fw-heavy)",fontSize:13.5,color:c.color}}>{c.title}</div>
                     <div style={{fontSize:12,color:C.muted,paddingRight:14}}>{c.desc}</div>
                     <span style={{position:"absolute",right:12,bottom:11,fontSize:16,color:c.color,opacity:0.7}}>›</span>
@@ -3313,7 +3325,7 @@ export default function ChemBaseBUK() {
       <nav style={{position:"fixed",bottom:0,left:0,right:0,background:C.navBg,borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"space-around",padding:"8px 0 10px",boxShadow:"0 -2px 12px rgba(0,0,0,0.08)"}}>
         {navItems.map(n=>(
           <button key={n.id} onClick={()=>{ if(n.id==="toolbox" && tab==="toolbox") setToolboxView(null); setTab(n.id); }} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,color:tab===n.id?C.green:C.muted,fontWeight:tab===n.id?700:400,fontSize:9,padding:"4px 6px"}}>
-            <span style={{fontSize:19}}>{n.icon}</span>
+            <span style={{display:"flex",alignItems:"center",justifyContent:"center",width:44,height:26,borderRadius:13,background:tab===n.id?C.greenLight:"transparent",transition:"background .2s"}}><Icon name={n.icon} size={20} stroke={tab===n.id?2.3:1.9}/></span>
             {n.label}
           </button>
         ))}
