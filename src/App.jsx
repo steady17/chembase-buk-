@@ -143,6 +143,15 @@ const allCourses = Object.entries(courses).flatMap(([level, sems]) =>
   )
 );
 
+// Heads of Department, newest first
+const hods = [
+  { name:"Dr. Adamu Abubakar Rasheed", years:"2025 – Present", current:true, photo:"/hod/hod-5-rasheed.jpg" },
+  { name:"Dr. Omar Ahmed Umar",        years:"2023 – 2025",                   photo:"/hod/hod-4-omar.jpg" },
+  { name:"Prof. Nurudeen Yusuf",       years:"2019 – 2023",                   photo:"/hod/hod-3-yusuf.jpg" },
+  { name:"Prof. Nurudeen Salahudeen",  years:"2017 – 2019",                   photo:"/hod/hod-2-salahudeen.jpg" },
+  { name:"Prof. Baba El-Yakubu Jibril",years:"2015 – 2017",                   photo:"/hod/hod-1-jibril.jpg" },
+];
+
 const legacy = [
   {
     year:"2025/2026",
@@ -1404,6 +1413,28 @@ function ExcoPhoto({ src, name, size, ring, C, onClick }) {
   );
 }
 
+function HodCard({ h, C, card, onOpen }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <div style={{...card,overflow:"hidden",maxWidth:520,width:"100%",margin:"0 auto",boxShadow:h.current?"0 10px 30px rgba(14,122,60,0.22)":"0 4px 16px rgba(0,0,0,0.10)",border:h.current?`2px solid ${C.green}`:card.border}}>
+      <div onClick={()=>!broken&&onOpen(h.photo)}
+        style={{position:"relative",width:"100%",aspectRatio:"4 / 5",background:`linear-gradient(135deg,${C.greenMid},${C.green})`,cursor:broken?"default":"zoom-in",overflow:"hidden"}}>
+        {broken && <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:"var(--fw-xheavy)",fontSize:72}}>{initialsOf(h.name.replace(/^(Prof|Dr)\.?\s+/,""))}</div>}
+        {!broken && <img src={h.photo} alt={h.name} loading="lazy" onError={()=>setBroken(true)}
+          style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
+        {h.current && (
+          <span style={{position:"absolute",top:14,right:14,fontSize:10.5,fontWeight:"var(--fw-heavy)",color:C.greenDark,background:"#fff",padding:"4px 11px",borderRadius:20,letterSpacing:0.8,textTransform:"uppercase",boxShadow:"0 2px 8px rgba(0,0,0,0.25)"}}>Current</span>
+        )}
+        <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"64px 20px 18px",background:"linear-gradient(to top, rgba(3,28,14,0.92) 0%, rgba(3,28,14,0.62) 55%, rgba(3,28,14,0) 100%)"}}>
+          <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:"rgba(255,255,255,0.78)",textTransform:"uppercase",letterSpacing:1.4,marginBottom:5}}>Head of Department</div>
+          <div style={{fontSize:22,lineHeight:1.2,fontWeight:"var(--fw-xheavy)",color:"#fff",textShadow:"0 1px 6px rgba(0,0,0,0.35)"}}>{h.name}</div>
+          <div style={{display:"inline-block",marginTop:10,fontSize:12.5,fontWeight:"var(--fw-heavy)",color:"#fff",background:"rgba(255,255,255,0.18)",border:"1px solid rgba(255,255,255,0.35)",padding:"4px 12px",borderRadius:20,letterSpacing:0.4}}>{h.years}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PQViewer({ url, C }) {
   const containerRef = useRef(null);
   const pdfRef = useRef(null);
@@ -1614,6 +1645,8 @@ export default function ChemBaseBUK() {
   const [courseSearch, setCourseSearch] = useState("");
   const [expandedExco, setExpandedExco] = useState("2025/2026");
   const [zoomedExco, setZoomedExco] = useState(null);
+  const [legacyView, setLegacyView] = useState("exco");   // "exco" | "hod"
+  const [hodViewer, setHodViewer] = useState(null);
 
   // ChemE Toolbox (GPA lives here, plus unit converter / constants / calculators / periodic table)
   const [toolboxView, setToolboxView] = useState(null); // null = the tool list
@@ -3040,11 +3073,24 @@ export default function ChemBaseBUK() {
       {/* LEGACY */}
       {tab==="legacy" && (
         <div style={{maxWidth:720,margin:"0 auto",padding:"20px 16px 32px"}}>
-          <div style={{textAlign:"center",marginBottom:26}}>
-            <div style={{fontSize:38,marginBottom:8}}>🏆</div>
-            <h2 style={{margin:"0 0 4px",fontWeight:"var(--fw-xheavy)",fontSize:23}}>NSChE BUK Legacy</h2>
-            <p style={{margin:0,color:C.muted,fontSize:13}}>Honouring those who led before us</p>
+          <div style={{textAlign:"center",marginBottom:18}}>
+            <div style={{fontSize:38,marginBottom:8}}>{legacyView==="hod"?"🎓":"🏆"}</div>
+            <h2 style={{margin:"0 0 4px",fontWeight:"var(--fw-xheavy)",fontSize:23}}>{legacyView==="hod"?"Heads of Department":"NSChE BUK Legacy"}</h2>
+            <p style={{margin:0,color:C.muted,fontSize:13}}>{legacyView==="hod"?"The leaders who have guided the department":"Honouring those who led before us"}</p>
           </div>
+          <div style={{display:"flex",gap:4,padding:4,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:14,marginBottom:22}}>
+            {[["exco","NSChE Executives"],["hod","Heads of Department"]].map(([id,label])=>(
+              <button key={id} onClick={()=>setLegacyView(id)}
+                style={{flex:1,border:"none",cursor:"pointer",padding:"10px 6px",borderRadius:10,fontSize:12.5,fontWeight:"var(--fw-heavy)",
+                  background:legacyView===id?C.green:"transparent",color:legacyView===id?"#fff":C.green,transition:"background .15s"}}>{label}</button>
+            ))}
+          </div>
+          {legacyView==="hod" && (
+            <div style={{display:"flex",flexDirection:"column",gap:24}}>
+              {hods.map(h=><HodCard key={h.name} h={h} C={C} card={card} onOpen={setHodViewer}/>)}
+            </div>
+          )}
+          {legacyView==="exco" && (
           <div style={{display:"flex",flexDirection:"column",gap:18}}>
             {legacy.map((exec,i)=>{
               const isOpen=expandedExco===exec.year;
@@ -3092,6 +3138,7 @@ export default function ChemBaseBUK() {
               );
             })}
           </div>
+          )}
         </div>
       )}
 
@@ -3108,6 +3155,8 @@ export default function ChemBaseBUK() {
           <PQViewer url={`/api/pq?id=${viewingPQ.id}&name=${viewingPQ.code}-pq&mode=view`} C={C}/>
         </div>
       )}
+
+      {hodViewer && <ImageZoomViewer src={hodViewer} onClose={()=>setHodViewer(null)}/>}
 
       {/* ZOOMED EXCO PHOTO OVERLAY */}
       {zoomedExco && (
