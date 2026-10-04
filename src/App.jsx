@@ -1915,7 +1915,12 @@ export default function ChemBaseBUK() {
     const token = ++speakToken.current;
     setSpeakingIdx(idx);
     if(!onlineDown.current){
-      const big = speechChunks(text, 450);
+      // few, long pieces (the free voice can change between pieces), but a short first piece so it starts quickly
+      let big = speechChunks(text, 700);
+      if(big[0] && big[0].length>150){
+        const bits = speechChunks(big[0], 130);
+        if(bits.length>1) big = [bits[0], bits.slice(1).join(" "), ...big.slice(1)];
+      }
       const rest = await runOnlineVoice(big, token);
       if(speakToken.current!==token) return;
       if(!rest.length){ natAudio.current=null; setSpeakingIdx(null); return; }

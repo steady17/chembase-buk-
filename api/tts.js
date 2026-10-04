@@ -13,7 +13,7 @@ export default async function handler(req, res) {
 
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) return res.status(503).json({ error: 'Voice is not configured.' });
-  const text = String((req.body && req.body.text) || '').trim().slice(0, 600);
+  const text = String((req.body && req.body.text) || '').trim().slice(0, 900);
   if (!text) return res.status(400).json({ error: 'No text.' });
 
   try {
