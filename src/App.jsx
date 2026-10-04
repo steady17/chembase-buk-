@@ -1719,6 +1719,27 @@ export default function ChemBaseBUK() {
   const [chatFile, setChatFile]       = useState(null);
   const [chatFileBusy, setChatFileBusy] = useState(false);
   const [chatViewer, setChatViewer] = useState(null);
+  // Voice input: uses the phone's built-in speech recognition (free, no API limit used).
+  const [listening, setListening] = useState(false);
+  const recogRef = useRef(null);
+  const voiceSupported = typeof window!=="undefined" && !!(window.SpeechRecognition||window.webkitSpeechRecognition);
+  const stopVoice = () => { try{ recogRef.current?.stop(); }catch(e){} recogRef.current=null; setListening(false); };
+  const toggleVoice = () => {
+    if(listening){ stopVoice(); return; }
+    const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR) return;
+    const r = new SR();
+    r.lang = "en-NG"; r.interimResults = true; r.continuous = false;
+    const base = chatInput.trim() ? chatInput.trim()+" " : "";
+    r.onresult = (ev)=>{
+      let t=""; for(let i=0;i<ev.results.length;i++) t+=ev.results[i][0].transcript;
+      setChatInput(base+t);
+    };
+    r.onerror = ()=>{ recogRef.current=null; setListening(false); };
+    r.onend = ()=>{ recogRef.current=null; setListening(false); };
+    recogRef.current = r; setListening(true);
+    try{ r.start(); }catch(e){ recogRef.current=null; setListening(false); }
+  };
   const chatRef    = useRef(null);
   const chatFileRef = useRef(null);
 
@@ -1922,6 +1943,7 @@ export default function ChemBaseBUK() {
   };
   const handleChatSend = async () => {
     if((!chatInput.trim()&&!chatFile)||chatLoading||chatFileBusy) return;
+    stopVoice();
     const typed = chatInput.trim();
     const userText = typed||(chatFile?`[Uploaded: ${chatFile.name}]`:"");
     let userContent, isDoc = false;
@@ -2354,8 +2376,9 @@ export default function ChemBaseBUK() {
               <button onClick={()=>chatFileRef.current?.click()} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"10px 11px",fontSize:16,cursor:"pointer",color:C.green,flexShrink:0}}>📎</button>
               <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
-                placeholder={chatFile?"Add message...":"Ask a ChE question..."}
+                placeholder={listening?"Listening...":chatFile?"Add message...":"Ask a ChE question..."}
                 style={{flex:1,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.card,color:C.ink,minWidth:0}}/>
+              {voiceSupported && <button onClick={toggleVoice} aria-label={listening?"Stop voice input":"Speak your question"} style={{background:listening?"#dc2626":C.greenLight,border:`1.5px solid ${listening?"#dc2626":C.border}`,borderRadius:10,padding:"10px 11px",cursor:"pointer",color:listening?"#fff":C.green,flexShrink:0,display:"flex",alignItems:"center"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg></button>}
               <button onClick={handleChatSend} disabled={chatLoading||chatFileBusy||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"10px 14px",borderRadius:10,fontWeight:"var(--fw-heavy)",fontSize:13,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||chatFileBusy||(!chatInput.trim()&&!chatFile)?0.5:1,flexShrink:0}}>Send</button>
             </div>
           </div>
