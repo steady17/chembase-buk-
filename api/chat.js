@@ -2,7 +2,7 @@
 // configured, falls back to OpenRouter — first DeepSeek, then Llama — so
 // ChemBot keeps working even if Groq has a bad day.
 
-async function callGroq(messages, groqKey, model = 'openai/gpt-oss-120b', maxTokens = 1200) {
+async function callGroq(messages, groqKey, model = 'openai/gpt-oss-120b', maxTokens = 3500) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -13,7 +13,10 @@ async function callGroq(messages, groqKey, model = 'openai/gpt-oss-120b', maxTok
       model,
       messages,
       temperature: 0.3,
-      max_tokens: maxTokens
+      max_tokens: maxTokens,
+      // gpt-oss "thinks" before it answers and the thinking counts against max_tokens,
+      // which is what used to cut answers off half way. Keep the thinking short.
+      ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {})
     })
   });
   const data = await res.json();
@@ -21,10 +24,10 @@ async function callGroq(messages, groqKey, model = 'openai/gpt-oss-120b', maxTok
   let content = data.choices?.[0]?.message?.content || '';
   content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   if (!content) throw new Error('Groq returned an empty response.');
-  return content;
+  return { content, finish: data.choices?.[0]?.finish_reason };
 }
 
-async function callOpenRouter(messages, orKey, model, maxTokens = 1200) {
+async function callOpenRouter(messages, orKey, model, maxTokens = 3500) {
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -45,7 +48,25 @@ async function callOpenRouter(messages, orKey, model, maxTokens = 1200) {
   let content = data.choices?.[0]?.message?.content || '';
   content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   if (!content) throw new Error(`OpenRouter (${model}) returned an empty response.`);
-  return content;
+  return { content, finish: data.choices?.[0]?.finish_reason };
+}
+
+// If the model stopped only because it ran out of room, ask it once to carry on,
+// so a long answer is not cut off in the middle.
+async function finishAnswer(run, messages, startedAt) {
+  let r = await run(messages);
+  let text = r.content;
+  if (r.finish === 'length' && Date.now() - startedAt < 6000) {
+    try {
+      const more = await run([
+        ...messages,
+        { role: 'assistant', content: text },
+        { role: 'user', content: 'Continue exactly where you stopped. Do not repeat anything and do not add an introduction.' }
+      ]);
+      text += more.content;
+    } catch (e) { /* keep what we have */ }
+  }
+  return text;
 }
 
 function hasImages(messages) {
@@ -68,6 +89,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'No messages were sent.' });
   }
 
+  const startedAt = Date.now();
   const attempts = [];
 
   if (hasImages(messages)) {
@@ -75,18 +97,18 @@ export default async function handler(req, res) {
     const visionModel = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
     const orVision = process.env.OPENROUTER_VISION_MODEL || 'google/gemma-3-27b-it:free';
     if (groqKey) {
-      attempts.push({ label: 'Groq vision', run: () => callGroq(messages, groqKey, visionModel, 2500) });
+      attempts.push({ label: 'Groq vision', run: () => finishAnswer((m) => callGroq(m, groqKey, visionModel, 3500), messages, startedAt) });
     }
     if (openRouterKey) {
-      attempts.push({ label: 'OpenRouter vision', run: () => callOpenRouter(messages, openRouterKey, orVision, 2500) });
+      attempts.push({ label: 'OpenRouter vision', run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, orVision, 3500), messages, startedAt) });
     }
   } else {
     if (groqKey) {
-      attempts.push({ label: 'Groq', run: () => callGroq(messages, groqKey) });
+      attempts.push({ label: 'Groq', run: () => finishAnswer((m) => callGroq(m, groqKey), messages, startedAt) });
     }
     if (openRouterKey) {
-      attempts.push({ label: 'OpenRouter DeepSeek', run: () => callOpenRouter(messages, openRouterKey, 'deepseek/deepseek-chat:free') });
-      attempts.push({ label: 'OpenRouter Llama', run: () => callOpenRouter(messages, openRouterKey, 'meta-llama/llama-3.3-70b-instruct:free') });
+      attempts.push({ label: 'OpenRouter DeepSeek', run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, 'deepseek/deepseek-chat:free'), messages, startedAt) });
+      attempts.push({ label: 'OpenRouter Llama', run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, 'meta-llama/llama-3.3-70b-instruct:free'), messages, startedAt) });
     }
   }
 
