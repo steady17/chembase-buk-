@@ -53,6 +53,12 @@ const CHAIN_DOT = "(?:" + TOK + "\\s*\\/\\s*\\(\\s*" + TOK + "(?:\\s*[·⋅]\\s*
 // the same, but plain spaces also allowed:  J mol⁻¹ K⁻¹
 const CHAIN_SP = TOK + "(?:(?:\\s*[·⋅]\\s*|\\s*\\/\\s*\\(?\\s*|\\s+)" + TOK + "\\)?)*";
 
+// lengths read as "square metres" / "cubic metres"; everything else as "squared" / "cubed"
+const LENGTHS = new Set(["m", "cm", "mm", "km"]);
+function withPower(x, word) {
+  if (LENGTHS.has(x.u) && (x.mag === 2 || x.mag === 3)) return (x.mag === 2 ? "square " : "cubic ") + word;
+  return word + powWord(x.mag);
+}
 function powWord(n) { return n === 2 ? " squared" : n === 3 ? " cubed" : n > 3 ? " to the power of " + n : ""; }
 
 // "J mol⁻¹ K⁻¹" -> "joules per mole per kelvin",  "h⁻¹" -> "per hour",  "kg/m³" -> "kilograms per metre cubed"
@@ -70,8 +76,8 @@ function speakChain(text, one) {
     const bottom = afterSlash !== (exp < 0);
     (bottom ? dens : nums).push({ u: m[2], mag });
   }
-  const numWords = nums.map((x, i) => UNIT_WORDS[x.u][i === nums.length - 1 && !one ? 0 : 1] + powWord(x.mag)).join(" ");
-  const denWords = dens.map((x) => "per " + UNIT_WORDS[x.u][1] + powWord(x.mag)).join(" ");
+  const numWords = nums.map((x, i) => withPower(x, UNIT_WORDS[x.u][i === nums.length - 1 && !one ? 0 : 1])).join(" ");
+  const denWords = dens.map((x) => "per " + withPower(x, UNIT_WORDS[x.u][1])).join(" ");
   return [numWords, denWords].filter(Boolean).join(" ");
 }
 const hasNeg = (c) => /⁻|\^\s*[-−]/.test(c);
@@ -114,13 +120,31 @@ function expandAbbreviations(s) {
     .replace(/\bEqs?\./g, "Equation").replace(/\bNo\.\s?(?=\d)/g, "number ");
 }
 
+
+// Dotted letters mean flow rates in Chemical Engineering, so say what they mean:
+//   ṁ -> "mass flow rate",  ṁ_in -> "inlet mass flow rate",  ṁ_A -> "mass flow rate of A"
+const RATE_NAMES = { m: "mass flow rate", n: "molar flow rate", V: "volumetric flow rate", Q: "heat transfer rate", W: "work rate", E: "energy rate" };
+function dotPhrase(letter, sub) {
+  const base = RATE_NAMES[letter];
+  const sb = (sub || "").replace(/[{}\s\\]/g, "");
+  if (!base) return " " + letter + " dot" + (sb ? " " : " ");
+  if (!sb) return " " + base + " ";
+  const low = sb.toLowerCase();
+  if (low === "in" || low === "inlet" || low === "feed" || low === "f") return " " + (low === "f" || low === "feed" ? "feed " : "inlet ") + base + " ";
+  if (low === "out" || low === "outlet") return " outlet " + base + " ";
+  if (low === "gen") return " " + base + " of generation ";
+  if (low === "cv" || low === "sys") return " " + base + " of the system ";
+  if (/^\d+$/.test(sb)) return " " + base + " " + sb + " ";
+  return " " + base + " of " + sb + " ";
+}
+
 // LaTeX -> plain spoken words
 export function mathToWords(tex) {
   let s = " " + tex + " ";
   s = s.replace(/\^\s*\{\s*([-−]?\d)\s*\}/g, "^$1");
   // accents on a letter:  \dot{m} -> "m dot",  \bar{x} -> "x bar",  \vec{F} -> "vector F"
   s = s.replace(/\\ddot\s*\{([^{}]*)\}|\\ddot\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " double dot ");
-  s = s.replace(/\\dot\s*\{([^{}]*)\}|\\dot\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " dot ");
+  s = s.replace(/\\dot\s*(?:\{([^{}]*)\}|([A-Za-z]))(?:\s*_\s*(?:\{([^{}]*)\}|([A-Za-z0-9])))?/g, (_, a, b, c, d) => dotPhrase(a || b, c || d));
   s = s.replace(/\\(?:bar|overline)\s*\{([^{}]*)\}|\\bar\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " bar ");
   s = s.replace(/\\(?:hat|widehat)\s*\{([^{}]*)\}|\\hat\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " hat ");
   s = s.replace(/\\(?:tilde|widetilde)\s*\{([^{}]*)\}|\\tilde\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " tilde ");
@@ -194,8 +218,8 @@ export function speakable(md) {
   s = s.normalize("NFC");
   s = s.replace(/[\u2460-\u2473]/g, (c) => " " + (c.charCodeAt(0) - 0x245f) + " ");                 // circled numbers
   s = s.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{25A0}-\u{25FF}\u{2300}-\u{23FF}\u{2500}-\u{257F}\u{FE0F}\u{FE0E}\u{20E3}\u{200D}\u{2022}\u{2023}]/gu, "");
-  s = s.replace(/([A-Za-z])[\u0307\u02D9]/g, "$1 dot ").replace(/([A-Za-z])\u0308/g, "$1 double dot ").replace(/([A-Za-z])[\u0304\u00AF]/g, "$1 bar ");
-  s = s.replace(/[\u1E40\u1E41\u1E44\u1E45\u1E56\u1E57\u1E58\u1E59\u1E86\u1E87\u1E8A\u1E8B\u1E8E\u1E8F]/g, (c) => ({ "\u1E40": "M", "\u1E41": "m", "\u1E44": "N", "\u1E45": "n", "\u1E56": "P", "\u1E57": "p", "\u1E58": "R", "\u1E59": "r", "\u1E86": "W", "\u1E87": "w", "\u1E8A": "X", "\u1E8B": "x", "\u1E8E": "Y", "\u1E8F": "y" }[c]) + " dot ");
+  s = s.replace(/([A-Za-z])[\u0307\u02D9](?:_\{?([A-Za-z0-9]+)\}?)?/g, (_, l, sub) => dotPhrase(l, sub)).replace(/([A-Za-z])\u0308/g, "$1 double dot ").replace(/([A-Za-z])[\u0304\u00AF]/g, "$1 bar ");
+  s = s.replace(/([\u1E40\u1E41\u1E44\u1E45\u1E56\u1E57\u1E58\u1E59\u1E86\u1E87\u1E8A\u1E8B\u1E8E\u1E8F])(?:_\{?([A-Za-z0-9]+)\}?)?/g, (_, c, sub) => dotPhrase(({ "\u1E40": "M", "\u1E41": "m", "\u1E44": "N", "\u1E45": "n", "\u1E56": "P", "\u1E57": "p", "\u1E58": "R", "\u1E59": "r", "\u1E86": "W", "\u1E87": "w", "\u1E8A": "X", "\u1E8B": "x", "\u1E8E": "Y", "\u1E8F": "y" })[c], sub));
 
   // maths first, so its symbols are not touched by the markdown clean-up
   const done = (tex) => " " + mathToWords(tex) + " ";
