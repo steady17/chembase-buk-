@@ -2586,11 +2586,11 @@ export default function ChemBaseBUK() {
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[
                   {icon:"📂",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
-                  {icon:"🤖",title:"ChemBot AI",desc:"AI study assistant",action:()=>setTab("ai"),color:"#1565c0"},
-                  {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:"#b8860b"},
-                  {icon:"🧰",title:"ChemE Toolbox",desc:"Calculator, converters & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:"#6a1b9a"},
+                  {icon:"🤖",title:"ChemBot AI",desc:"AI study assistant",action:()=>setTab("ai"),color:dark?"#64b5f6":"#1565c0"},
+                  {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:dark?"#f0c040":"#b8860b"},
+                  {icon:"🧰",title:"ChemE Toolbox",desc:"Calculator, converters & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:dark?"#ce93d8":"#6a1b9a"},
                 ].map((c,i)=>(
-                  <div key={i} onClick={c.action} role="button" className="cb-rise" style={{...card,padding:"15px 14px 13px",cursor:"pointer",position:"relative",overflow:"hidden",borderTop:`3px solid ${c.color}`,borderRadius:18,display:"flex",flexDirection:"column",gap:2,boxShadow:`0 6px 18px ${c.color}22`,background:`linear-gradient(160deg,${C.card} 55%,${c.color}12 140%)`,animationDelay:(i*70)+"ms"}}>
+                  <div key={i} onClick={c.action} role="button" className="cb-rise" style={{...card,padding:"15px 14px 13px",cursor:"pointer",position:"relative",overflow:"hidden",borderRadius:18,display:"flex",flexDirection:"column",gap:2,boxShadow:`inset 0 3px 0 ${c.color}, 0 6px 18px ${c.color}22`,background:`linear-gradient(160deg,${C.card} 55%,${c.color}12 140%)`,animationDelay:(i*70)+"ms"}}>
                     <div style={{width:44,height:44,borderRadius:14,background:`linear-gradient(135deg,${c.color}30,${c.color}12)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,marginBottom:9}}>{c.icon}</div>
                     <div style={{fontWeight:"var(--fw-heavy)",fontSize:13.5,color:c.color}}>{c.title}</div>
                     <div style={{fontSize:12,color:C.muted,paddingRight:14}}>{c.desc}</div>
@@ -2638,7 +2638,7 @@ export default function ChemBaseBUK() {
                   </div>
                 </div>); })()}
 
-              <div style={{marginTop:16,marginBottom:20,padding:"16px 16px 16px 18px",background:`linear-gradient(135deg,${C.greenLight} 0%,${C.card} 140%)`,borderRadius:16,border:`1.5px solid ${C.border}`,borderLeft:`5px solid ${C.green}`,boxShadow:"0 4px 14px rgba(14,122,60,0.08)",display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{marginTop:16,marginBottom:20,padding:"16px 16px 16px 18px",background:`linear-gradient(135deg,${C.greenLight} 0%,${C.card} 140%)`,borderRadius:16,border:`1.5px solid ${C.border}`,boxShadow:`inset 5px 0 0 ${C.green}, 0 4px 14px rgba(14,122,60,0.08)`,display:"flex",gap:12,alignItems:"flex-start"}}>
                 <div style={{width:38,height:38,flexShrink:0,borderRadius:12,background:C.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 3px 10px rgba(14,122,60,0.35)"}}>📢</div>
                 <div>
                   <div style={{fontWeight:"var(--fw-heavy)",color:C.green,fontSize:14}}>Welcome to ChemBase BUK</div>
