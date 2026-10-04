@@ -156,10 +156,47 @@ const PUSH_WORDS = [
   "Progress, not perfection.",
   "Your best study session is the next one you actually start.",
 ];
+const TERMS = [
+  "Enthalpy (H): the heat content of a system at constant pressure. In a reaction, ΔH tells you if heat is released or absorbed.",
+  "Entropy: a measure of disorder, or how spread out the energy in a system is.",
+  "Mole: the amount of a substance that contains 6.022 × 10²³ particles. It lets us count atoms by weighing.",
+  "Molarity: the number of moles of solute in one litre of solution.",
+  "Molality: the number of moles of solute in one kilogram of solvent. It does not change with temperature.",
+  "Yield: the amount of product you actually get, compared with the most you could possibly get.",
+  "Conversion: the fraction of a reactant that has actually reacted.",
+  "Selectivity: how much of the reacted material becomes the product you want, instead of by-products.",
+  "Limiting reactant: the reactant that runs out first and so decides how much product can form.",
+  "Excess reactant: the reactant that is left over after the reaction has finished.",
+  "Steady state: a condition where nothing changes with time at any point in the process.",
+  "Batch process: material is loaded, processed and removed all at once. Think of cooking a pot of soup.",
+  "Continuous process: material flows in and out all the time. Most big plants run this way.",
+  "Recycle stream: a stream that sends unreacted material back to the start so nothing is wasted.",
+  "Purge: a small stream taken out of a recycle loop to stop unwanted material building up.",
+  "Bypass: a stream that skips a unit and joins the process again further on.",
+  "Vapour pressure: the pressure at which a liquid and its vapour are in balance at a given temperature.",
+  "Boiling point: the temperature at which a liquid's vapour pressure equals the pressure around it.",
+  "Relative volatility: how much more easily one component evaporates than another. It decides how easy a distillation is.",
+  "Reflux: liquid sent back to the top of a distillation column to make the separation sharper.",
+  "Absorption: removing a gas from a mixture by dissolving it in a liquid.",
+  "Adsorption: molecules sticking to the surface of a solid, like gas on activated carbon.",
+  "Activation energy: the minimum energy needed to get a reaction started.",
+  "Residence time: the average time material spends inside a vessel or reactor.",
+  "Viscosity: how much a fluid resists flowing. Honey is more viscous than water.",
+  "Laminar flow: smooth, orderly flow in layers. It happens at a low Reynolds number.",
+  "Turbulent flow: chaotic, swirling flow. It mixes well but loses more energy to friction.",
+  "Specific heat capacity: the heat needed to raise the temperature of 1 kg of a substance by 1 K.",
+  "Latent heat: the heat taken in or given out when a substance changes phase, without changing its temperature.",
+  "Equilibrium: the point where forward and reverse rates are equal, so the composition stops changing.",
+  "Stoichiometry: using the mole ratios in a balanced equation to work out amounts of reactants and products.",
+  "Degrees of freedom: unknowns minus independent equations. If it is zero, the problem can be solved.",
+  "Basis: the amount or flow you choose to start a calculation from, such as 100 mol of feed.",
+  "Pressure drop: the pressure lost as a fluid flows through pipes and fittings because of friction.",
+];
 const FACT_THEME = {
   f: { chip: "💡 DID YOU KNOW?", mark: "🧪", bg: "linear-gradient(145deg,#0b2b3d 0%,#0d4a50 55%,#0e6b4a 100%)", glow: "rgba(11,43,61,0.38)" },
   t: { chip: "📚 STUDY TIP",     mark: "📚", bg: "linear-gradient(145deg,#1a1f5c 0%,#2b3a9a 60%,#3f6fd1 100%)", glow: "rgba(43,58,154,0.38)" },
   c: { chip: "🚀 CAREER NOTE",   mark: "🚀", bg: "linear-gradient(145deg,#5c2a0a 0%,#a8470f 55%,#e08a1e 100%)", glow: "rgba(168,71,15,0.38)" },
+  d: { chip: "📖 TERM OF THE DAY", mark: "📖", bg: "linear-gradient(145deg,#0f3d2e 0%,#1b7a4a 60%,#5fb24a 100%)", glow: "rgba(27,122,74,0.38)" },
   m: { chip: "🔥 KEEP GOING",    mark: "🔥", bg: "linear-gradient(145deg,#4a1260 0%,#8b2a9a 55%,#d6457f 100%)", glow: "rgba(139,42,154,0.38)" },
 };
 const LOGO      = "/nsche-logo.jpg";
@@ -1834,6 +1871,7 @@ export default function ChemBaseBUK() {
   const [courseSearch, setCourseSearch] = useState("");
   const [expandedExco, setExpandedExco] = useState("2025/2026");
   const [zoomedExco, setZoomedExco] = useState(null);
+  const [factShift, setFactShift] = useState(0);   // "Next" on Home: shows another set of five cards
   const [legacyView, setLegacyView] = useState("exco");   // "exco" | "hod"
   const [hodViewer, setHodViewer] = useState(null);
 
@@ -2561,23 +2599,24 @@ export default function ChemBaseBUK() {
               </div>
 
               {(()=>{
-                const day=Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/86400000);
+                const day=Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/86400000)+factShift;
                 const picks=[
                   {k:"f", text:FUN_FACTS.concat(MORE_FUN)[day%(FUN_FACTS.length+MORE_FUN.length)]},
                   {k:"t", text:STUDY_TIPS[day%STUDY_TIPS.length]},
                   {k:"c", text:CAREER_NOTES[day%CAREER_NOTES.length]},
                   {k:"m", text:PUSH_WORDS[day%PUSH_WORDS.length]},
+                  {k:"d", text:TERMS[day%TERMS.length]},
                 ];
                 const share=async(label,text)=>{ const msg=`${label}: ${text}\n\n— ChemBase BUK`; if(navigator.share){ try{ await navigator.share({text:msg}); }catch(e){} } else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank"); };
                 return (
                 <div style={{marginTop:22}}>
                   <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:12}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Today for you</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>{factShift===0?"Today for you":"More for you"}</div>
                     <span style={{fontSize:12,color:C.muted}}>{new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short"})}</span>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:12}}>
                     {picks.map((f,i)=>{ const th=FACT_THEME[f.k], label=th.chip.replace(/^\S+\s/,""); return (
-                      <div key={f.k} className="cb-rise" style={{padding:"15px 16px 14px",borderRadius:20,position:"relative",overflow:"hidden",background:th.bg,boxShadow:`0 8px 20px ${th.glow}`,color:"#fff",animationDelay:(i*90)+"ms"}}>
+                      <div key={f.k+"-"+factShift} className="cb-rise" style={{padding:"15px 16px 14px",borderRadius:20,position:"relative",overflow:"hidden",background:th.bg,boxShadow:`0 8px 20px ${th.glow}`,color:"#fff",animationDelay:(i*90)+"ms"}}>
                         <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
                         <div aria-hidden="true" style={{position:"absolute",right:-10,bottom:-18,fontSize:96,lineHeight:1,opacity:0.16,transform:"rotate(-12deg)",pointerEvents:"none"}}>{th.mark}</div>
                         <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
@@ -2586,6 +2625,10 @@ export default function ChemBaseBUK() {
                         </div>
                         <div style={{position:"relative",fontSize:14.5,lineHeight:1.65,fontWeight:600,paddingRight:6,textShadow:"0 1px 2px rgba(0,0,0,0.25)"}}>{f.text}</div>
                       </div>); })}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"center",marginTop:14}}>
+                    <button onClick={()=>setFactShift(s=>s+1)} style={{background:C.green,color:"#fff",border:"none",borderRadius:22,padding:"10px 26px",fontSize:13,fontWeight:"var(--fw-heavy)",cursor:"pointer",boxShadow:"0 4px 14px rgba(14,122,60,0.35)"}}>Next ›</button>
+                    {factShift>0 && <button onClick={()=>setFactShift(0)} style={{marginLeft:10,background:"transparent",color:C.green,border:`1.5px solid ${C.border}`,borderRadius:22,padding:"10px 18px",fontSize:13,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Today</button>}
                   </div>
                 </div>); })()}
 
