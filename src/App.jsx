@@ -1890,12 +1890,14 @@ export default function ChemBaseBUK() {
         return URL.createObjectURL(await r.blob());
       }catch(e){ return null; }
     };
-    let pending = fetchSound(0);
+    const jobs = [];
+    const ensure = (n)=>{ if(n<chunks.length && !jobs[n]) jobs[n] = fetchSound(n); };
+    ensure(0); ensure(1);
     for(let n=0;n<chunks.length;n++){
-      const url = await pending;
+      const url = await jobs[n];
       if(speakToken.current!==token){ if(url) URL.revokeObjectURL(url); return []; }
       if(!url) return chunks.slice(n);                 // problem: the phone voice reads the rest
-      if(n+1<chunks.length) pending = fetchSound(n+1); // get the next piece ready while this one plays
+      ensure(n+1); ensure(n+2);                        // get the next pieces ready while this one plays
       await new Promise(res=>{
         const au = new Audio(url); natAudio.current = au;
         au.playbackRate = speakRate.current;
@@ -1915,12 +1917,15 @@ export default function ChemBaseBUK() {
     const token = ++speakToken.current;
     setSpeakingIdx(idx);
     if(!onlineDown.current){
-      // few, long pieces (the free voice can change between pieces), but a short first piece so it starts quickly
-      let big = speechChunks(text, 700);
-      if(big[0] && big[0].length>150){
-        const bits = speechChunks(big[0], 130);
-        if(bits.length>1) big = [bits[0], bits.slice(1).join(" "), ...big.slice(1)];
-      }
+      // pieces grow as it goes (short first piece = fast start; later pieces are longer so the voice changes less)
+      const small = speechChunks(text, 130);
+      const targets = [130, 260, 450, 700];
+      const big = []; let cur = "", t = 0;
+      small.forEach(s=>{
+        const lim = targets[Math.min(t, targets.length-1)];
+        if(cur && (cur+" "+s).length>lim){ big.push(cur); cur=s; t++; } else cur = cur ? cur+" "+s : s;
+      });
+      if(cur) big.push(cur);
       const rest = await runOnlineVoice(big, token);
       if(speakToken.current!==token) return;
       if(!rest.length){ natAudio.current=null; setSpeakingIdx(null); return; }

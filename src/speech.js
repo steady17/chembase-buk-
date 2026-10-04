@@ -311,7 +311,6 @@ export function speakable(md) {
     const flush = () => {
       if (!rows.length) return;
       const head = rows[0], body = rows.slice(1);
-      out.push("Table.");
       if (!body.length) out.push(head.join(", ") + ".");
       body.forEach((r) => {
         const pairs = r.slice(1).map((c, i) => {
