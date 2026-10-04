@@ -1826,8 +1826,8 @@ export default function ChemBaseBUK() {
   const speakToken = useRef(0);
   const speakKeep = useRef(null);
   const ttsSupported = typeof window!=="undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance!=="undefined";
-  const natAudio = useRef(null);          // the sound element of the Gemini voice
-  const geminiDown = useRef(false);       // true after the server said no (no key / free limit): use the phone voice
+  const natAudio = useRef(null);          // the sound element of the online voice
+  const onlineDown = useRef(false);       // true after the server said no (no key / free limit): use the phone voice
   const stopSpeak = () => { speakToken.current++; try{ window.speechSynthesis?.cancel(); }catch(e){}
     try{ if(natAudio.current){ natAudio.current.pause(); natAudio.current=null; } }catch(e){}
     setSpeakingIdx(null); };
@@ -1881,12 +1881,12 @@ export default function ChemBaseBUK() {
     setRateLabel(nxt); speakRate.current=nxt; try{ if(natAudio.current) natAudio.current.playbackRate=nxt; }catch(e){} try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
     restartChunk();
   };
-  // Gemini voice (through our /api/tts). Returns the chunks it could NOT read (empty = all done).
-  const runGemini = async (chunks, token) => {
+  // Online voice (through our /api/tts). Returns the chunks it could NOT read (empty = all done).
+  const runOnlineVoice = async (chunks, token) => {
     const fetchSound = async (n)=>{
       try{
         const r = await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:chunks[n]})});
-        if(!r.ok){ if(r.status===503||r.status===429||r.status===502) geminiDown.current=true; return null; }
+        if(!r.ok){ if(r.status===503) onlineDown.current=true; return null; }
         return URL.createObjectURL(await r.blob());
       }catch(e){ return null; }
     };
@@ -1914,9 +1914,9 @@ export default function ChemBaseBUK() {
     let chunks = speechChunks(text); if(!chunks.length) return;
     const token = ++speakToken.current;
     setSpeakingIdx(idx);
-    if(!geminiDown.current){
+    if(!onlineDown.current){
       const big = speechChunks(text, 450);
-      const rest = await runGemini(big, token);
+      const rest = await runOnlineVoice(big, token);
       if(speakToken.current!==token) return;
       if(!rest.length){ natAudio.current=null; setSpeakingIdx(null); return; }
       chunks = speechChunks(rest.join(" "));
