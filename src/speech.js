@@ -138,12 +138,18 @@ function dotPhrase(letter, sub) {
   return " " + base + " of " + sb + " ";
 }
 
-// how a subscript is spoken:  x_1 -> "x1",  F_in -> "F in",  C_A -> "C sub A"
+// how a subscript is spoken (never "sub"):  x_1 -> "x1",  F_in -> "F in",  C_A -> "C A",  rho_i -> "rho i",  T_lm -> "T L M"
+const SUB_WORDS = { avg: "average", tot: "total", gen: "generation", acc: "accumulation", rxn: "reaction", eq: "equilibrium", ref: "reference", sat: "saturation",
+  vap: "vapour", liq: "liquid", init: "initial", std: "standard", sys: "system", surr: "surroundings", cat: "catalyst", amb: "ambient", rev: "reversible",
+  abs: "absolute", rel: "relative", ex: "exit", min: "minimum", max: "maximum", cv: "control volume" };
 function subWord(b) {
   const t = b.trim();
+  if (!t) return " ";
   if (/^\d+$/.test(t)) return t;
-  if (/^[a-z]{2,}$/.test(t)) return " " + t + " ";
-  return " sub " + t + " ";
+  if (SUB_WORDS[t.toLowerCase()] && /^[a-z]+$/.test(t)) return " " + SUB_WORDS[t.toLowerCase()] + " ";
+  if (/^[a-z]{4,}$/.test(t) || /^(in|out|top|net|mix|dry|wet|hot|cold|feed)$/.test(t)) return " " + t + " ";   // a real word
+  // letters and digits: spell them out  (A0 -> "A 0", AB -> "A B", lm -> "L M")
+  return " " + t.replace(/([A-Za-z])(?=[A-Za-z0-9])/g, "$1 ").replace(/(\d)(?=[A-Za-z])/g, "$1 ").replace(/\b[a-z]\b/g, (c) => c.toUpperCase()) + " ";
 }
 
 // LaTeX -> plain spoken words
@@ -251,6 +257,37 @@ function speakFence(f) {
   }).join(" ");
 }
 
+
+const GREEK_SAY = { α: "alpha", β: "beta", γ: "gamma", δ: "delta", ε: "epsilon", ζ: "zeta", η: "eta", θ: "theta", κ: "kappa", λ: "lambda", ν: "nu", ξ: "xi", σ: "sigma", ς: "sigma", τ: "tau", υ: "upsilon", φ: "phi", χ: "chi", ψ: "psi", ω: "omega", Γ: "gamma", Θ: "theta", Λ: "lambda", Ξ: "xi", Σ: "sigma", Φ: "phi", Ψ: "psi", Ω: "omega", Π: "pi", ϕ: "phi" };
+const VULGAR = { "½": "one half", "⅓": "one third", "⅔": "two thirds", "¼": "one quarter", "¾": "three quarters", "⅛": "one eighth" };
+// symbols and shorthand that voices skip or mispronounce
+function symbolsToWords(s) {
+  s = s.replace(/[αβγδεζηθκλνξσςυφχψωΓΘΛΞΣΦΨΩΠϕ]/g, (c) => " " + GREEK_SAY[c] + " ");
+  s = s.replace(/[½⅓⅔¼¾⅛]/g, (c) => " " + VULGAR[c] + " ");
+  s = s.replace(/√\s*\(/g, " square root of (").replace(/√/g, " square root of ").replace(/∞/g, " infinity ").replace(/∑/g, " sum of ").replace(/∫/g, " integral of ")
+       .replace(/∂/g, " partial ").replace(/∇/g, " del ").replace(/∝/g, " is proportional to ").replace(/∴/g, " therefore ").replace(/∵/g, " because ")
+       .replace(/↔/g, " goes both ways with ").replace(/⟷/g, " goes both ways with ").replace(/…/g, ", ");
+  s = s.replace(/\s[·⋅]\s/g, " times ");
+  // plain-text reaction arrows
+  s = s.replace(/\s*<=+>\s*/g, " is in equilibrium with ").replace(/\s*<-+>\s*/g, " is in equilibrium with ").replace(/\s*-{1,2}>\s*/g, " gives ").replace(/\s*=>\s*/g, " implies ");
+  // state symbols after a formula:  H2O(l), NaCl(aq)
+  s = s.replace(/([A-Za-z0-9\)])\((aq|g|l|s)\)/g, (m, f, st) => f + " " + ({ aq: "aqueous", g: "gas", l: "liquid", s: "solid" })[st]);
+  // numbers: 1.5e-3, 2–5, 25-30
+  s = s.replace(/(\d)[eE]([+-]?\d+)(?![\w.])/g, (m, d, e) => d + " times 10 to the power of " + (e.startsWith("-") ? "minus " : "") + e.replace(/^[+-]/, ""));
+  s = s.replace(/(\d)\s?[–—]\s?(?=\d)/g, "$1 to ").replace(/(\d)-(?=\d)/g, "$1 to ");
+  s = s.replace(/\s[–—]\s/g, ", ").replace(/([A-Za-z0-9])=([A-Za-z0-9(-])/g, "$1 equals $2");
+  s = s.replace(/&/g, " and ");
+  s = s.replace(/(\b\w{1,3}|\)|\b\w{1,3} \d) - (?=\w{1,3}\b|\()/g, "$1 minus ");
+  // money
+  s = s.replace(/₦\s?(\d+(?:[,.]\d+)*)/g, "$1 naira").replace(/\$(\d+(?:[,.]\d+)*)/g, "$1 dollars").replace(/£(\d+(?:[,.]\d+)*)/g, "$1 pounds").replace(/€(\d+(?:[,.]\d+)*)/g, "$1 euros");
+  // more shorthand
+  s = s.replace(/\bw\.r\.t\.?/gi, "with respect to").replace(/\bN\.B\.?/g, "Note:").replace(/\bviz\.?/gi, "namely").replace(/\bcf\.\s/g, "compare ");
+  // units without a number in front:  "in kJ/mol", "kg/m³", "mol"
+  s = s.replace(new RegExp("(^|[^A-Za-z0-9.])(" + TOK + "(?:\\s*\\/\\s*" + TOK + ")+)(?![A-Za-z0-9])", "g"), (m, pre, chain) => pre + speakChain(chain));
+  s = s.replace(/(^|[^A-Za-z0-9.])(kJ|kPa|MPa|kW|kmol|mmol|mL|Hz)(?![A-Za-z0-9])/g, (m, pre, u) => pre + UNIT_WORDS[u][0]);
+  return s;
+}
+
 export function speakable(md) {
   let s = String(md || "");
   // fenced blocks: real code is skipped, but a formula written in a code block is read like any other formula
@@ -267,7 +304,7 @@ export function speakable(md) {
   s = s.replace(/\$\$([\s\S]+?)\$\$/g, (_, t) => done(t));
   s = s.replace(/\\\[([\s\S]+?)\\\]/g, (_, t) => done(t));
   s = s.replace(/\\\(([\s\S]+?)\\\)/g, (_, t) => done(t));
-  s = s.replace(/\$([^$\n]+?)\$/g, (_, t) => done(t));
+  s = s.replace(/\$(?=\S)([^$\n]*?\S)\$(?!\d)/g, (_, t) => done(t));   // "$x$" is maths, "costs $5 and $10" is not
   // tables: read every row, naming the column for each value:  "Water: Density 1000, Viscosity 0.001."
   {
     const out = []; let rows = [];
@@ -286,7 +323,6 @@ export function speakable(md) {
         const lead = /^\d+$/.test(r[0] || "") && head[0] ? head[0] + " " : "";   // "Step 1: ..."
         out.push((r[0] ? lead + r[0] + (pairs.length ? ": " : "") : "") + pairs.join(", ") + ".");
       });
-      out.push("End of table.");
       rows = [];
     };
     for (const line of s.split("\n")) {
@@ -313,6 +349,7 @@ export function speakable(md) {
   s = s.replace(/(\w|\))\^\{?(-?\d+|[A-Za-z])\}?/g, (m, b, p) => b + power(p));      // x^2, 10^6 written without LaTeX
   s = s.replace(/\b([A-Za-z])_\{?([A-Za-z0-9]+)\}?/g, (m, l, sub) => l + subWord(sub));
   s = expandUnits(s);
+  s = symbolsToWords(s);
   s = unicodeToWords(s);
   s = s.replace(/\bChE\b/g, "Chemical Engineering");
   s = spellFormulas(s);

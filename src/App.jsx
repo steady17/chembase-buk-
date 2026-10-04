@@ -1832,8 +1832,6 @@ export default function ChemBaseBUK() {
   const voicesRef = useRef([]);           // English voices of this phone, best first
   const voiceChoice = useRef(null);       // the voice in use
   const [rateLabel, setRateLabel] = useState(()=>{ try{ const r=parseFloat(localStorage.getItem("cb_rate")); return [0.85,1,1.25,1.5].includes(r)?r:1; }catch(e){ return 1; } });
-  const [voiceCount, setVoiceCount] = useState(0);   // how many English voices this phone has (state, so the button shows up)
-  const [voicePos, setVoicePos] = useState(0);   // 0-based position of the chosen voice, for the button label
   speakRate.current = rateLabel;
   // Phones load their voice list a moment after the page opens; ask early so the good voice is ready.
   useEffect(()=>{ if(ttsSupported){ try{ window.speechSynthesis.getVoices(); }catch(e){} } },[]);
@@ -1846,10 +1844,7 @@ export default function ChemBaseBUK() {
   const loadVoices = async () => {
     const list = englishVoices(await voicesReady(window.speechSynthesis));
     voicesRef.current = list;
-    let saved = null; try{ saved = localStorage.getItem("cb_voice"); }catch(e){}
-    const found = saved ? list.findIndex(v=>v.name===saved) : -1;
-    const pos = found>=0 ? found : 0;
-    voiceChoice.current = list[pos] || null; setVoicePos(pos); setVoiceCount(list.length);
+    voiceChoice.current = list[0] || null;   // one voice only: the best one this phone has
   };
   // read the session's chunks one after another
   const runSession = (sess) => {
@@ -1880,13 +1875,6 @@ export default function ChemBaseBUK() {
   const cycleRate = () => {
     const order=[1,1.25,1.5,0.85]; const nxt=order[(order.indexOf(rateLabel)+1)%order.length];
     setRateLabel(nxt); speakRate.current=nxt; try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
-    restartChunk();
-  };
-  const cycleVoice = () => {
-    const list = voicesRef.current; if(list.length<2) return;
-    const pos = (voicePos+1)%list.length;
-    voiceChoice.current = list[pos]; setVoicePos(pos);
-    try{ localStorage.setItem("cb_voice", list[pos].name); }catch(e){}
     restartChunk();
   };
   const speakMsg = async (idx, text) => {
@@ -2538,12 +2526,6 @@ export default function ChemBaseBUK() {
                           ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
                           : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>}
                         {speakingIdx===i?"Stop":"Listen"}
-                      </button>
-                    )}
-                    {ttsSupported && speakingIdx===i && voiceCount>1 && (
-                      <button onClick={cycleVoice} aria-label="Change reading voice"
-                        style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
-                        Voice {voicePos+1}/{voiceCount}
                       </button>
                     )}
                     {ttsSupported && speakingIdx===i && (
