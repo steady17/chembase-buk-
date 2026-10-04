@@ -1871,7 +1871,8 @@ export default function ChemBaseBUK() {
   const [courseSearch, setCourseSearch] = useState("");
   const [expandedExco, setExpandedExco] = useState("2025/2026");
   const [zoomedExco, setZoomedExco] = useState(null);
-  const [factShift, setFactShift] = useState(0);   // "Next" on Home: shows another set of five cards
+  const [cardPos, setCardPos] = useState(0);   // Home: which of the five daily cards is showing
+  const touchX = useRef(null);
   const [legacyView, setLegacyView] = useState("exco");   // "exco" | "hod"
   const [hodViewer, setHodViewer] = useState(null);
 
@@ -2599,7 +2600,7 @@ export default function ChemBaseBUK() {
               </div>
 
               {(()=>{
-                const day=Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/86400000)+factShift;
+                const day=Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/86400000);
                 const picks=[
                   {k:"f", text:FUN_FACTS.concat(MORE_FUN)[day%(FUN_FACTS.length+MORE_FUN.length)]},
                   {k:"t", text:STUDY_TIPS[day%STUDY_TIPS.length]},
@@ -2607,28 +2608,33 @@ export default function ChemBaseBUK() {
                   {k:"m", text:PUSH_WORDS[day%PUSH_WORDS.length]},
                   {k:"d", text:TERMS[day%TERMS.length]},
                 ];
-                const share=async(label,text)=>{ const msg=`${label}: ${text}\n\n— ChemBase BUK`; if(navigator.share){ try{ await navigator.share({text:msg}); }catch(e){} } else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank"); };
+                const n=picks.length, pos=cardPos%n, f=picks[pos], th=FACT_THEME[f.k], label=th.chip.replace(/^\S+\s/,"");
+                const share=async()=>{ const msg=`${label}: ${f.text}\n\n— ChemBase BUK`; if(navigator.share){ try{ await navigator.share({text:msg}); }catch(e){} } else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank"); };
+                const go=(d)=>setCardPos((pos+d+n)%n);
                 return (
                 <div style={{marginTop:22}}>
                   <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:12}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>{factShift===0?"Today for you":"More for you"}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Today for you</div>
                     <span style={{fontSize:12,color:C.muted}}>{new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short"})}</span>
                   </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                    {picks.map((f,i)=>{ const th=FACT_THEME[f.k], label=th.chip.replace(/^\S+\s/,""); return (
-                      <div key={f.k+"-"+factShift} className="cb-rise" style={{padding:"15px 16px 14px",borderRadius:20,position:"relative",overflow:"hidden",background:th.bg,boxShadow:`0 8px 20px ${th.glow}`,color:"#fff",animationDelay:(i*90)+"ms"}}>
-                        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
-                        <div aria-hidden="true" style={{position:"absolute",right:-10,bottom:-18,fontSize:96,lineHeight:1,opacity:0.16,transform:"rotate(-12deg)",pointerEvents:"none"}}>{th.mark}</div>
-                        <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
-                          <span style={{background:"rgba(255,255,255,0.18)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)",letterSpacing:0.8}}>{th.chip}</span>
-                          <button onClick={()=>share(label,f.text)} aria-label="Share" style={{background:"rgba(255,255,255,0.16)",color:"#fff",border:"1px solid rgba(255,255,255,0.45)",borderRadius:16,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Share</button>
-                        </div>
-                        <div style={{position:"relative",fontSize:14.5,lineHeight:1.65,fontWeight:600,paddingRight:6,textShadow:"0 1px 2px rgba(0,0,0,0.25)"}}>{f.text}</div>
-                      </div>); })}
-                  </div>
-                  <div style={{display:"flex",justifyContent:"center",marginTop:14}}>
-                    <button onClick={()=>setFactShift(s=>s+1)} style={{background:C.green,color:"#fff",border:"none",borderRadius:22,padding:"10px 26px",fontSize:13,fontWeight:"var(--fw-heavy)",cursor:"pointer",boxShadow:"0 4px 14px rgba(14,122,60,0.35)"}}>Next ›</button>
-                    {factShift>0 && <button onClick={()=>setFactShift(0)} style={{marginLeft:10,background:"transparent",color:C.green,border:`1.5px solid ${C.border}`,borderRadius:22,padding:"10px 18px",fontSize:13,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Today</button>}
+                  <div key={f.k} className="cb-rise"
+                    onTouchStart={e=>{ touchX.current=e.touches[0].clientX; }}
+                    onTouchEnd={e=>{ if(touchX.current===null) return; const dx=e.changedTouches[0].clientX-touchX.current; touchX.current=null; if(Math.abs(dx)>45) go(dx<0?1:-1); }}
+                    style={{padding:"18px 18px 16px",borderRadius:24,position:"relative",overflow:"hidden",background:th.bg,boxShadow:`0 12px 28px ${th.glow}`,color:"#fff"}}>
+                    <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
+                    <div aria-hidden="true" style={{position:"absolute",right:-14,bottom:-22,fontSize:118,lineHeight:1,opacity:0.16,transform:"rotate(-12deg)",pointerEvents:"none"}}>{th.mark}</div>
+                    <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <span style={{background:"rgba(255,255,255,0.18)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:20,padding:"4px 12px",fontSize:11.5,fontWeight:"var(--fw-heavy)",letterSpacing:0.8}}>{th.chip}</span>
+                      <span style={{fontSize:11.5,color:"rgba(255,255,255,0.75)",fontWeight:"var(--fw-heavy)"}}>{pos+1} / {n}</span>
+                    </div>
+                    <div style={{position:"relative",fontSize:16,lineHeight:1.65,fontWeight:600,minHeight:96,paddingRight:6,textShadow:"0 1px 2px rgba(0,0,0,0.25)"}}>{f.text}</div>
+                    <div style={{position:"relative",display:"flex",alignItems:"center",gap:10,marginTop:14}}>
+                      <button onClick={()=>go(1)} style={{background:"#ffd54f",color:"#3b2c00",border:"none",borderRadius:20,padding:"8px 20px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",boxShadow:"0 3px 10px rgba(0,0,0,0.25)"}}>Next ›</button>
+                      <button onClick={share} style={{background:"rgba(255,255,255,0.16)",color:"#fff",border:"1.5px solid rgba(255,255,255,0.5)",borderRadius:20,padding:"8px 16px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Share</button>
+                      <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                        {picks.map((_,i)=>(<span key={i} onClick={()=>setCardPos(i)} style={{width:i===pos?18:7,height:7,borderRadius:4,background:i===pos?"#ffd54f":"rgba(255,255,255,0.45)",transition:"width .25s",cursor:"pointer"}}/>))}
+                      </div>
+                    </div>
                   </div>
                 </div>); })()}
 
