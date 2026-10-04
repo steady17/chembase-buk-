@@ -21,7 +21,7 @@ const WORDS = {
   cos: "cosine of", tan: "tangent of", sinh: "hyperbolic sine of", cosh: "hyperbolic cosine of",
   tanh: "hyperbolic tangent of", lim: "limit", max: "max", min: "min", circ: "degrees", degree: "degrees",
   propto: "is proportional to", in: "in", cdots: "and so on", ldots: "and so on", dots: "and so on",
-  quad: " ", qquad: " ", hbar: "h bar", ell: "l", prime: "prime", dagger: "dagger", bar: "", hat: "", vec: "", dot: "", tilde: "",
+  quad: " ", qquad: " ", hbar: "h bar", ell: "l", prime: "prime", dagger: "dagger", 
 };
 
 const SUP = { "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9", "⁻": "-", "⁺": "+" };
@@ -118,6 +118,13 @@ function expandAbbreviations(s) {
 export function mathToWords(tex) {
   let s = " " + tex + " ";
   s = s.replace(/\^\s*\{\s*([-−]?\d)\s*\}/g, "^$1");
+  // accents on a letter:  \dot{m} -> "m dot",  \bar{x} -> "x bar",  \vec{F} -> "vector F"
+  s = s.replace(/\\ddot\s*\{([^{}]*)\}|\\ddot\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " double dot ");
+  s = s.replace(/\\dot\s*\{([^{}]*)\}|\\dot\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " dot ");
+  s = s.replace(/\\(?:bar|overline)\s*\{([^{}]*)\}|\\bar\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " bar ");
+  s = s.replace(/\\(?:hat|widehat)\s*\{([^{}]*)\}|\\hat\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " hat ");
+  s = s.replace(/\\(?:tilde|widetilde)\s*\{([^{}]*)\}|\\tilde\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " tilde ");
+  s = s.replace(/\\vec\s*\{([^{}]*)\}|\\vec\s*([A-Za-z])/g, (_, a, b) => " vector " + (a || b) + " ");
   // \text{J mol}^{-1}  ->  \text{J mol^{-1}}  (the power belongs to the last unit)
   s = s.replace(/\\(text|mathrm)\s*\{([^{}]*)\}\s*\^\s*\{?\s*([-−]?\d)\s*\}?/g, (_, w, c, e) => "\\" + w + "{" + c.trimEnd() + "^" + e + "}");
   s = s.replace(/\\(?:text|mathrm|mathbf|mathit|textbf|textit|operatorname|mathcal|boldsymbol)\s*\{([^{}]*)\}/g, (_, t) => " " + unitOnly(t) + " ");
@@ -184,6 +191,12 @@ function unicodeToWords(s) {
 export function speakable(md) {
   let s = String(md || "");
   s = s.replace(/```[\s\S]*?```/g, " The code is shown on screen. ");
+  s = s.normalize("NFC");
+  s = s.replace(/[\u2460-\u2473]/g, (c) => " " + (c.charCodeAt(0) - 0x245f) + " ");                 // circled numbers
+  s = s.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{25A0}-\u{25FF}\u{2300}-\u{23FF}\u{2500}-\u{257F}\u{FE0F}\u{FE0E}\u{20E3}\u{200D}\u{2022}\u{2023}]/gu, "");
+  s = s.replace(/([A-Za-z])[\u0307\u02D9]/g, "$1 dot ").replace(/([A-Za-z])\u0308/g, "$1 double dot ").replace(/([A-Za-z])[\u0304\u00AF]/g, "$1 bar ");
+  s = s.replace(/[\u1E40\u1E41\u1E44\u1E45\u1E56\u1E57\u1E58\u1E59\u1E86\u1E87\u1E8A\u1E8B\u1E8E\u1E8F]/g, (c) => ({ "\u1E40": "M", "\u1E41": "m", "\u1E44": "N", "\u1E45": "n", "\u1E56": "P", "\u1E57": "p", "\u1E58": "R", "\u1E59": "r", "\u1E86": "W", "\u1E87": "w", "\u1E8A": "X", "\u1E8B": "x", "\u1E8E": "Y", "\u1E8F": "y" }[c]) + " dot ");
+
   // maths first, so its symbols are not touched by the markdown clean-up
   const done = (tex) => " " + mathToWords(tex) + " ";
   s = s.replace(/\$\$([\s\S]+?)\$\$/g, (_, t) => done(t));
@@ -203,9 +216,10 @@ export function speakable(md) {
           const h = head[i + 1] || "";
           const um = h.match(/^(.*?)\s*\(([^)]*)\)\s*$/);                       // "Density (kg/m³)"
           if (um && new RegExp("^" + CHAIN_SP + "$").test(um[2].trim()) && c) return (um[1] + " " + c + " " + speakChain(um[2])).trim();
-          return ((h ? h + " " : "") + c).trim();
+          return ((h && head.length > 2 ? h + " " : "") + c).trim();   // 2-column tables: just "label: value"
         }).filter(Boolean);
-        out.push((r[0] ? r[0] + (pairs.length ? ": " : "") : "") + pairs.join(", ") + ".");
+        const lead = /^\d+$/.test(r[0] || "") && head[0] ? head[0] + " " : "";   // "Step 1: ..."
+        out.push((r[0] ? lead + r[0] + (pairs.length ? ": " : "") : "") + pairs.join(", ") + ".");
       });
       out.push("End of table.");
       rows = [];
@@ -223,7 +237,6 @@ export function speakable(md) {
   s = s.replace(/^\s{0,3}#{1,6}\s*(.+)$/gm, "$1.");
   s = s.replace(/^\s*>\s?/gm, "").replace(/^\s*[-*•]\s+/gm, "").replace(/^\s*-{3,}\s*$/gm, "");
   s = s.replace(/\*\*|__|\*|~~/g, "");
-  s = s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2B50}\u{2B06}]/gu, "");
   s = expandAbbreviations(s);
   s = negUnitChains(s);
   s = expandUnits(s);
@@ -310,6 +323,8 @@ function mapAll(str, table) {
 
 export function mathToSymbols(tex) {
   let s = " " + tex + " ";
+  s = s.replace(/\\dot\s*\{([^{}]*)\}|\\dot\s*([A-Za-z])/g, (_, a, b) => (a || b) + "\u0307");
+  s = s.replace(/\\(?:bar|overline)\s*\{([^{}]*)\}|\\bar\s*([A-Za-z])/g, (_, a, b) => (a || b) + "\u0304");
   s = s.replace(/\\(?:text|mathrm|mathbf|mathit|textbf|textit|operatorname|mathcal|boldsymbol)\s*\{([^{}]*)\}/g, "$1");
   s = s.replace(/\\(?:left|right|big|Big|bigg|Bigg)\b\s*/g, "");
   s = s.replace(/\\[,;:!]/g, " ").replace(/\\ /g, " ").replace(/\\\\/g, " ; ").replace(/&/g, " ");
