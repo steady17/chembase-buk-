@@ -1721,25 +1721,44 @@ export default function ChemBaseBUK() {
   const [chatViewer, setChatViewer] = useState(null);
   // Voice input: uses the phone's built-in speech recognition (free, no API limit used).
   const [listening, setListening] = useState(false);
+  const [heard, setHeard] = useState("");
   const recogRef = useRef(null);
+  const voiceOn = useRef(false);
+  const voiceBase = useRef("");
+  const voiceText = useRef("");
+  const chatBoxRef = useRef(null);
   const voiceSupported = typeof window!=="undefined" && !!(window.SpeechRecognition||window.webkitSpeechRecognition);
-  const stopVoice = () => { try{ recogRef.current?.stop(); }catch(e){} recogRef.current=null; setListening(false); };
-  const toggleVoice = () => {
-    if(listening){ stopVoice(); return; }
+  // cancel=true throws away what was spoken; cancel=false keeps it in the box
+  const stopVoice = (cancel) => {
+    voiceOn.current = false;
+    const r = recogRef.current; recogRef.current = null;
+    if(cancel) setChatInput(voiceBase.current);
+    if(r){ if(cancel) r.onresult = null; r.onend = null; r.onerror = null; try{ r.stop(); }catch(e){} }
+    setListening(false); setHeard("");
+  };
+  const startVoiceSession = () => {
     const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR) return;
     const r = new SR();
-    r.lang = "en-NG"; r.interimResults = true; r.continuous = false;
-    const base = chatInput.trim() ? chatInput.trim()+" " : "";
+    r.lang = "en-NG"; r.interimResults = true; r.continuous = true;
+    const base = voiceText.current.trim() ? voiceText.current.trim()+" " : "";
     r.onresult = (ev)=>{
       let t=""; for(let i=0;i<ev.results.length;i++) t+=ev.results[i][0].transcript;
-      setChatInput(base+t);
+      voiceText.current = base+t; setChatInput(base+t); setHeard(t);
     };
-    r.onerror = ()=>{ recogRef.current=null; setListening(false); };
-    r.onend = ()=>{ recogRef.current=null; setListening(false); };
-    recogRef.current = r; setListening(true);
-    try{ r.start(); }catch(e){ recogRef.current=null; setListening(false); }
+    r.onerror = (ev)=>{ if(ev && (ev.error==="not-allowed"||ev.error==="service-not-allowed")) stopVoice(true); };
+    r.onend = ()=>{ // the browser stops after a pause; carry on while the user is still recording
+      if(voiceOn.current){ try{ startVoiceSession(); }catch(e){ stopVoice(false); } } else { setListening(false); }
+    };
+    recogRef.current = r;
+    try{ r.start(); }catch(e){ stopVoice(true); }
   };
+  const toggleVoice = () => {
+    if(listening||!voiceSupported) return;
+    voiceBase.current = chatInput; voiceText.current = chatInput; voiceOn.current = true;
+    setHeard(""); setListening(true); startVoiceSession();
+  };
+  // let the text box grow as the person types, like a normal chat app
+  useEffect(()=>{ const el=chatBoxRef.current; if(el){ el.style.height="auto"; el.style.height=Math.min(el.scrollHeight,130)+"px"; } },[chatInput,listening]);
   const chatRef    = useRef(null);
   const chatFileRef = useRef(null);
 
@@ -1943,7 +1962,7 @@ export default function ChemBaseBUK() {
   };
   const handleChatSend = async () => {
     if((!chatInput.trim()&&!chatFile)||chatLoading||chatFileBusy) return;
-    stopVoice();
+    stopVoice(false);
     const typed = chatInput.trim();
     const userText = typed||(chatFile?`[Uploaded: ${chatFile.name}]`:"");
     let userContent, isDoc = false;
@@ -2371,15 +2390,35 @@ export default function ChemBaseBUK() {
                 <button onClick={()=>setChatFile(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button>
               </div>
             )}
-            <div style={{display:"flex",gap:6,alignItems:"center",width:"100%",boxSizing:"border-box",overflow:"hidden"}}>
+            <style>{`@keyframes cbWave{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}`}</style>
+            <div style={{border:`1.5px solid ${C.border}`,borderRadius:24,background:C.card,padding:"8px 8px 8px 10px",boxSizing:"border-box",width:"100%"}}>
               <input type="file" ref={chatFileRef} accept="image/*,application/pdf" onChange={handleChatFileSelect} style={{display:"none"}}/>
-              <button onClick={()=>chatFileRef.current?.click()} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"10px 11px",fontSize:16,cursor:"pointer",color:C.green,flexShrink:0}}>📎</button>
-              <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChatSend()}
-                placeholder={listening?"Listening...":chatFile?"Add message...":"Ask a ChE question..."}
-                style={{flex:1,padding:"10px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",background:C.card,color:C.ink,minWidth:0}}/>
-              {voiceSupported && <button onClick={toggleVoice} aria-label={listening?"Stop voice input":"Speak your question"} style={{background:listening?"#dc2626":C.greenLight,border:`1.5px solid ${listening?"#dc2626":C.border}`,borderRadius:10,padding:"10px 11px",cursor:"pointer",color:listening?"#fff":C.green,flexShrink:0,display:"flex",alignItems:"center"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg></button>}
-              <button onClick={handleChatSend} disabled={chatLoading||chatFileBusy||(!chatInput.trim()&&!chatFile)} style={{background:C.green,color:"#fff",border:"none",padding:"10px 14px",borderRadius:10,fontWeight:"var(--fw-heavy)",fontSize:13,cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||chatFileBusy||(!chatInput.trim()&&!chatFile)?0.5:1,flexShrink:0}}>Send</button>
+              {listening ? (
+                <div style={{display:"flex",alignItems:"center",gap:10,minHeight:44}}>
+                  <button onClick={()=>stopVoice(true)} aria-label="Cancel voice input" style={{width:38,height:38,borderRadius:"50%",border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+                  <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                    <div style={{fontSize:12,color:C.muted,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",direction:"rtl",textAlign:"center"}}><bdi>{heard||"Listening..."}</bdi></div>
+                    <div style={{display:"flex",alignItems:"center",gap:3,height:20}}>
+                      {Array.from({length:18}).map((_,i)=><span key={i} style={{width:3,height:20,borderRadius:2,background:C.green,display:"block",animation:`cbWave ${0.7+(i%5)*0.12}s ease-in-out ${i*0.05}s infinite`}}/>)}
+                    </div>
+                  </div>
+                  <button onClick={()=>stopVoice(false)} aria-label="Use what I said" style={{width:38,height:38,borderRadius:"50%",border:"none",background:C.green,color:"#fff",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+                </div>
+              ) : (
+                <>
+                  <textarea ref={chatBoxRef} rows={1} value={chatInput} onChange={e=>setChatInput(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleChatSend(); } }}
+                    placeholder={chatFile?"Add message...":"Ask a ChE question..."}
+                    style={{display:"block",width:"100%",boxSizing:"border-box",resize:"none",border:"none",outline:"none",background:"transparent",color:C.ink,fontSize:15,lineHeight:1.4,padding:"8px 6px 6px",fontFamily:"inherit",maxHeight:130,overflowY:"auto"}}/>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:2}}>
+                    <button onClick={()=>chatFileRef.current?.click()} aria-label="Attach photo or PDF" style={{width:38,height:38,borderRadius:"50%",border:"none",background:"transparent",color:C.muted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      {voiceSupported && <button onClick={toggleVoice} aria-label="Speak your question" style={{width:38,height:38,borderRadius:"50%",border:"none",background:"transparent",color:C.muted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg></button>}
+                      <button onClick={handleChatSend} aria-label="Send" disabled={chatLoading||chatFileBusy||(!chatInput.trim()&&!chatFile)} style={{width:38,height:38,borderRadius:"50%",background:C.green,color:"#fff",border:"none",cursor:chatLoading?"not-allowed":"pointer",opacity:chatLoading||chatFileBusy||(!chatInput.trim()&&!chatFile)?0.4:1,display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
