@@ -18,6 +18,30 @@ const CHEME_FACTS = [
   "Just one gram of activated carbon can have a surface area of more than 500 m², which is why it cleans water so well.",
   "Absolute zero is 0 K, or −273.15 °C. It is the lowest temperature possible in theory.",
   "In a steady-state process nothing builds up: what comes in must go out, after you count what is made and what is used.",
+  "Soap works because one end of its molecule loves water and the other loves oil. It pulls grease off your hands and into the water.",
+  "On top of Mount Everest, water boils at only about 70 °C, because the air pressure there is so low.",
+  "A heat exchanger lets a hot stream warm a cold one without mixing them. Plants save huge amounts of energy this way.",
+  "In a distillation column, rising vapour meets falling liquid on every tray, and each tray makes the separation a little sharper.",
+  "The Haber–Bosch reactor runs at roughly 400 to 500 °C and 150 to 300 atm, with an iron catalyst.",
+  "The Kelvin scale starts at absolute zero, so 25 °C is 298.15 K. Always convert before using the gas law.",
+  "The best possible (Carnot) efficiency of a heat engine depends only on the hot and cold temperatures: 1 − Tc/Th, in kelvin.",
+  "Gases dissolve better in cold liquids. That is why a warm fizzy drink goes flat faster than a cold one.",
+  "A pump adds energy to a liquid. A compressor does the same job for a gas.",
+  "Raoult's law: in an ideal solution, the vapour pressure of a component is its mole fraction times its pure vapour pressure.",
+  "Crude oil is a mixture of thousands of compounds, mostly hydrocarbons. Refining sorts them into useful groups.",
+  "Cavitation happens when pressure inside a pump drops below the liquid's vapour pressure. Bubbles form, collapse and can damage the impeller.",
+  "The ideal gas law, PV = nRT, works best at low pressure and high temperature.",
+  "Mass is never lost in a chemical reaction. That is the reason every mass balance works.",
+  "Biogas, made by bacteria breaking down waste without oxygen, is mostly methane and carbon dioxide. It can be burned for energy.",
+  "Pure nitrogen and oxygen are made by cooling air until it turns liquid, then distilling it.",
+  "Sulfuric acid is one of the most produced industrial chemicals in the world. It is used in fertilizer, batteries and cleaning.",
+  "Corrosion is estimated to cost economies about 3 to 4 percent of their GDP every year.",
+  "Liquids get thinner when heated, but gases get thicker. In other words, liquid viscosity falls with temperature and gas viscosity rises.",
+  "The first law of thermodynamics: energy is never created or destroyed, only changed from one form to another.",
+  "Reverse osmosis pushes water through a membrane under pressure to remove salt. It is used to make drinking water from seawater.",
+  "In a fluidised bed, gas blown up through solid particles makes them behave like a liquid. It mixes and heats very evenly.",
+  "A pipe's pressure drop grows quickly with flow speed. Doubling the speed roughly quadruples the friction loss in turbulent flow.",
+  "Ethanol and water cannot be fully separated by ordinary distillation. They form an azeotrope at about 95.6% ethanol by mass.",
 ];
 const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
@@ -1691,6 +1715,7 @@ export default function ChemBaseBUK() {
   const [courseSearch, setCourseSearch] = useState("");
   const [expandedExco, setExpandedExco] = useState("2025/2026");
   const [zoomedExco, setZoomedExco] = useState(null);
+  const [factShift, setFactShift] = useState(0);   // "Another fact" button on Home
   const [legacyView, setLegacyView] = useState("exco");   // "exco" | "hod"
   const [hodViewer, setHodViewer] = useState(null);
 
@@ -2417,10 +2442,18 @@ export default function ChemBaseBUK() {
                 ))}
               </div>
 
-              <div style={{marginTop:20,padding:"16px 18px",borderRadius:18,background:"linear-gradient(135deg,#fff7e0 0%,#ffeeba 100%)",border:"1.5px solid #f1d98a",boxShadow:"0 4px 14px rgba(184,134,11,0.12)"}}>
-                <div style={{fontWeight:"var(--fw-heavy)",fontSize:12,letterSpacing:0.8,color:"#8a6508",marginBottom:6}}>💡 CHEME FACT OF THE DAY</div>
-                <div style={{fontSize:13.5,lineHeight:1.65,color:"#4a3a08"}}>{CHEME_FACTS[Math.floor(Date.now()/86400000)%CHEME_FACTS.length]}</div>
-              </div>
+              {(()=>{ const n=CHEME_FACTS.length, idx=(Math.floor(Date.now()/86400000)+factShift)%n;
+                return (
+                <div style={{marginTop:22,padding:"18px 18px 16px",borderRadius:22,position:"relative",overflow:"hidden",background:"linear-gradient(145deg,#0b2b3d 0%,#0d4a50 55%,#0e6b4a 100%)",boxShadow:"0 10px 26px rgba(11,43,61,0.35)",color:"#fff"}}>
+                  <svg width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{position:"absolute",right:-22,bottom:-26,transform:"rotate(-12deg)"}} aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2L4.6 18.1A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.7-2.9L14 9.2V3"/><path d="M7.5 15h9"/></svg>
+                  <div style={{position:"absolute",top:-8,left:10,fontSize:90,lineHeight:1,fontFamily:"Georgia,serif",color:"rgba(255,213,79,0.16)",pointerEvents:"none"}}>“</div>
+                  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                    <span style={{background:"rgba(255,213,79,0.18)",border:"1px solid rgba(255,213,79,0.5)",color:"#ffd54f",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)",letterSpacing:0.8}}>💡 DID YOU KNOW?</span>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.55)"}}>{idx+1} / {n}</span>
+                  </div>
+                  <div key={idx} className="cb-rise" style={{position:"relative",fontSize:15,lineHeight:1.7,fontWeight:500,minHeight:78,paddingRight:6}}>{CHEME_FACTS[idx]}</div>
+                  <button onClick={()=>setFactShift(s=>s+1)} style={{position:"relative",marginTop:12,background:"#ffd54f",color:"#3b2c00",border:"none",borderRadius:20,padding:"7px 16px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",boxShadow:"0 3px 10px rgba(0,0,0,0.25)"}}>Another fact ›</button>
+                </div>); })()}
 
               <div style={{marginTop:16,marginBottom:20,padding:"16px 16px 16px 18px",background:`linear-gradient(135deg,${C.greenLight} 0%,${C.card} 140%)`,borderRadius:16,border:`1.5px solid ${C.border}`,borderLeft:`5px solid ${C.green}`,boxShadow:"0 4px 14px rgba(14,122,60,0.08)",display:"flex",gap:12,alignItems:"flex-start"}}>
                 <div style={{width:38,height:38,flexShrink:0,borderRadius:12,background:C.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 3px 10px rgba(14,122,60,0.35)"}}>📢</div>
