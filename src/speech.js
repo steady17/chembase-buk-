@@ -158,3 +158,80 @@ export function pickVoice(voices) {
   };
   return en.slice().sort((a, b) => rank(b) - rank(a))[0];
 }
+
+// ---------- Sharing / copying ----------
+// Plain text that reads well in WhatsApp and other chat apps: formulas use
+// real symbols (x², ΔH, ½-style fractions) instead of raw LaTeX.
+const SUPCH = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "+": "⁺", "-": "⁻", "−": "⁻", "=": "⁼", "(": "⁽", ")": "⁾", n: "ⁿ", i: "ⁱ" };
+const SUBCH = { "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉", "+": "₊", "-": "₋", "=": "₌", "(": "₍", ")": "₎", a: "ₐ", e: "ₑ", o: "ₒ", x: "ₓ", h: "ₕ", k: "ₖ", l: "ₗ", m: "ₘ", n: "ₙ", p: "ₚ", s: "ₛ", t: "ₜ" };
+const GREEK_SYM = {
+  alpha: "α", beta: "β", gamma: "γ", delta: "δ", epsilon: "ε", varepsilon: "ε", zeta: "ζ", eta: "η", theta: "θ",
+  kappa: "κ", lambda: "λ", mu: "μ", nu: "ν", xi: "ξ", pi: "π", rho: "ρ", sigma: "σ", tau: "τ", phi: "φ", varphi: "φ",
+  chi: "χ", psi: "ψ", omega: "ω", Gamma: "Γ", Delta: "Δ", Theta: "Θ", Lambda: "Λ", Sigma: "Σ", Phi: "Φ", Psi: "Ψ", Omega: "Ω", Pi: "Π",
+};
+const SYM = {
+  times: "×", cdot: "·", div: "÷", pm: "±", mp: "∓", approx: "≈", neq: "≠", ne: "≠", le: "≤", leq: "≤", ge: "≥", geq: "≥",
+  to: "→", rightarrow: "→", longrightarrow: "→", Rightarrow: "⇒", implies: "⇒", leftarrow: "←", leftrightarrow: "↔",
+  rightleftharpoons: "⇌", infty: "∞", int: "∫", oint: "∮", sum: "Σ", prod: "Π", partial: "∂", nabla: "∇", circ: "°", degree: "°",
+  propto: "∝", sim: "~", ll: "≪", gg: "≫", cdots: "…", ldots: "…", dots: "…", hbar: "ħ", prime: "′",
+  ln: "ln", log: "log", exp: "exp", sin: "sin", cos: "cos", tan: "tan", sinh: "sinh", cosh: "cosh", tanh: "tanh", lim: "lim", max: "max", min: "min",
+};
+
+const SPACED = new Set(["times","cdot","div","pm","mp","approx","neq","ne","le","leq","ge","geq","to","rightarrow","longrightarrow","Rightarrow","implies","leftarrow","leftrightarrow","rightleftharpoons","propto","sim","ll","gg"]);
+
+function mapAll(str, table) {
+  let out = "";
+  for (const c of str) { if (!table[c]) return null; out += table[c]; }
+  return out;
+}
+
+export function mathToSymbols(tex) {
+  let s = " " + tex + " ";
+  s = s.replace(/\\(?:text|mathrm|mathbf|mathit|textbf|textit|operatorname|mathcal|boldsymbol)\s*\{([^{}]*)\}/g, "$1");
+  s = s.replace(/\\(?:left|right|big|Big|bigg|Bigg)\b\s*/g, "");
+  s = s.replace(/\\[,;:!]/g, " ").replace(/\\ /g, " ").replace(/\\\\/g, " ; ").replace(/&/g, " ");
+  const one = (x) => /^[A-Za-z0-9.]+$/.test(x.trim());
+  for (let i = 0; i < 12; i++) {
+    const before = s;
+    s = s.replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (_, a, b) => (one(a) ? a.trim() : "(" + a.trim() + ")") + "/" + (one(b) ? b.trim() : "(" + b.trim() + ")"));
+    s = s.replace(/\\sqrt\s*\[(\d+)\]\s*\{([^{}]*)\}/g, (_, n, x) => (n === "3" ? "∛" : n === "4" ? "∜" : n + "√") + "(" + x + ")");
+    s = s.replace(/\\sqrt\s*\{([^{}]*)\}/g, (_, x) => (one(x) ? "√" + x.trim() : "√(" + x.trim() + ")"));
+    s = s.replace(/\\sqrt\s*([A-Za-z0-9])/g, "√$1");
+    s = s.replace(/\^\s*\{([^{}]*)\}/g, (_, p) => mapAll(p.replace(/\s/g, ""), SUPCH) ?? "^(" + p.trim() + ")");
+    s = s.replace(/\^\s*(-?[A-Za-z0-9])/g, (_, p) => mapAll(p, SUPCH) ?? "^" + p);
+    s = s.replace(/_\s*\{([^{}]*)\}/g, (_, b) => mapAll(b.replace(/\s/g, ""), SUBCH) ?? "_(" + b.trim() + ")");
+    s = s.replace(/_\s*([A-Za-z0-9])/g, (_, b) => mapAll(b, SUBCH) ?? "_" + b);
+    if (s === before) break;
+  }
+  s = s.replace(/\\([A-Za-z]+) ?/g, (_, w) => {
+    if (GREEK_SYM[w]) return GREEK_SYM[w];
+    if (Object.prototype.hasOwnProperty.call(SYM, w)) {
+      if (/^[a-z]+$/.test(SYM[w])) return SYM[w] + " ";
+      return SPACED.has(w) ? " " + SYM[w] + " " : SYM[w];
+    }
+    return w + " ";
+  });
+  s = s.replace(/\\%/g, "%").replace(/\\([{}])/g, "$1").replace(/\\./g, " ");
+  s = s.replace(/[{}$]/g, "");
+  return s.replace(/\s+/g, " ").trim();
+}
+
+export function shareable(md) {
+  let s = String(md || "");
+  const keep = [];
+  s = s.replace(/```[\s\S]*?```/g, (m) => { keep.push(m); return `\u0000${keep.length - 1}\u0000`; });
+  s = s.replace(/[ \t]*\$\$([\s\S]+?)\$\$[ \t]*/g, (_, t) => "\n" + mathToSymbols(t) + "\n");
+  s = s.replace(/[ \t]*\\\[([\s\S]+?)\\\][ \t]*/g, (_, t) => "\n" + mathToSymbols(t) + "\n");
+  s = s.replace(/\\\(([\s\S]+?)\\\)/g, (_, t) => mathToSymbols(t));
+  s = s.replace(/\$([^$\n]+?)\$/g, (_, t) => mathToSymbols(t));
+  s = s.split("\n").map((line) => {
+    if (/^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes("-")) return null;
+    if (/^\s*\|.*\|\s*$/.test(line)) return line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()).join("  |  ");
+    return line;
+  }).filter((l) => l !== null).join("\n");
+  s = s.replace(/^\s{0,3}#{1,6}\s*(.+?)\s*#*\s*$/gm, "*$1*");   // headings -> WhatsApp bold
+  s = s.replace(/\*\*([^*]+)\*\*/g, "*$1*");                       // bold -> WhatsApp bold
+  s = s.replace(/^\s*[-*]\s+/gm, "• ");
+  s = s.replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => keep[+i]);
+}

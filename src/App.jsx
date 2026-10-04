@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { speechChunks, pickVoice } from "./speech.js";
+import { speechChunks, pickVoice, shareable } from "./speech.js";
 
 const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
@@ -1787,6 +1787,24 @@ export default function ChemBaseBUK() {
     };
     next();
   };
+  // Share (phone share menu: WhatsApp, Telegram, etc.) and Copy
+  const [copiedIdx, setCopiedIdx] = useState(null);
+  const copyMsg = async (idx, content) => {
+    const text = shareable(content);
+    let ok = false;
+    try{ await navigator.clipboard.writeText(text); ok = true; }catch(e){
+      try{ const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); ok=document.execCommand("copy"); document.body.removeChild(ta); }catch(e2){}
+    }
+    if(ok){ setCopiedIdx(idx); setTimeout(()=>setCopiedIdx(c=>c===idx?null:c),1800); }
+  };
+  const shareMsg = async (content) => {
+    const text = "ChemBot (ChemBase BUK):\n\n" + shareable(content);
+    if(navigator.share){
+      try{ await navigator.share({ text }); }catch(e){ /* closed the menu: nothing to do */ }
+    } else {
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,"_blank");
+    }
+  };
   useEffect(()=>()=>{ try{ window.speechSynthesis?.cancel(); }catch(e){} },[]);
   useEffect(()=>{ stopSpeak(); },[tab,activeSessionId]);
   // let the text box grow as the person types, like a normal chat app
@@ -2403,9 +2421,17 @@ export default function ChemBaseBUK() {
                         {speakingIdx===i?"Stop":"Listen"}
                       </button>
                     )}
-                    <button onClick={()=>{const msg=encodeURIComponent("ChemBot (ChemBase BUK):\n\n"+m.content);window.open(`https://wa.me/?text=${msg}`,"_blank");}}
-                      style={{background:"#25d366",border:"none",borderRadius:8,padding:"4px 10px",fontSize:11,color:"#fff",fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
-                      Share on WhatsApp
+                    <button onClick={()=>copyMsg(i,m.content)} aria-label="Copy this answer"
+                      style={{display:"flex",alignItems:"center",gap:5,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
+                      {copiedIdx===i
+                        ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                        : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>}
+                      {copiedIdx===i?"Copied":"Copy"}
+                    </button>
+                    <button onClick={()=>shareMsg(m.content)} aria-label="Share this answer"
+                      style={{display:"flex",alignItems:"center",gap:5,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg>
+                      Share
                     </button>
                   </div>
                 )}
