@@ -1764,24 +1764,40 @@ export default function ChemBaseBUK() {
   const speakKeep = useRef(null);
   const ttsSupported = typeof window!=="undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance!=="undefined";
   const stopSpeak = () => { speakToken.current++; try{ window.speechSynthesis?.cancel(); }catch(e){} setSpeakingIdx(null); };
-  const speakMsg = (idx, text) => {
+  const speakRate = useRef(1);
+  const [rateLabel, setRateLabel] = useState(()=>{ try{ const r=parseFloat(localStorage.getItem("cb_rate")); return [0.85,1,1.25,1.5].includes(r)?r:1; }catch(e){ return 1; } });
+  speakRate.current = rateLabel;
+  const cycleRate = () => {
+    const order=[1,1.25,1.5,0.85]; const nxt=order[(order.indexOf(rateLabel)+1)%order.length];
+    setRateLabel(nxt); speakRate.current=nxt; try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
+  };
+  // Phones load their voice list a moment after the page opens; ask early so the good voice is ready.
+  useEffect(()=>{ if(ttsSupported){ try{ window.speechSynthesis.getVoices(); }catch(e){} } },[]);
+  const voicesReady = (synth) => new Promise(res=>{
+    const v=synth.getVoices(); if(v.length) return res(v);
+    let done=false; const fin=()=>{ if(done) return; done=true; res(synth.getVoices()); };
+    try{ synth.addEventListener("voiceschanged",fin,{once:true}); }catch(e){}
+    setTimeout(fin,700);
+  });
+  const speakMsg = async (idx, text) => {
     if(!ttsSupported) return;
     if(speakingIdx===idx){ stopSpeak(); return; }
     const synth = window.speechSynthesis;
     try{ synth.cancel(); }catch(e){}
     const chunks = speechChunks(text); if(!chunks.length) return;
     const token = ++speakToken.current;
-    const voice = pickVoice(synth.getVoices());
     setSpeakingIdx(idx);
+    const voice = pickVoice(await voicesReady(synth));
+    if(speakToken.current!==token) return; // stopped while waiting
     let n = 0;
     const next = () => {
       if(speakToken.current!==token) return;
       if(n>=chunks.length){ setSpeakingIdx(null); return; }
       const u = new window.SpeechSynthesisUtterance(chunks[n++]);
       if(voice){ u.voice=voice; u.lang=voice.lang; } else u.lang="en-GB";
-      u.rate = 1; u.pitch = 1;
+      u.rate = speakRate.current; u.pitch = 1;
       u.onend = next;
-      u.onerror = ()=>{ if(speakToken.current===token) setSpeakingIdx(null); };
+      u.onerror = (ev)=>{ if(speakToken.current!==token) return; if(ev && (ev.error==="interrupted"||ev.error==="canceled")) return; setSpeakingIdx(null); };
       speakKeep.current = u; // keep a reference so the browser does not drop it mid-speech
       synth.speak(u);
     };
@@ -2419,6 +2435,12 @@ export default function ChemBaseBUK() {
                           ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
                           : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>}
                         {speakingIdx===i?"Stop":"Listen"}
+                      </button>
+                    )}
+                    {ttsSupported && speakingIdx===i && (
+                      <button onClick={cycleRate} aria-label="Change reading speed"
+                        style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer",minWidth:40}}>
+                        {rateLabel}×
                       </button>
                     )}
                     <button onClick={()=>copyMsg(i,m.content)} aria-label="Copy this answer"

@@ -35,10 +35,56 @@ function power(p) {
   return " to the power of " + spoken + " ";
 }
 
+
+// ----- units, formulas and abbreviations -----
+const UNIT_WORDS = {   // [plural, singular] - "joules per mole"
+  kJ: ["kilojoules", "kilojoule"], J: ["joules", "joule"], kg: ["kilograms", "kilogram"], g: ["grams", "gram"], mg: ["milligrams", "milligram"],
+  kmol: ["kilomoles", "kilomole"], mmol: ["millimoles", "millimole"], mol: ["moles", "mole"], L: ["litres", "litre"], mL: ["millilitres", "millilitre"],
+  K: ["kelvin", "kelvin"], kPa: ["kilopascals", "kilopascal"], MPa: ["megapascals", "megapascal"], Pa: ["pascals", "pascal"],
+  atm: ["atmospheres", "atmosphere"], kW: ["kilowatts", "kilowatt"], W: ["watts", "watt"], N: ["newtons", "newton"],
+  km: ["kilometres", "kilometre"], cm: ["centimetres", "centimetre"], mm: ["millimetres", "millimetre"], m: ["metres", "metre"],
+  min: ["minutes", "minute"], s: ["seconds", "second"], h: ["hours", "hour"], Hz: ["hertz", "hertz"], V: ["volts", "volt"],
+};
+const UNIT_TOK = "(?:" + Object.keys(UNIT_WORDS).sort((a, b) => b.length - a.length).join("|") + ")(?:[²³])?";
+const UNIT_EXPR = UNIT_TOK + "(?:\\/" + UNIT_TOK + ")*";
+
+function speakUnit(expr) {
+  return expr.split("/").map((part, i) => {
+    const pw = /²$/.test(part) ? " squared" : /³$/.test(part) ? " cubed" : "";
+    const w = UNIT_WORDS[part.replace(/[²³]$/, "")];
+    return (i === 0 ? w[0] : w[1]) + pw;
+  }).join(" per ");
+}
+// "285.8 kJ/mol" -> "285.8 kilojoules per mole"   (only straight after a number)
+function expandUnits(s) {
+  return s.replace(new RegExp("(\\d)\\s*(" + UNIT_EXPR + ")(?![A-Za-z0-9])", "g"), (_, d, u) => d + " " + speakUnit(u));
+}
+// \text{kJ/mol} inside a formula: the whole thing is a unit
+function unitOnly(inner) {
+  const t = inner.trim();
+  return new RegExp("^" + UNIT_EXPR + "$").test(t) ? speakUnit(t) : inner;
+}
+
+const KNOWN_FORMULAS = { NaCl: "sodium chloride", NaOH: "sodium hydroxide", KOH: "potassium hydroxide", CaCO3: "calcium carbonate" };
+const SPELL = new Set(["CSTR", "PFR", "PQ", "PQs", "CGPA", "GPA", "BUK", "NSChE", "SIWES", "NSE", "LPG", "CNG", "PVC", "CFD", "PID", "HETP", "LMTD", "COD", "BOD", "TDS"]);
+// "H2SO4" -> "H 2 S O 4", "HCl" -> "H C L", "CSTR" -> "C S T R"
+function spellFormulas(s) {
+  return s.replace(/\b(?:[A-Z][a-z]?\d*){2,}\b/g, (tok) => {
+    if (KNOWN_FORMULAS[tok]) return KNOWN_FORMULAS[tok];
+    if (!(SPELL.has(tok) || /[a-z\d]/.test(tok))) return tok;
+    return tok.replace(/([A-Z][a-z]?)(\d*)/g, (m, el, d) => el.toUpperCase().split("").join(" ") + (d ? " " + d : "") + " ").trim();
+  });
+}
+function expandAbbreviations(s) {
+  return s.replace(/\be\.g\./gi, "for example").replace(/\bi\.e\./gi, "that is").replace(/\betc\.(?=\s+[A-Z])/g, "and so on.").replace(/\betc\./gi, "and so on")
+    .replace(/\bvs\./gi, "versus").replace(/\bapprox\./gi, "approximately").replace(/\bFig\./g, "Figure")
+    .replace(/\bEqs?\./g, "Equation").replace(/\bNo\.\s?(?=\d)/g, "number ");
+}
+
 // LaTeX -> plain spoken words
 export function mathToWords(tex) {
   let s = " " + tex + " ";
-  s = s.replace(/\\(?:text|mathrm|mathbf|mathit|textbf|textit|operatorname|mathcal|boldsymbol)\s*\{([^{}]*)\}/g, " $1 ");
+  s = s.replace(/\\(?:text|mathrm|mathbf|mathit|textbf|textit|operatorname|mathcal|boldsymbol)\s*\{([^{}]*)\}/g, (_, t) => " " + unitOnly(t) + " ");
   s = s.replace(/\\(?:left|right|big|Big|bigg|Bigg)\b\s*/g, " ");
   s = s.replace(/\\[,;:!]/g, " ").replace(/\\ /g, " ");
   s = s.replace(/\\\\/g, " ");
@@ -99,29 +145,45 @@ export function speakable(md) {
   s = s.replace(/\\\[([\s\S]+?)\\\]/g, (_, t) => done(t));
   s = s.replace(/\\\(([\s\S]+?)\\\)/g, (_, t) => done(t));
   s = s.replace(/\$([^$\n]+?)\$/g, (_, t) => done(t));
-  // tables: read each row as a sentence
-  s = s.split("\n").map((line) => {
-    if (/^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes("-")) return "";
-    if (/^\s*\|.*\|\s*$/.test(line)) return line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()).filter(Boolean).join(", ") + ".";
-    return line;
-  }).join("\n");
+  // tables: short ones are read row by row, long ones are just announced
+  {
+    const out = []; let rows = [];
+    const flush = () => {
+      if (!rows.length) return;
+      if (rows.length > 5) out.push("A table with " + rows.length + " rows is shown on screen.");
+      else rows.forEach((r) => out.push(r));
+      rows = [];
+    };
+    for (const line of s.split("\n")) {
+      if (/^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes("-")) continue;
+      if (/^\s*\|.*\|\s*$/.test(line)) rows.push(line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()).filter(Boolean).join(", ") + ".");
+      else { flush(); out.push(line); }
+    }
+    flush();
+    s = out.join("\n");
+  }
   s = s.replace(/`([^`]*)`/g, "$1");
   s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/https?:\/\/\S+/g, " link ");
   s = s.replace(/^\s{0,3}#{1,6}\s*(.+)$/gm, "$1.");
   s = s.replace(/^\s*>\s?/gm, "").replace(/^\s*[-*•]\s+/gm, "").replace(/^\s*-{3,}\s*$/gm, "");
   s = s.replace(/\*\*|__|\*|~~/g, "");
   s = s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2B50}\u{2B06}]/gu, "");
+  s = expandAbbreviations(s);
+  s = s.replace(/\b(\d+):(\d+)\b/g, (m, a, b) => (b.length === 2 && +a <= 24 && +b < 60 ? m : a + " to " + b));   // 1:2 -> "1 to 2", 3:30 stays a time
+  s = expandUnits(s);
   s = unicodeToWords(s);
-  s = s.replace(/\bNSChE\b/g, "N S C H E").replace(/\bBUK\b/g, "B U K").replace(/\bChE\b/g, "Chemical Engineering");
+  s = s.replace(/\bChE\b/g, "Chemical Engineering");
+  s = spellFormulas(s);
   s = s.replace(/([^.!?:;,\s])[ \t]*\n+/g, "$1. ").replace(/\n+/g, " ");
   return s.replace(/\s+/g, " ").replace(/\s+([.,!?;:])/g, "$1").replace(/\.\s*\./g, ".").trim();
 }
 
 // Browsers stop long speech after a while, so read it in small pieces.
-export function speechChunks(md, max = 200) {
+export function speechChunks(md, max = 160) {
   const text = speakable(md);
   if (!text) return [];
-  const sentences = text.match(/[^.!?:;]+[.!?:;]*/g) || [text];
+  // cut only where punctuation is followed by a space, so 0.5 and 3:30 stay in one piece
+  const sentences = text.match(/.+?(?:[.!?;:]+(?=\s|$)|$)/g) || [text];
   const out = [];
   let cur = "";
   const push = (p) => { if (p.trim()) out.push(p.trim()); };
