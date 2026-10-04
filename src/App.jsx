@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { speechChunks, pickVoice, englishVoices, shareable } from "./speech.js";
 
-const CHEME_FACTS = [
+const FUN_FACTS = [
   "Water is densest at about 4 °C. That is why ice floats and lakes freeze from the top down.",
   "The Haber–Bosch process turns nitrogen and hydrogen into ammonia. The fertilizer made from it helps feed roughly half of the world.",
   "Distillation separates liquids by their boiling points. Refinery columns use it to split crude oil into petrol, kerosene, diesel and more.",
@@ -43,6 +43,66 @@ const CHEME_FACTS = [
   "A pipe's pressure drop grows quickly with flow speed. Doubling the speed roughly quadruples the friction loss in turbulent flow.",
   "Ethanol and water cannot be fully separated by ordinary distillation. They form an azeotrope at about 95.6% ethanol by mass.",
 ];
+const MORE_FUN = [
+  "Bananas are slightly radioactive because they contain potassium-40. It is completely harmless, but it is real.",
+  "Diamond and the graphite in your pencil are both pure carbon. Only the way the atoms are arranged is different.",
+  "Salt lowers the freezing point of water. That is why salt is spread on icy roads in cold countries.",
+  "Only two elements are liquid at room temperature: mercury and bromine.",
+  "The smell after the first rain comes partly from geosmin, a compound made by bacteria in the soil.",
+  "Lightning helps fertilize the soil. It turns nitrogen in the air into compounds that rain carries down to plants.",
+  "Helium was found on the Sun before it was found on Earth. Its name comes from helios, the Greek word for sun.",
+  "Honey can last thousands of years without spoiling, because it has very little water and is slightly acidic.",
+  "Your stomach acid has a pH of about 1.5 to 3.5. A thick layer of mucus protects the stomach wall from it.",
+  "About 60% of an adult's body is water. Chemical engineers design the plants that clean it for you to drink.",
+  "Glass is made mainly from sand (silica) melted at very high temperature, with a few other ingredients.",
+  "Your phone screen, soap, fuel, medicine and even some of your food all pass through chemical engineering plants.",
+  "Hot water can sometimes freeze faster than cold water. It is called the Mpemba effect, and scientists still argue about why.",
+];
+const STUDY_TIPS = [
+  "Test yourself instead of re-reading. Try past questions before you look at the answers. It is one of the best ways to remember.",
+  "Study in blocks of 25 to 45 minutes, then rest for 5 to 10 minutes. Your brain keeps more that way.",
+  "Explain a topic out loud as if you are teaching a friend. Wherever you get stuck is the part to revise.",
+  "Sleep before the exam. Your brain stores what you learned while you sleep, so an all-night reading session can cost you more than it gives.",
+  "In calculation questions, write 'given' and 'required' first, then draw the diagram. Many marks are in the setup.",
+  "Revise a little each day for a week instead of one long night. This is called spaced repetition, and it works.",
+  "Write the units in every step of a calculation. They catch mistakes before your lecturer does.",
+  "For mass balance questions, draw the flow diagram first, label every stream, then write your equations.",
+  "Do at least the last three years of past questions for every course. Lecturers repeat patterns more than you think.",
+  "Form a study group of three or four. Teaching each other is the fastest way to learn.",
+  "Eat and drink water before an exam. A hungry, tired brain makes careless mistakes.",
+];
+const CAREER_NOTES = [
+  "Chemical engineers work in oil and gas, food and drinks, water treatment, medicine, fertilizer, cement, power and more.",
+  "Nigeria has chemical engineering jobs in refineries, gas processing plants and fertilizer plants. Dangote and Indorama both run big ones.",
+  "After graduating, register with COREN. That is how engineers in Nigeria become licensed to practise.",
+  "SIWES is where the theory meets the plant. Keep your logbook updated, ask questions, and learn the names of the equipment.",
+  "Learn Excel and a little Python or MATLAB. Many chemical engineers use them almost every day.",
+];
+const PUSH_WORDS = [
+  "Every engineer you admire once failed a test. What matters is what you do next.",
+  "One hour a day is 365 hours a year. Small effort every day beats a last-minute rush.",
+  "A hard course does not mean you are not good enough. It means you are learning something worth knowing.",
+  "You are not behind. Progress is progress, even when it is slow.",
+  "Ask questions in class. Someone else is wondering the same thing and will thank you.",
+];
+const FACT_DECK = (() => {
+  const L = { f: FUN_FACTS.concat(MORE_FUN), t: STUDY_TIPS, c: CAREER_NOTES, m: PUSH_WORDS };
+  const pos = { f: 0, t: 0, c: 0, m: 0 }, out = [];
+  const pattern = ["f", "t", "f", "m", "f", "c", "t", "f"];
+  const total = Object.values(L).reduce((s, l) => s + l.length, 0);
+  for (let i = 0; out.length < total; i++) {
+    const k = pattern[i % pattern.length];
+    if (pos[k] < L[k].length) out.push({ k, text: L[k][pos[k]++] });
+    else if (i > total * 4) break;
+  }
+  return out;
+})();
+const FACT_THEME = {
+  f: { chip: "💡 DID YOU KNOW?", mark: "🧪", bg: "linear-gradient(145deg,#0b2b3d 0%,#0d4a50 55%,#0e6b4a 100%)", glow: "rgba(11,43,61,0.38)" },
+  t: { chip: "📚 STUDY TIP",     mark: "📚", bg: "linear-gradient(145deg,#1a1f5c 0%,#2b3a9a 60%,#3f6fd1 100%)", glow: "rgba(43,58,154,0.38)" },
+  c: { chip: "🚀 CAREER NOTE",   mark: "🚀", bg: "linear-gradient(145deg,#5c2a0a 0%,#a8470f 55%,#e08a1e 100%)", glow: "rgba(168,71,15,0.38)" },
+  m: { chip: "🔥 KEEP GOING",    mark: "🔥", bg: "linear-gradient(145deg,#4a1260 0%,#8b2a9a 55%,#d6457f 100%)", glow: "rgba(139,42,154,0.38)" },
+};
 const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
 
@@ -2442,17 +2502,21 @@ export default function ChemBaseBUK() {
                 ))}
               </div>
 
-              {(()=>{ const n=CHEME_FACTS.length, idx=(Math.floor(Date.now()/86400000)+factShift)%n;
+              {(()=>{ const n=FACT_DECK.length, day=Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/86400000), idx=(day+factShift)%n, f=FACT_DECK[idx], th=FACT_THEME[f.k];
+                const shareFact=async()=>{ const text=`${th.chip.replace(/^\S+\s/,"")}: ${f.text}\n\n— ChemBase BUK`; if(navigator.share){ try{ await navigator.share({text}); }catch(e){} } else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,"_blank"); };
                 return (
-                <div style={{marginTop:22,padding:"18px 18px 16px",borderRadius:22,position:"relative",overflow:"hidden",background:"linear-gradient(145deg,#0b2b3d 0%,#0d4a50 55%,#0e6b4a 100%)",boxShadow:"0 10px 26px rgba(11,43,61,0.35)",color:"#fff"}}>
-                  <svg width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{position:"absolute",right:-22,bottom:-26,transform:"rotate(-12deg)"}} aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2L4.6 18.1A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.7-2.9L14 9.2V3"/><path d="M7.5 15h9"/></svg>
-                  <div style={{position:"absolute",top:-8,left:10,fontSize:90,lineHeight:1,fontFamily:"Georgia,serif",color:"rgba(255,213,79,0.16)",pointerEvents:"none"}}>“</div>
-                  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                    <span style={{background:"rgba(255,213,79,0.18)",border:"1px solid rgba(255,213,79,0.5)",color:"#ffd54f",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)",letterSpacing:0.8}}>💡 DID YOU KNOW?</span>
-                    <span style={{fontSize:11,color:"rgba(255,255,255,0.55)"}}>{idx+1} / {n}</span>
+                <div style={{marginTop:22,padding:"18px 18px 16px",borderRadius:24,position:"relative",overflow:"hidden",background:th.bg,boxShadow:`0 12px 28px ${th.glow}`,color:"#fff"}}>
+                  <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
+                  <div aria-hidden="true" style={{position:"absolute",right:-14,bottom:-22,fontSize:118,lineHeight:1,opacity:0.16,transform:"rotate(-12deg)",pointerEvents:"none"}}>{th.mark}</div>
+                  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                    <span style={{background:"rgba(255,255,255,0.18)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:20,padding:"4px 12px",fontSize:11.5,fontWeight:"var(--fw-heavy)",letterSpacing:0.8}}>{th.chip}</span>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.7)"}}>{factShift===0?"Today's pick":"More for you"}</span>
                   </div>
-                  <div key={idx} className="cb-rise" style={{position:"relative",fontSize:15,lineHeight:1.7,fontWeight:500,minHeight:78,paddingRight:6}}>{CHEME_FACTS[idx]}</div>
-                  <button onClick={()=>setFactShift(s=>s+1)} style={{position:"relative",marginTop:12,background:"#ffd54f",color:"#3b2c00",border:"none",borderRadius:20,padding:"7px 16px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",boxShadow:"0 3px 10px rgba(0,0,0,0.25)"}}>Another fact ›</button>
+                  <div key={idx} className="cb-rise" style={{position:"relative",fontSize:16,lineHeight:1.65,fontWeight:600,minHeight:84,paddingRight:8,textShadow:"0 1px 2px rgba(0,0,0,0.25)"}}>{f.text}</div>
+                  <div style={{position:"relative",display:"flex",gap:10,marginTop:14}}>
+                    <button onClick={()=>setFactShift(s=>s+1)} style={{background:"#ffd54f",color:"#3b2c00",border:"none",borderRadius:20,padding:"8px 18px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",boxShadow:"0 3px 10px rgba(0,0,0,0.25)"}}>Next ›</button>
+                    <button onClick={shareFact} style={{background:"rgba(255,255,255,0.16)",color:"#fff",border:"1.5px solid rgba(255,255,255,0.5)",borderRadius:20,padding:"8px 16px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Share</button>
+                  </div>
                 </div>); })()}
 
               <div style={{marginTop:16,marginBottom:20,padding:"16px 16px 16px 18px",background:`linear-gradient(135deg,${C.greenLight} 0%,${C.card} 140%)`,borderRadius:16,border:`1.5px solid ${C.border}`,borderLeft:`5px solid ${C.green}`,boxShadow:"0 4px 14px rgba(14,122,60,0.08)",display:"flex",gap:12,alignItems:"flex-start"}}>
@@ -2464,7 +2528,7 @@ export default function ChemBaseBUK() {
                   </p>
                 </div>
               </div>
-              <div style={{textAlign:"center",fontSize:11,color:C.muted,padding:"4px 0 14px",letterSpacing:0.4}}>Made by students, for students · NSChE BUK</div>
+              <div style={{height:8}}/>
             </div>
           )}
         </div>
