@@ -145,11 +145,11 @@ const allCourses = Object.entries(courses).flatMap(([level, sems]) =>
 
 // Heads of Department, newest first
 const hods = [
-  { name:"Dr. Adamu Abubakar Rasheed", years:"2025 – Present", current:true, photo:"/hod/hod-5-rasheed.jpg" },
-  { name:"Dr. Omar Ahmed Umar",        years:"2023 – 2025",                   photo:"/hod/hod-4-omar.jpg" },
-  { name:"Prof. Nurudeen Yusuf",       years:"2019 – 2023",                   photo:"/hod/hod-3-yusuf.jpg" },
-  { name:"Prof. Nurudeen Salahudeen",  years:"2017 – 2019",                   photo:"/hod/hod-2-salahudeen.jpg" },
-  { name:"Prof. Baba El-Yakubu Jibril",years:"2015 – 2017",                   photo:"/hod/hod-1-jibril.jpg" },
+  { name:"Dr. Adamu Abubakar Rasheed", years:"2025 – Present", current:true, photo:"/hod/rasheed.jpg" },
+  { name:"Dr. Omar Ahmed Umar",        years:"2023 – 2025",                   photo:"/hod/omar.jpg" },
+  { name:"Prof. Nurudeen Yusuf",       years:"2019 – 2023",                   photo:"/hod/yusuf.jpg" },
+  { name:"Prof. Nurudeen Salahudeen",  years:"2017 – 2019",                   photo:"/hod/salahudeen.jpg" },
+  { name:"Prof. Baba El-Yakubu Jibril",years:"2015 – 2017",                   photo:"/hod/jibril.jpg" },
 ];
 
 const legacy = [
@@ -1413,24 +1413,49 @@ function ExcoPhoto({ src, name, size, ring, C, onClick }) {
   );
 }
 
-function HodCard({ h, C, card, onOpen }) {
+function HodCard({ h, C, card, onOpen, index }) {
   const [broken, setBroken] = useState(false);
+  const anim = { animation:`hodIn .7s cubic-bezier(.2,.7,.2,1) ${Math.min(index,5)*0.08}s both` };
   return (
-    <div style={{...card,overflow:"hidden",maxWidth:520,width:"100%",margin:"0 auto",boxShadow:h.current?"0 10px 30px rgba(14,122,60,0.22)":"0 4px 16px rgba(0,0,0,0.10)",border:h.current?`2px solid ${C.green}`:card.border}}>
+    <div className="hod-card" style={{...card,...anim,borderRadius:22,overflow:"hidden",maxWidth:520,width:"100%",margin:"0 auto",
+      boxShadow:h.current?"0 14px 38px rgba(14,122,60,0.30)":"0 8px 24px rgba(0,0,0,0.14)",
+      border:h.current?`2px solid ${C.green}`:`1.5px solid ${C.border}`}}>
       <div onClick={()=>!broken&&onOpen(h.photo)}
         style={{position:"relative",width:"100%",aspectRatio:"4 / 5",background:`linear-gradient(135deg,${C.greenMid},${C.green})`,cursor:broken?"default":"zoom-in",overflow:"hidden"}}>
         {broken && <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:"var(--fw-xheavy)",fontSize:72}}>{initialsOf(h.name.replace(/^(Prof|Dr)\.?\s+/,""))}</div>}
         {!broken && <img src={h.photo} alt={h.name} loading="lazy" onError={()=>setBroken(true)}
           style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
+        {/* soft edge shading so the photo feels framed */}
+        <div style={{position:"absolute",inset:0,boxShadow:"inset 0 0 60px rgba(0,0,0,0.14)",pointerEvents:"none"}}/>
         {h.current && (
-          <span style={{position:"absolute",top:14,right:14,fontSize:10.5,fontWeight:"var(--fw-heavy)",color:C.greenDark,background:"#fff",padding:"4px 11px",borderRadius:20,letterSpacing:0.8,textTransform:"uppercase",boxShadow:"0 2px 8px rgba(0,0,0,0.25)"}}>Current</span>
+          <span style={{position:"absolute",top:14,right:14,display:"flex",alignItems:"center",gap:7,fontSize:10.5,fontWeight:"var(--fw-heavy)",color:C.greenDark,background:"#fff",padding:"5px 12px 5px 10px",borderRadius:20,letterSpacing:0.9,textTransform:"uppercase",boxShadow:"0 3px 10px rgba(0,0,0,0.28)"}}>
+            <span style={{width:8,height:8,borderRadius:"50%",background:"#16a34a",animation:"hodPulse 1.8s ease-out infinite"}}/>Current
+          </span>
         )}
-        <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"64px 20px 18px",background:"linear-gradient(to top, rgba(3,28,14,0.92) 0%, rgba(3,28,14,0.62) 55%, rgba(3,28,14,0) 100%)"}}>
-          <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:"rgba(255,255,255,0.78)",textTransform:"uppercase",letterSpacing:1.4,marginBottom:5}}>Head of Department</div>
-          <div style={{fontSize:22,lineHeight:1.2,fontWeight:"var(--fw-xheavy)",color:"#fff",textShadow:"0 1px 6px rgba(0,0,0,0.35)"}}>{h.name}</div>
-          <div style={{display:"inline-block",marginTop:10,fontSize:12.5,fontWeight:"var(--fw-heavy)",color:"#fff",background:"rgba(255,255,255,0.18)",border:"1px solid rgba(255,255,255,0.35)",padding:"4px 12px",borderRadius:20,letterSpacing:0.4}}>{h.years}</div>
+        <span aria-hidden style={{position:"absolute",top:14,left:14,width:34,height:34,borderRadius:"50%",background:"rgba(0,0,0,0.38)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff"}}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        </span>
+        <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"80px 22px 22px",background:"linear-gradient(to top, rgba(3,28,14,0.96) 0%, rgba(3,28,14,0.72) 48%, rgba(3,28,14,0) 100%)"}}>
+          <div style={{width:44,height:3,borderRadius:3,background:"linear-gradient(90deg,#4ade80,#16a34a)",marginBottom:11}}/>
+          <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:"rgba(255,255,255,0.75)",textTransform:"uppercase",letterSpacing:1.6,marginBottom:6}}>Head of Department</div>
+          <div style={{fontSize:23,lineHeight:1.18,fontWeight:"var(--fw-xheavy)",color:"#fff",textShadow:"0 2px 8px rgba(0,0,0,0.4)"}}>{h.name}</div>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,marginTop:12,fontSize:13,fontWeight:"var(--fw-heavy)",color:"#fff",background:"rgba(255,255,255,0.16)",border:"1px solid rgba(255,255,255,0.34)",padding:"5px 14px",borderRadius:20,letterSpacing:0.5}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            {h.years}
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// the line between two cards, with the year the newer HOD took over
+function HodLink({ year, C }) {
+  return (
+    <div aria-hidden style={{display:"flex",flexDirection:"column",alignItems:"center",height:64,animation:"hodIn .7s ease both"}}>
+      <div style={{flex:1,width:2,background:`linear-gradient(to bottom,transparent,${C.green})`}}/>
+      <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.green,background:C.greenLight,border:`1.5px solid ${C.green}`,borderRadius:20,padding:"2px 11px",letterSpacing:0.6}}>{year}</div>
+      <div style={{flex:1,width:2,background:`linear-gradient(to bottom,${C.green},transparent)`}}/>
     </div>
   );
 }
@@ -3086,8 +3111,19 @@ export default function ChemBaseBUK() {
             ))}
           </div>
           {legacyView==="hod" && (
-            <div style={{display:"flex",flexDirection:"column",gap:24}}>
-              {hods.map(h=><HodCard key={h.name} h={h} C={C} card={card} onOpen={setHodViewer}/>)}
+            <div>
+              <style>{`@keyframes hodIn{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}@keyframes hodPulse{0%{box-shadow:0 0 0 0 rgba(22,163,74,.55)}70%{box-shadow:0 0 0 8px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}@media (prefers-reduced-motion: reduce){.hod-card,.hod-card *{animation:none!important}}`}</style>
+              <div style={{display:"flex",justifyContent:"center",marginTop:-6,marginBottom:22}}>
+                <span style={{fontSize:12,fontWeight:"var(--fw-heavy)",color:C.green,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"5px 14px",letterSpacing:0.4}}>
+                  {hods[hods.length-1].years.split(" ")[0]} – Present · {hods.length} leaders
+                </span>
+              </div>
+              {hods.map((h,i)=>(
+                <div key={h.name}>
+                  <HodCard h={h} C={C} card={card} onOpen={setHodViewer} index={i}/>
+                  {i<hods.length-1 && <HodLink year={h.years.split(" ")[0]} C={C}/>}
+                </div>
+              ))}
             </div>
           )}
           {legacyView==="exco" && (
