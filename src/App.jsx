@@ -70,6 +70,27 @@ const STUDY_TIPS = [
   "Do at least the last three years of past questions for every course. Lecturers repeat patterns more than you think.",
   "Form a study group of three or four. Teaching each other is the fastest way to learn.",
   "Eat and drink water before an exam. A hungry, tired brain makes careless mistakes.",
+  "Make a one-page summary of formulas for each course. It is what you will read the night before the exam.",
+  "Do your hardest course first, when your mind is fresh, usually in the morning.",
+  "Switch off notifications while studying. One quick phone check can cost you many minutes of focus.",
+  "Highlight less and write more. Writing the steps from memory sticks better than colouring a textbook.",
+  "Look at past questions for the exam style: calculation, theory or both, and how many marks each part carries.",
+  "Understand the idea behind a formula before you memorise it. If the exam changes the question, you can still solve it.",
+  "Know your units and conversions by heart (bar, atm, kPa; °C and K). Many mistakes start there.",
+  "Keep a mistakes notebook. Read through the questions you got wrong before the exam.",
+  "Go to tutorials even when you are tired. Lecturers often hint at what matters.",
+  "Read the question twice and underline what is being asked. Many students lose marks by answering a different question.",
+  "Start the exam with the questions you know best. They build confidence and bank easy marks.",
+  "Share your exam time by marks. Do not spend 30 minutes on a 5-mark question.",
+  "Practise with a timer. Exams test speed as well as knowledge.",
+  "Try a problem yourself before you look at a friend's solution. The struggle is where the learning happens.",
+  "Link new topics to things you already know. Memory loves connections.",
+  "Use colours and symbols on process flow diagrams. They are easier to remember than plain text.",
+  "Check that your answer makes sense. A mole fraction above 1 or a temperature below absolute zero means something went wrong.",
+  "Review your lecture notes the same day. Ten minutes that evening beats an hour next week.",
+  "When you are stuck on a hard problem, take a 10-minute walk. Your brain keeps working in the background.",
+  "Help a junior student with the basics. Explaining them keeps your own foundation strong.",
+  "Do not wait to feel ready. Start with five minutes of study and the motivation will follow.",
 ];
 const CAREER_NOTES = [
   "Chemical engineers work in oil and gas, food and drinks, water treatment, medicine, fertilizer, cement, power and more.",
@@ -77,6 +98,31 @@ const CAREER_NOTES = [
   "After graduating, register with COREN. That is how engineers in Nigeria become licensed to practise.",
   "SIWES is where the theory meets the plant. Keep your logbook updated, ask questions, and learn the names of the equipment.",
   "Learn Excel and a little Python or MATLAB. Many chemical engineers use them almost every day.",
+  "Process, production, quality control, project and safety engineer are all common first jobs for chemical engineers.",
+  "HSE (health, safety and environment) is a big career path. Every plant needs people who stop accidents before they happen.",
+  "Learn to read a P&ID (piping and instrumentation diagram). It is the map of a plant, and interviewers like to ask about it.",
+  "Gas processing and LNG are big in Nigeria. NLNG at Bonny is one of the largest plants in Africa.",
+  "Water and wastewater treatment is a steady career area in every city.",
+  "Breweries, bottling companies and food factories hire chemical engineers for production and quality control.",
+  "Biogas, solar and other renewable energy projects are opening new roles for chemical engineers, in Nigeria and abroad.",
+  "A master's degree, or a certificate such as Six Sigma or PMP, can help you move up. Plan for it early.",
+  "Join NSChE and go to its events. Meeting seniors and professionals often leads to internships.",
+  "Clear writing and speaking matter as much as good calculations. Engineers who communicate well get promoted faster.",
+  "Many chemical engineers move into management, finance and consulting, because they are trained to solve problems with numbers.",
+  "Process engineers design and improve plants. Control engineers keep them running safely and steadily.",
+  "Process simulators like Aspen HYSYS and Aspen Plus are used in industry worldwide. Knowing one makes your CV stand out.",
+  "Medicine and cosmetics companies need chemical engineers to scale a product up from the lab to the factory.",
+  "Join the Nigerian Society of Engineers as a student member, as well as NSChE. It opens doors to events, mentors and jobs.",
+  "A neat SIWES logbook and a clean report can become the base of your first reference letter.",
+  "Cement, paint, plastic, soap, paper and sugar industries all employ chemical engineers.",
+  "Petrochemicals turn oil and gas into plastics, solvents and fibres. It is a major industry worldwide.",
+  "Start a LinkedIn profile before you graduate and follow the companies you would like to work for.",
+  "Competitions and innovation challenges build your CV and your confidence, even when you do not win.",
+  "Many plants run 24 hours a day in shifts. Ask seniors about shift life early so you know what to expect.",
+  "Sustainability roles use chemical engineering skills like mass balances and separation every day.",
+  "Mining and mineral processing use chemical engineering to separate valuable minerals from rock.",
+  "Chemical engineers design processes that turn waste into something useful, like biogas from organic waste.",
+  "Internships beyond SIWES are worth it. Even a two-week attachment shows you how a company really works.",
 ];
 const PUSH_WORDS = [
   "Every engineer you admire once failed a test. What matters is what you do next.",
@@ -84,19 +130,32 @@ const PUSH_WORDS = [
   "A hard course does not mean you are not good enough. It means you are learning something worth knowing.",
   "You are not behind. Progress is progress, even when it is slow.",
   "Ask questions in class. Someone else is wondering the same thing and will thank you.",
+  "You do not have to be perfect. You just have to keep going.",
+  "Today's effort is tomorrow's result.",
+  "Struggle is part of learning. It means you are growing.",
+  "Compare yourself with who you were yesterday, not with your classmates.",
+  "A bad grade is feedback, not a final verdict.",
+  "Discipline is choosing what you want most over what you want now.",
+  "Rest is part of the plan. A rested mind learns faster.",
+  "Every expert was once a beginner who refused to quit.",
+  "Start before you feel ready.",
+  "You belong in this department. You earned your place.",
+  "Hard work shows up in the exam hall, even when nobody saw you studying.",
+  "One more problem. One more page. That is how a first class is made.",
+  "Be kind to yourself on slow days, and keep going.",
+  "Your family, your community and your future self are counting on you. You can do it.",
+  "Failing is a stepping stone only if you stand up and try again.",
+  "Ask for help early. Strong students do it all the time.",
+  "Do not quit because it is hard. Quit only after you have tried the hard way.",
+  "Engineering is solving one small problem at a time.",
+  "Your hardest semester will also teach you the most.",
+  "Put the phone down and the effort up. Your future is built in these quiet hours.",
+  "Keep your eyes on the goal: graduating as a proud chemical engineer.",
+  "Believe in your preparation. You have studied more than you think.",
+  "Celebrate small wins. Finished a chapter? That counts.",
+  "Progress, not perfection.",
+  "Your best study session is the next one you actually start.",
 ];
-const FACT_DECK = (() => {
-  const L = { f: FUN_FACTS.concat(MORE_FUN), t: STUDY_TIPS, c: CAREER_NOTES, m: PUSH_WORDS };
-  const pos = { f: 0, t: 0, c: 0, m: 0 }, out = [];
-  const pattern = ["f", "t", "f", "m", "f", "c", "t", "f"];
-  const total = Object.values(L).reduce((s, l) => s + l.length, 0);
-  for (let i = 0; out.length < total; i++) {
-    const k = pattern[i % pattern.length];
-    if (pos[k] < L[k].length) out.push({ k, text: L[k][pos[k]++] });
-    else if (i > total * 4) break;
-  }
-  return out;
-})();
 const FACT_THEME = {
   f: { chip: "💡 DID YOU KNOW?", mark: "🧪", bg: "linear-gradient(145deg,#0b2b3d 0%,#0d4a50 55%,#0e6b4a 100%)", glow: "rgba(11,43,61,0.38)" },
   t: { chip: "📚 STUDY TIP",     mark: "📚", bg: "linear-gradient(145deg,#1a1f5c 0%,#2b3a9a 60%,#3f6fd1 100%)", glow: "rgba(43,58,154,0.38)" },
@@ -1775,7 +1834,6 @@ export default function ChemBaseBUK() {
   const [courseSearch, setCourseSearch] = useState("");
   const [expandedExco, setExpandedExco] = useState("2025/2026");
   const [zoomedExco, setZoomedExco] = useState(null);
-  const [factShift, setFactShift] = useState(0);   // "Another fact" button on Home
   const [legacyView, setLegacyView] = useState("exco");   // "exco" | "hod"
   const [hodViewer, setHodViewer] = useState(null);
 
@@ -2502,20 +2560,32 @@ export default function ChemBaseBUK() {
                 ))}
               </div>
 
-              {(()=>{ const n=FACT_DECK.length, day=Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/86400000), idx=(day+factShift)%n, f=FACT_DECK[idx], th=FACT_THEME[f.k];
-                const shareFact=async()=>{ const text=`${th.chip.replace(/^\S+\s/,"")}: ${f.text}\n\n— ChemBase BUK`; if(navigator.share){ try{ await navigator.share({text}); }catch(e){} } else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,"_blank"); };
+              {(()=>{
+                const day=Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/86400000);
+                const picks=[
+                  {k:"f", text:FUN_FACTS.concat(MORE_FUN)[day%(FUN_FACTS.length+MORE_FUN.length)]},
+                  {k:"t", text:STUDY_TIPS[day%STUDY_TIPS.length]},
+                  {k:"c", text:CAREER_NOTES[day%CAREER_NOTES.length]},
+                  {k:"m", text:PUSH_WORDS[day%PUSH_WORDS.length]},
+                ];
+                const share=async(label,text)=>{ const msg=`${label}: ${text}\n\n— ChemBase BUK`; if(navigator.share){ try{ await navigator.share({text:msg}); }catch(e){} } else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank"); };
                 return (
-                <div style={{marginTop:22,padding:"18px 18px 16px",borderRadius:24,position:"relative",overflow:"hidden",background:th.bg,boxShadow:`0 12px 28px ${th.glow}`,color:"#fff"}}>
-                  <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
-                  <div aria-hidden="true" style={{position:"absolute",right:-14,bottom:-22,fontSize:118,lineHeight:1,opacity:0.16,transform:"rotate(-12deg)",pointerEvents:"none"}}>{th.mark}</div>
-                  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                    <span style={{background:"rgba(255,255,255,0.18)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:20,padding:"4px 12px",fontSize:11.5,fontWeight:"var(--fw-heavy)",letterSpacing:0.8}}>{th.chip}</span>
-                    <span style={{fontSize:11,color:"rgba(255,255,255,0.7)"}}>{factShift===0?"Today's pick":"More for you"}</span>
+                <div style={{marginTop:22}}>
+                  <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Today for you</div>
+                    <span style={{fontSize:12,color:C.muted}}>{new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short"})}</span>
                   </div>
-                  <div key={idx} className="cb-rise" style={{position:"relative",fontSize:16,lineHeight:1.65,fontWeight:600,minHeight:84,paddingRight:8,textShadow:"0 1px 2px rgba(0,0,0,0.25)"}}>{f.text}</div>
-                  <div style={{position:"relative",display:"flex",gap:10,marginTop:14}}>
-                    <button onClick={()=>setFactShift(s=>s+1)} style={{background:"#ffd54f",color:"#3b2c00",border:"none",borderRadius:20,padding:"8px 18px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer",boxShadow:"0 3px 10px rgba(0,0,0,0.25)"}}>Next ›</button>
-                    <button onClick={shareFact} style={{background:"rgba(255,255,255,0.16)",color:"#fff",border:"1.5px solid rgba(255,255,255,0.5)",borderRadius:20,padding:"8px 16px",fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Share</button>
+                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                    {picks.map((f,i)=>{ const th=FACT_THEME[f.k], label=th.chip.replace(/^\S+\s/,""); return (
+                      <div key={f.k} className="cb-rise" style={{padding:"15px 16px 14px",borderRadius:20,position:"relative",overflow:"hidden",background:th.bg,boxShadow:`0 8px 20px ${th.glow}`,color:"#fff",animationDelay:(i*90)+"ms"}}>
+                        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
+                        <div aria-hidden="true" style={{position:"absolute",right:-10,bottom:-18,fontSize:96,lineHeight:1,opacity:0.16,transform:"rotate(-12deg)",pointerEvents:"none"}}>{th.mark}</div>
+                        <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
+                          <span style={{background:"rgba(255,255,255,0.18)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)",letterSpacing:0.8}}>{th.chip}</span>
+                          <button onClick={()=>share(label,f.text)} aria-label="Share" style={{background:"rgba(255,255,255,0.16)",color:"#fff",border:"1px solid rgba(255,255,255,0.45)",borderRadius:16,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Share</button>
+                        </div>
+                        <div style={{position:"relative",fontSize:14.5,lineHeight:1.65,fontWeight:600,paddingRight:6,textShadow:"0 1px 2px rgba(0,0,0,0.25)"}}>{f.text}</div>
+                      </div>); })}
                   </div>
                 </div>); })()}
 
