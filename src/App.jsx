@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { speechChunks, pickVoice, shareable } from "./speech.js";
+import { speechChunks, pickVoice, englishVoices, shareable } from "./speech.js";
 
 const LOGO      = "/nsche-logo.jpg";
 const APP_ICON  = "/chembase-icon.png";
@@ -1589,9 +1589,13 @@ function renderInline(text, k) {
   return parts.map((p,i) => {
     if(p === "\n") return <br key={`${k}-${i}`}/>;
     if(p.startsWith('$$') && p.endsWith('$$')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",maxWidth:"100%",fontSize:"0.95em",overflowWrap:"break-word"}} className="katex-wrap">{renderMath(p.slice(2,-2), true)}</span>;
-    if(p.startsWith('$') && p.endsWith('$') && p.length>2) return <span key={`${k}-${i}`}>{renderMath(p.slice(1,-1), false)}</span>;
+    if(p.startsWith('$') && p.endsWith('$') && p.length>2) return p.length>46
+      ? <span key={`${k}-${i}`} className="cb-mathscroll" style={{display:"block"}}>{renderMath(p.slice(1,-1), false)}</span>
+      : <span key={`${k}-${i}`}>{renderMath(p.slice(1,-1), false)}</span>;
     if(p.startsWith('\\[') && p.endsWith('\\]')) return <span key={`${k}-${i}`} style={{display:"block",textAlign:"center",margin:"6px 0",maxWidth:"100%",fontSize:"0.95em",overflowWrap:"break-word"}}>{renderMath(p.slice(2,-2), true)}</span>;
-    if(p.startsWith('\\(') && p.endsWith('\\)')) return <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
+    if(p.startsWith('\\(') && p.endsWith('\\)')) return p.length>48
+      ? <span key={`${k}-${i}`} className="cb-mathscroll" style={{display:"block"}}>{renderMath(p.slice(2,-2), false)}</span>
+      : <span key={`${k}-${i}`}>{renderMath(p.slice(2,-2), false)}</span>;
     if(p.startsWith('**') && p.endsWith('**')) return <strong key={`${k}-${i}`} style={{fontWeight:"var(--fw-heavy)"}}>{renderInline(p.slice(2,-2), `${k}-${i}-b`)}</strong>;
     if(p.startsWith('*') && p.endsWith('*') && p.length>2) return <em key={`${k}-${i}`}>{renderInline(p.slice(1,-1), `${k}-${i}-e`)}</em>;
     return <span key={`${k}-${i}`}>{p}</span>;
@@ -1824,12 +1828,13 @@ export default function ChemBaseBUK() {
   const ttsSupported = typeof window!=="undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance!=="undefined";
   const stopSpeak = () => { speakToken.current++; try{ window.speechSynthesis?.cancel(); }catch(e){} setSpeakingIdx(null); };
   const speakRate = useRef(1);
+  const speakSession = useRef(null);      // {idx, chunks, n} - what is being read right now
+  const voicesRef = useRef([]);           // English voices of this phone, best first
+  const voiceChoice = useRef(null);       // the voice in use
   const [rateLabel, setRateLabel] = useState(()=>{ try{ const r=parseFloat(localStorage.getItem("cb_rate")); return [0.85,1,1.25,1.5].includes(r)?r:1; }catch(e){ return 1; } });
+  const [voiceCount, setVoiceCount] = useState(0);   // how many English voices this phone has (state, so the button shows up)
+  const [voicePos, setVoicePos] = useState(0);   // 0-based position of the chosen voice, for the button label
   speakRate.current = rateLabel;
-  const cycleRate = () => {
-    const order=[1,1.25,1.5,0.85]; const nxt=order[(order.indexOf(rateLabel)+1)%order.length];
-    setRateLabel(nxt); speakRate.current=nxt; try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
-  };
   // Phones load their voice list a moment after the page opens; ask early so the good voice is ready.
   useEffect(()=>{ if(ttsSupported){ try{ window.speechSynthesis.getVoices(); }catch(e){} } },[]);
   const voicesReady = (synth) => new Promise(res=>{
@@ -1838,21 +1843,24 @@ export default function ChemBaseBUK() {
     try{ synth.addEventListener("voiceschanged",fin,{once:true}); }catch(e){}
     setTimeout(fin,700);
   });
-  const speakMsg = async (idx, text) => {
-    if(!ttsSupported) return;
-    if(speakingIdx===idx){ stopSpeak(); return; }
+  const loadVoices = async () => {
+    const list = englishVoices(await voicesReady(window.speechSynthesis));
+    voicesRef.current = list;
+    let saved = null; try{ saved = localStorage.getItem("cb_voice"); }catch(e){}
+    const found = saved ? list.findIndex(v=>v.name===saved) : -1;
+    const pos = found>=0 ? found : 0;
+    voiceChoice.current = list[pos] || null; setVoicePos(pos); setVoiceCount(list.length);
+  };
+  // read the session's chunks one after another
+  const runSession = (sess) => {
     const synth = window.speechSynthesis;
-    try{ synth.cancel(); }catch(e){}
-    const chunks = speechChunks(text); if(!chunks.length) return;
     const token = ++speakToken.current;
-    setSpeakingIdx(idx);
-    const voice = pickVoice(await voicesReady(synth));
-    if(speakToken.current!==token) return; // stopped while waiting
-    let n = 0;
+    speakSession.current = sess;
     const next = () => {
       if(speakToken.current!==token) return;
-      if(n>=chunks.length){ setSpeakingIdx(null); return; }
-      const u = new window.SpeechSynthesisUtterance(chunks[n++]);
+      if(sess.n>=sess.chunks.length){ setSpeakingIdx(null); speakSession.current=null; return; }
+      const u = new window.SpeechSynthesisUtterance(sess.chunks[sess.n++]);
+      const voice = voiceChoice.current;
       if(voice){ u.voice=voice; u.lang=voice.lang; } else u.lang="en-GB";
       u.rate = speakRate.current; u.pitch = 1;
       u.onend = next;
@@ -1861,6 +1869,37 @@ export default function ChemBaseBUK() {
       synth.speak(u);
     };
     next();
+  };
+  // after a speed or voice change, say the sentence that is playing again with the new setting
+  const restartChunk = () => {
+    const sess = speakSession.current; if(!sess) return;
+    try{ window.speechSynthesis.cancel(); }catch(e){}
+    sess.n = Math.max(0, sess.n-1);
+    runSession(sess);
+  };
+  const cycleRate = () => {
+    const order=[1,1.25,1.5,0.85]; const nxt=order[(order.indexOf(rateLabel)+1)%order.length];
+    setRateLabel(nxt); speakRate.current=nxt; try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
+    restartChunk();
+  };
+  const cycleVoice = () => {
+    const list = voicesRef.current; if(list.length<2) return;
+    const pos = (voicePos+1)%list.length;
+    voiceChoice.current = list[pos]; setVoicePos(pos);
+    try{ localStorage.setItem("cb_voice", list[pos].name); }catch(e){}
+    restartChunk();
+  };
+  const speakMsg = async (idx, text) => {
+    if(!ttsSupported) return;
+    if(speakingIdx===idx){ stopSpeak(); return; }
+    const synth = window.speechSynthesis;
+    try{ synth.cancel(); }catch(e){}
+    const chunks = speechChunks(text); if(!chunks.length) return;
+    const token = ++speakToken.current;
+    setSpeakingIdx(idx);
+    if(!voicesRef.current.length) await loadVoices();
+    if(speakToken.current!==token) return; // stopped while waiting
+    runSession({ idx, chunks, n: 0 });
   };
   // Share (phone share menu: WhatsApp, Telegram, etc.) and Copy
   const [copiedIdx, setCopiedIdx] = useState(null);
@@ -2219,8 +2258,13 @@ export default function ChemBaseBUK() {
   return (
     <>
     <style>{`
-      .katex-display { overflow-x: hidden !important; overflow-y: hidden !important; max-width: 100%; margin: 0.4em 0 !important; }
-      .katex { font-size: 0.92em; max-width: 100%; }
+      /* long equations scroll sideways instead of being cut off */
+      .katex-display, .cb-mathscroll { overflow-x: auto !important; overflow-y: hidden !important; max-width: 100%; margin: 0.4em 0 !important; padding: 2px 2px 8px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: rgba(14,122,60,0.55) transparent; }
+      .katex-display::-webkit-scrollbar, .cb-mathscroll::-webkit-scrollbar { height: 6px; }
+      .katex-display::-webkit-scrollbar-thumb, .cb-mathscroll::-webkit-scrollbar-thumb { background: rgba(14,122,60,0.5); border-radius: 6px; }
+      .katex-display::-webkit-scrollbar-track, .cb-mathscroll::-webkit-scrollbar-track { background: transparent; }
+      .katex-display > .katex { max-width: none; white-space: nowrap; }
+      .katex { font-size: 0.92em; }
       /* Windows/Chrome renders heavy font weights with harsher, chunkier edges
          than mobile browsers do for the same CSS — smooth it out so bold text
          looks as clean on a PC as it does on a phone. */
@@ -2494,6 +2538,12 @@ export default function ChemBaseBUK() {
                           ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
                           : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>}
                         {speakingIdx===i?"Stop":"Listen"}
+                      </button>
+                    )}
+                    {ttsSupported && speakingIdx===i && voiceCount>1 && (
+                      <button onClick={cycleVoice} aria-label="Change reading voice"
+                        style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
+                        Voice {voicePos+1}/{voiceCount}
                       </button>
                     )}
                     {ttsSupported && speakingIdx===i && (

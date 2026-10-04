@@ -138,10 +138,28 @@ function dotPhrase(letter, sub) {
   return " " + base + " of " + sb + " ";
 }
 
+// how a subscript is spoken:  x_1 -> "x1",  F_in -> "F in",  C_A -> "C sub A"
+function subWord(b) {
+  const t = b.trim();
+  if (/^\d+$/.test(t)) return t;
+  if (/^[a-z]{2,}$/.test(t)) return " " + t + " ";
+  return " sub " + t + " ";
+}
+
 // LaTeX -> plain spoken words
 export function mathToWords(tex) {
   let s = " " + tex + " ";
   s = s.replace(/\^\s*\{\s*([-−]?\d)\s*\}/g, "^$1");
+  // _{\text{out}} -> _{out}   (so "m dot out" and "F out" can be recognised)
+  s = s.replace(/_\s*\{\s*\\(?:text|mathrm|textrm|mathit|mathbf|textbf)\s*\{([^{}]*)\}\s*\}/g, "_{$1}");
+  // align / equation / cases blocks: drop the wrapper, make each row its own sentence
+  s = s.replace(/\\begin\s*\{(?:aligned|align\*?|alignat\*?|equation\*?|gather\*?|gathered|split|eqnarray\*?|multline\*?|cases|array|matrix|pmatrix|bmatrix|vmatrix|smallmatrix)\}(?:\s*\{[^{}]*\})?/g, " ")
+       .replace(/\\end\s*\{[a-zA-Z*]+\}/g, " ")
+       .replace(/\\(?:tag|label)\s*\{[^{}]*\}/g, " ").replace(/\\(?:nonumber|notag)\b/g, " ")
+       .replace(/\\boxed\s*\{([^{}]*)\}/g, " $1 ");
+  s = s.replace(/\\\\/g, " . ");
+  // limits: \lim_{x \to 0}
+  s = s.replace(/\\lim\s*_\s*\{\s*([^{}\\]*?)\s*\\to\s*([^{}]*?)\s*\}/g, " limit as $1 approaches $2 of ");
   // accents on a letter:  \dot{m} -> "m dot",  \bar{x} -> "x bar",  \vec{F} -> "vector F"
   s = s.replace(/\\ddot\s*\{([^{}]*)\}|\\ddot\s*([A-Za-z])/g, (_, a, b) => " " + (a || b) + " double dot ");
   s = s.replace(/\\dot\s*(?:\{([^{}]*)\}|([A-Za-z]))(?:\s*_\s*(?:\{([^{}]*)\}|([A-Za-z0-9])))?/g, (_, a, b, c, d) => dotPhrase(a || b, c || d));
@@ -173,8 +191,8 @@ export function mathToWords(tex) {
     s = s.replace(/\\sqrt\s*([A-Za-z0-9])/g, " square root of $1 ");
     s = s.replace(/\^\s*\{([^{}]*)\}/g, (_, p) => power(p));
     s = s.replace(/\^\s*(-?[A-Za-z0-9])/g, (_, p) => power(p));
-    s = s.replace(/_\s*\{([^{}]*)\}/g, (_, b) => (/^\d+$/.test(b.trim()) ? b.trim() : " sub " + b + " "));
-    s = s.replace(/_\s*([A-Za-z0-9])/g, (_, b) => (/^\d$/.test(b) ? b : " sub " + b + " "));
+    s = s.replace(/_\s*\{([^{}]*)\}/g, (_, b) => subWord(b));
+    s = s.replace(/_\s*([A-Za-z0-9])/g, (_, b) => subWord(b));
     if (s === before) break;
   }
   s = s.replace(/\\([A-Za-z]+)/g, (_, w) => {
@@ -212,9 +230,32 @@ function unicodeToWords(s) {
     .replace(/%/g, " percent");
 }
 
+// a line like "Rate = k * C_A^2" or "m_in - m_out = dm/dt": a short line with "=" and few real words
+function looksLikeEquation(line) {
+  const t = line.trim();
+  if (!t || t.length > 220 || !t.includes("=")) return false;
+  if (/[.!?]\s+[A-Z]/.test(t)) return false;                    // two sentences
+  const longWords = (t.match(/[A-Za-z]{4,}/g) || []).length;
+  return longWords <= 5 && /[A-Za-z0-9)\]]\s*=/.test(t);
+}
+const CODE_LANG = /^(py|python|js|javascript|jsx|ts|typescript|c|cpp|c\+\+|cs|csharp|java|bash|sh|shell|zsh|matlab|octave|r|sql|json|html|css|xml|yaml|yml|go|rust|php|ruby|swift|kotlin|vb|vba|powershell)$/;
+// what to say for a ```fenced``` block
+function speakFence(f) {
+  if (!f) return "";
+  const body = f.body || "";
+  if (CODE_LANG.test(f.lang) || /(\bdef |\bimport |\bfunction\b|console\.|\bprint\(|#include|\bpublic |\breturn\b|\bfor ?\(|\bwhile ?\(|=>)/.test(body)) return "The code is shown on screen.";
+  if (/^(latex|tex|math|katex)$/.test(f.lang)) return mathToWords(body.replace(/\$/g, "")) + ".";
+  return body.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+    l = expandUnits(negUnitChains(expandAbbreviations(l)));
+    return (looksLikeEquation(l) ? mathToWords(l) : l.replace(/[*_`]/g, "")).replace(/[.:;]+$/, "") + ".";
+  }).join(" ");
+}
+
 export function speakable(md) {
   let s = String(md || "");
-  s = s.replace(/```[\s\S]*?```/g, " The code is shown on screen. ");
+  // fenced blocks: real code is skipped, but a formula written in a code block is read like any other formula
+  const fences = [];
+  s = s.replace(/```([A-Za-z0-9_+#-]*)[ \t]*\n?([\s\S]*?)```/g, (m, lang, body) => { fences.push({ lang: lang.toLowerCase(), body }); return "\n\uE001" + (fences.length - 1) + "\uE002\n"; });
   s = s.normalize("NFC");
   s = s.replace(/[\u2460-\u2473]/g, (c) => " " + (c.charCodeAt(0) - 0x245f) + " ");                 // circled numbers
   s = s.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{25A0}-\u{25FF}\u{2300}-\u{23FF}\u{2500}-\u{257F}\u{FE0F}\u{FE0E}\u{20E3}\u{200D}\u{2022}\u{2023}]/gu, "");
@@ -260,18 +301,22 @@ export function speakable(md) {
   s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/https?:\/\/\S+/g, " link ");
   s = s.replace(/^\s{0,3}#{1,6}\s*(.+)$/gm, "$1.");
   s = s.replace(/^\s*>\s?/gm, "").replace(/^\s*[-*•]\s+/gm, "").replace(/^\s*-{3,}\s*$/gm, "");
-  s = s.replace(/\*\*|__|\*|~~/g, "");
   s = expandAbbreviations(s);
   s = negUnitChains(s);
   s = expandUnits(s);
   s = bracketUnits(s);
-  s = s.replace(/(\w|\))\^\{?(-?\d+|[A-Za-z])\}?/g, (m, b, p) => b + power(p));      // x^2, 10^6 written without LaTeX
   s = s.replace(/(^|[\s(])~(?=\s?\d)/g, "$1approximately ").replace(/ > /g, " greater than ").replace(/ < /g, " less than ");
   s = s.replace(/\b(\d+):(\d+)\b/g, (m, a, b) => (b.length === 2 && +a <= 24 && +b < 60 ? m : a + " to " + b));   // 1:2 -> "1 to 2", 3:30 stays a time
+  // equations typed as plain text ("m_in - m_out = dm/dt") are read like formulas
+  s = s.split("\n").map((line) => (looksLikeEquation(line) ? mathToWords(line) + "." : line)).join("\n");
+  s = s.replace(/\*\*|__|\*|~~/g, "");
+  s = s.replace(/(\w|\))\^\{?(-?\d+|[A-Za-z])\}?/g, (m, b, p) => b + power(p));      // x^2, 10^6 written without LaTeX
+  s = s.replace(/\b([A-Za-z])_\{?([A-Za-z0-9]+)\}?/g, (m, l, sub) => l + subWord(sub));
   s = expandUnits(s);
   s = unicodeToWords(s);
   s = s.replace(/\bChE\b/g, "Chemical Engineering");
   s = spellFormulas(s);
+  s = s.replace(/\uE001(\d+)\uE002/g, (m, i) => " " + speakFence(fences[+i]) + " ");
   s = s.replace(/([^.!?:;,\s])[ \t]*\n+/g, "$1. ").replace(/\n+/g, " ");
   return s.replace(/\s+/g, " ").replace(/\(\s+/g, "(").replace(/\s+\)/g, ")").replace(/\s+([.,!?;:])/g, "$1").replace(/,\s*,/g, ",").replace(/\.\s*\./g, ".").trim();
 }
@@ -303,20 +348,25 @@ export function speechChunks(md, max = 160) {
   return out;
 }
 
-// Choose the most natural English voice the phone has.
-export function pickVoice(voices) {
+// English voices, best sounding first
+export function englishVoices(voices) {
   const en = (voices || []).filter((v) => /^en([-_]|$)/i.test(v.lang));
-  if (!en.length) return null;
   const rank = (v) => {
     let r = 0;
-    if (/natural|neural|online|enhanced|premium/i.test(v.name)) r += 50;
+    if (/natural|neural|online|enhanced|premium|studio/i.test(v.name)) r += 50;
     if (/google/i.test(v.name)) r += 20;
     if (/^en[-_](NG|GB)/i.test(v.lang)) r += 10;
     else if (/^en[-_]US/i.test(v.lang)) r += 8;
     if (v.localService === false) r += 3;
+    if (/compact|espeak|robot|novelty|zarvox|trinoids|bells|cellos|boing|bubbles|bad news|good news|whisper|organ|jester|wobble|albert|fred|junior|kathy|ralph/i.test(v.name)) r -= 60;
     return r;
   };
-  return en.slice().sort((a, b) => rank(b) - rank(a))[0];
+  return en.map((v, i) => ({ v, r: rank(v), i })).sort((x, y) => y.r - x.r || x.i - y.i).map((x) => x.v);
+}
+
+// Choose the most natural English voice the phone has.
+export function pickVoice(voices) {
+  return englishVoices(voices)[0] || null;
 }
 
 // ---------- Sharing / copying ----------
