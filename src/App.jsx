@@ -2080,7 +2080,7 @@ export default function ChemBaseBUK() {
   const onlineDown = useRef(false);       // true after the server said no (no key / free limit): use the phone voice
   const stopSpeak = () => { speakToken.current++; try{ window.speechSynthesis?.cancel(); }catch(e){}
     try{ if(natAudio.current){ natAudio.current.pause(); natAudio.current=null; } }catch(e){}
-    setSpeakingIdx(null); };
+    setPlayPct(null); setSpeakingIdx(null); };
   const speakRate = useRef(1);
   const speakSession = useRef(null);      // {idx, chunks, n} - what is being read right now
   const voicesRef = useRef([]);           // English voices of this phone, best first
@@ -2142,31 +2142,58 @@ export default function ChemBaseBUK() {
     if(speakingIdx===idx) speakMsg(idx, text, true);
   };
   // Online voice (through our /api/tts). Returns the chunks it could NOT read (empty = all done).
-  const runOnlineVoice = async (chunks, token) => {
+  const seekTo = useRef(null);            // (0..1000) jump inside the answer being read by the online voice
+  const coolUntil = useRef(0);            // after a failure, skip the online voice for a while
+  const [playPct, setPlayPct] = useState(null);   // {idx, v} progress of the online voice, v = 0..1000
+  const [scrub, setScrub] = useState(null);       // value while the person is dragging the bar
+  const [voiceNote, setVoiceNote] = useState(null); // why the phone voice is reading instead
+  const runOnlineVoice = async (chunks, token, idx) => {
+    const total = chunks.reduce((a,c)=>a+c.length,0) || 1;
+    const starts = []; { let acc=0; chunks.forEach(c=>{ starts.push(acc); acc+=c.length; }); }
     const fetchSound = async (n)=>{
       try{
         const r = await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:chunks[n],voice:voiceNoRef.current})});
-        if(!r.ok){ if(r.status===503) onlineDown.current=true; return null; }
+        if(!r.ok){
+          if(r.status===503){ onlineDown.current=true; setVoiceNote("The online voice is not set up on the server, so the phone voice is reading."); }
+          else if(r.status===429){ coolUntil.current=Date.now()+30*60*1000; setVoiceNote("The online voice reached its free limit for now, so the phone voice is reading. It tries again later."); }
+          else { coolUntil.current=Date.now()+5*60*1000; setVoiceNote(`The online voice is busy (code ${r.status}), so the phone voice is reading.`); }
+          return null;
+        }
         return URL.createObjectURL(await r.blob());
-      }catch(e){ return null; }
+      }catch(e){ setVoiceNote("The online voice could not be reached, so the phone voice is reading."); return null; }
     };
-    const jobs = [];
-    const ensure = (n)=>{ if(n<chunks.length && !jobs[n]) jobs[n] = fetchSound(n); };
-    ensure(0); ensure(1);
-    for(let n=0;n<chunks.length;n++){
-      const url = await jobs[n];
-      if(speakToken.current!==token){ if(url) URL.revokeObjectURL(url); return []; }
-      if(!url) return chunks.slice(n);                 // problem: the phone voice reads the rest
-      ensure(n+1); ensure(n+2);                        // get the next pieces ready while this one plays
-      await new Promise(res=>{
-        const au = new Audio(url); natAudio.current = au;
-        au.playbackRate = speakRate.current;
-        au.onended = res; au.onerror = res;
-        au.play().catch(res);
-      });
-      URL.revokeObjectURL(url);
-    }
-    return [];
+    const jobs = [], urls = [];
+    const ensure = (n)=>{ if(n>=0 && n<chunks.length && !jobs[n]) jobs[n] = fetchSound(n); };
+    let n = 0, startFrac = 0;
+    try{
+      while(n<chunks.length){
+        ensure(n);
+        const url = await jobs[n];
+        if(speakToken.current!==token) return [];
+        if(!url) return chunks.slice(n);                 // problem: the phone voice reads the rest
+        urls[n] = url;
+        ensure(n+1); ensure(n+2);                        // get the next pieces ready while this one plays
+        let jump = null;
+        await new Promise(res=>{
+          const au = new Audio(url); natAudio.current = au;
+          au.playbackRate = speakRate.current;
+          au.onloadedmetadata = ()=>{ if(startFrac>0 && isFinite(au.duration)) { try{ au.currentTime = startFrac*au.duration; }catch(e){} } };
+          au.ontimeupdate = ()=>{ if(au.duration && speakToken.current===token) setPlayPct({ idx, v: Math.min(1000, Math.round(1000*(starts[n] + (au.currentTime/au.duration)*chunks[n].length)/total)) }); };
+          au.onended = res; au.onerror = res;
+          seekTo.current = (v)=>{                         // the bar was dragged
+            const target = (v/1000)*total; let m = 0;
+            while(m+1<chunks.length && starts[m+1]<=target) m++;
+            jump = { m, frac: Math.max(0, Math.min(0.98, (target-starts[m])/(chunks[m].length||1))) };
+            try{ au.pause(); }catch(e){} res();
+          };
+          au.play().catch(res);
+        });
+        seekTo.current = null;
+        if(speakToken.current!==token) return [];
+        if(jump){ n = jump.m; startFrac = jump.frac; } else { n++; startFrac = 0; }
+      }
+      return [];
+    } finally { urls.forEach(u=>{ if(u) URL.revokeObjectURL(u); }); }
   };
   const speakMsg = async (idx, text, again) => {
     if(speakingIdx===idx && !again){ stopSpeak(); return; }
@@ -2176,7 +2203,8 @@ export default function ChemBaseBUK() {
     let chunks = speechChunks(text); if(!chunks.length) return;
     const token = ++speakToken.current;
     setSpeakingIdx(idx);
-    if(!onlineDown.current){
+    setVoiceNote(null);
+    if(!onlineDown.current && Date.now()>coolUntil.current){
       // pieces grow as it goes (short first piece = fast start; later pieces are longer so the voice changes less)
       const small = speechChunks(text, 130);
       const targets = [130, 260, 450, 700];
@@ -2186,10 +2214,13 @@ export default function ChemBaseBUK() {
         if(cur && (cur+" "+s).length>lim){ big.push(cur); cur=s; t++; } else cur = cur ? cur+" "+s : s;
       });
       if(cur) big.push(cur);
-      const rest = await runOnlineVoice(big, token);
+      const rest = await runOnlineVoice(big, token, idx);
+      setPlayPct(null);
       if(speakToken.current!==token) return;
       if(!rest.length){ natAudio.current=null; setSpeakingIdx(null); return; }
       chunks = speechChunks(rest.join(" "));
+    } else if(!onlineDown.current){
+      setVoiceNote("The online voice is resting (free limit), so the phone voice is reading. It tries again later.");
     }
     if(!ttsSupported){ setSpeakingIdx(null); return; }
     if(!voicesRef.current.length) await loadVoices();
@@ -2926,6 +2957,18 @@ export default function ChemBaseBUK() {
                       Share
                     </button>
                   </div>
+                  {speakingIdx===i && playPct && playPct.idx===i && (
+                    <div style={{display:"flex",alignItems:"center",gap:8,margin:"6px 2px 0"}}>
+                      <input type="range" min={0} max={1000} value={scrub!==null?scrub:playPct.v} aria-label="Move through the reading"
+                        onChange={e=>setScrub(+e.target.value)}
+                        onPointerUp={()=>{ if(scrub!==null){ seekTo.current && seekTo.current(scrub); setScrub(null); } }}
+                        onTouchEnd={()=>{ if(scrub!==null){ seekTo.current && seekTo.current(scrub); setScrub(null); } }}
+                        onKeyUp={()=>{ if(scrub!==null){ seekTo.current && seekTo.current(scrub); setScrub(null); } }}
+                        style={{flex:1,accentColor:C.green,height:22,cursor:"pointer"}}/>
+                      <span style={{fontSize:10.5,color:C.muted,minWidth:30,textAlign:"right"}}>{Math.round((scrub!==null?scrub:playPct.v)/10)}%</span>
+                    </div>
+                  )}
+                  {voiceNote && speakingIdx===i && <div style={{fontSize:10.5,color:C.muted,margin:"4px 2px 0"}}>{voiceNote}</div>}
                   </>
                 )}
               </div>
