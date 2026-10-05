@@ -556,6 +556,16 @@ export function englishVoices(voices) {
 }
 
 // Choose the most natural English voice the phone has.
+// Voice 1 / Voice 2: the best female and the best male voice a device has (same idea on iPhone, Android and computer)
+const FEMALE_RE = /female|woman|samantha|karen|moira|tessa|fiona|victoria|allison|ava\b|susan|zira|hazel|jenny|aria|libby|sonia|emma|michelle|catherine|serena|kate\b|martha|nicky|amy\b|joanna|salli|ivy\b|kendra|kimberly|raveena|natasha|heera|neerja|ezinne|sara\b|nora|laura|siri.*female|ellen|veena|zoe|lisa|shelley|sandy|flo\b|grandma/i;
+const MALE_RE = /\bmale\b|daniel|alex\b|oliver|arthur|rishi|aaron|tom\b|mark\b|david|george|ryan|guy\b|davis|christopher|eric\b|ethan|brian|roger|steffan|james|liam|prabhat|ravi|abeo|gordon|lee\b|evan|reed|rocko|eddy|grandpa|nathan|jason|sam\b/i;
+export function voicesByGender(list) {
+  const l = list || [];
+  const female = l.find((v) => FEMALE_RE.test(v.name));
+  const male = l.find((v) => !FEMALE_RE.test(v.name) && MALE_RE.test(v.name));
+  const first = female || l[0] || null;
+  return { female: first, male: male || l.find((v) => v !== first) || first };
+}
 export function pickVoice(voices) {
   return englishVoices(voices)[0] || null;
 }

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { speechChunks, pickVoice, englishVoices, shareable } from "./speech.js";
+import { speechChunks, pickVoice, englishVoices, voicesByGender, shareable } from "./speech.js";
 import { ELEMENT_INFO } from "./elements.js";
 
 const FUN_FACTS = [
@@ -2076,20 +2076,24 @@ export default function ChemBaseBUK() {
   const speakToken = useRef(0);
   const speakKeep = useRef(null);
   const ttsSupported = typeof window!=="undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance!=="undefined";
-  const natAudio = useRef(null);          // the sound element of the online voice
-  const onlineDown = useRef(false);       // true after the server said no (no key / free limit): use the phone voice
   const stopSpeak = () => { speakToken.current++; try{ window.speechSynthesis?.cancel(); }catch(e){}
-    try{ if(natAudio.current){ natAudio.current.pause(); natAudio.current=null; } }catch(e){}
     setPlayPct(null); setSpeakingIdx(null); };
   const speakRate = useRef(1);
-  const speakSession = useRef(null);      // {idx, chunks, n} - what is being read right now
-  const voicesRef = useRef([]);           // English voices of this phone, best first
+  const speakSession = useRef(null);      // {idx, chunks, n, starts, total} - what is being read right now
+  const voicesRef = useRef([]);           // English voices of this phone/computer, best first
   const voiceChoice = useRef(null);       // the voice in use
+  const [playPct, setPlayPct] = useState(null);   // {idx, v}: how far the reading has gone, v = 0..1000
+  const [scrub, setScrub] = useState(null);       // value while the bar is being dragged
+  const scrubRef = useRef(null);
+  // make sure the bar is on screen when reading starts
+  useEffect(()=>{ if(speakingIdx!==null){ const t=setTimeout(()=>{ try{ document.getElementById("cb-seek")?.scrollIntoView({block:"nearest",behavior:"smooth"}); }catch(e){} },350); return ()=>clearTimeout(t); } },[speakingIdx]);
+  const commitScrub = () => { const v = scrubRef.current; if(v===null) return; scrubRef.current = null; setScrub(null); seekRead(v); };
   const [rateLabel, setRateLabel] = useState(()=>{ try{ const r=parseFloat(localStorage.getItem("cb_rate")); return [0.85,1,1.25,1.5].includes(r)?r:1; }catch(e){ return 1; } });
   speakRate.current = rateLabel;
-  const ONLINE_VOICES = [["laura","Voice 1"],["slax","Voice 2"]];   // Voice 1 = Laura (female), Voice 2 = Slax (male)
-  const [voiceKey, setVoiceKey] = useState(()=>{ try{ const v=localStorage.getItem("cb_voice"); return ONLINE_VOICES.some(x=>x[0]===v)?v:"laura"; }catch(e){ return "laura"; } });
-  const voiceNoRef = useRef(voiceKey); voiceNoRef.current = voiceKey;
+  // Voice 1 = the best female voice the device has, Voice 2 = the best male voice (same idea on iPhone, Android and computer)
+  const [voiceNo, setVoiceNo] = useState(()=>{ try{ return localStorage.getItem("cb_voice")==="2"?2:1; }catch(e){ return 1; } });
+  const voiceNoRef = useRef(voiceNo); voiceNoRef.current = voiceNo;
+  const pickByNo = (no) => { const g = voicesByGender(voicesRef.current); return (no===2 ? g.male : g.female) || voicesRef.current[0] || null; };
   // Phones load their voice list a moment after the page opens; ask early so the good voice is ready.
   useEffect(()=>{ if(ttsSupported){ try{ window.speechSynthesis.getVoices(); }catch(e){} } },[]);
   const voicesReady = (synth) => new Promise(res=>{
@@ -2099,9 +2103,8 @@ export default function ChemBaseBUK() {
     setTimeout(fin,700);
   });
   const loadVoices = async () => {
-    const list = englishVoices(await voicesReady(window.speechSynthesis));
-    voicesRef.current = list;
-    voiceChoice.current = list[0] || null;   // one voice only: the best one this phone has
+    voicesRef.current = englishVoices(await voicesReady(window.speechSynthesis));
+    voiceChoice.current = pickByNo(voiceNoRef.current);
   };
   // read the session's chunks one after another
   const runSession = (sess) => {
@@ -2110,17 +2113,19 @@ export default function ChemBaseBUK() {
     speakSession.current = sess;
     const next = () => {
       if(speakToken.current!==token) return;
-      if(sess.n>=sess.chunks.length){ setSpeakingIdx(null); speakSession.current=null; return; }
+      if(sess.n>=sess.chunks.length){ setSpeakingIdx(null); setPlayPct(null); speakSession.current=null; return; }
+      setPlayPct({ idx: sess.idx, v: Math.round(1000*sess.starts[sess.n]/sess.total) });
       const u = new window.SpeechSynthesisUtterance(sess.chunks[sess.n++]);
       const voice = voiceChoice.current;
       if(voice){ u.voice=voice; u.lang=voice.lang; } else u.lang="en-GB";
       u.rate = speakRate.current; u.pitch = 1;
       u.onend = next;
-      u.onerror = (ev)=>{ if(speakToken.current!==token) return; if(ev && (ev.error==="interrupted"||ev.error==="canceled")) return; setSpeakingIdx(null); };
+      u.onerror = (ev)=>{ if(speakToken.current!==token) return; if(ev && (ev.error==="interrupted"||ev.error==="canceled")) return; setSpeakingIdx(null); setPlayPct(null); };
       speakKeep.current = u; // keep a reference so the browser does not drop it mid-speech
+      try{ synth.resume(); }catch(e){}
       synth.speak(u);
     };
-    next();
+    setTimeout(next, 60);   // iPhone and Safari swallow a speak() that comes right after cancel()
   };
   // after a speed or voice change, say the sentence that is playing again with the new setting
   const restartChunk = () => {
@@ -2129,103 +2134,38 @@ export default function ChemBaseBUK() {
     sess.n = Math.max(0, sess.n-1);
     runSession(sess);
   };
+  // the bar was dragged: carry on from that place
+  const seekRead = (v) => {
+    const sess = speakSession.current; if(!sess) return;
+    try{ window.speechSynthesis.cancel(); }catch(e){}
+    const target = (v/1000)*sess.total; let m = 0;
+    while(m+1<sess.chunks.length && sess.starts[m+1]<=target) m++;
+    sess.n = m;
+    runSession(sess);
+  };
   const cycleRate = () => {
     const order=[1,1.25,1.5,0.85]; const nxt=order[(order.indexOf(rateLabel)+1)%order.length];
-    setRateLabel(nxt); speakRate.current=nxt; try{ if(natAudio.current) natAudio.current.playbackRate=nxt; }catch(e){} try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
+    setRateLabel(nxt); speakRate.current=nxt; try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
     restartChunk();
   };
-  // pick a voice and read the answer again from the start in it
-  const pickOnlineVoice = (key, idx, text) => {
-    setVoiceKey(key); voiceNoRef.current = key;
-    try{ localStorage.setItem("cb_voice",key); }catch(e){}
-    onlineDown.current = false;
-    if(speakingIdx===idx) speakMsg(idx, text, true);
+  const cycleVoice = () => {
+    const nxt = voiceNo===1?2:1; setVoiceNo(nxt); voiceNoRef.current = nxt;
+    try{ localStorage.setItem("cb_voice",String(nxt)); }catch(e){}
+    voiceChoice.current = pickByNo(nxt);
+    restartChunk();
   };
-  // Online voice (through our /api/tts). Returns the chunks it could NOT read (empty = all done).
-  const seekTo = useRef(null);            // (0..1000) jump inside the answer being read by the online voice
-  const coolUntil = useRef(0);            // after a failure, skip the online voice for a while
-  const [playPct, setPlayPct] = useState(null);   // {idx, v} progress of the online voice, v = 0..1000
-  const [scrub, setScrub] = useState(null);       // value while the person is dragging the bar
-  const [voiceNote, setVoiceNote] = useState(null); // why the phone voice is reading instead
-  const runOnlineVoice = async (chunks, token, idx) => {
-    const total = chunks.reduce((a,c)=>a+c.length,0) || 1;
-    const starts = []; { let acc=0; chunks.forEach(c=>{ starts.push(acc); acc+=c.length; }); }
-    const fetchSound = async (n)=>{
-      try{
-        const r = await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:chunks[n],voice:voiceNoRef.current})});
-        if(!r.ok){
-          if(r.status===503){ onlineDown.current=true; setVoiceNote("The online voice is not set up on the server, so the phone voice is reading."); }
-          else if(r.status===429){ coolUntil.current=Date.now()+30*60*1000; setVoiceNote("The online voice reached its free limit for now, so the phone voice is reading. It tries again later."); }
-          else { coolUntil.current=Date.now()+5*60*1000; setVoiceNote(`The online voice is busy (code ${r.status}), so the phone voice is reading.`); }
-          return null;
-        }
-        return URL.createObjectURL(await r.blob());
-      }catch(e){ setVoiceNote("The online voice could not be reached, so the phone voice is reading."); return null; }
-    };
-    const jobs = [], urls = [];
-    const ensure = (n)=>{ if(n>=0 && n<chunks.length && !jobs[n]) jobs[n] = fetchSound(n); };
-    let n = 0, startFrac = 0;
-    try{
-      while(n<chunks.length){
-        ensure(n);
-        const url = await jobs[n];
-        if(speakToken.current!==token) return [];
-        if(!url) return chunks.slice(n);                 // problem: the phone voice reads the rest
-        urls[n] = url;
-        ensure(n+1); ensure(n+2);                        // get the next pieces ready while this one plays
-        let jump = null;
-        await new Promise(res=>{
-          const au = new Audio(url); natAudio.current = au;
-          au.playbackRate = speakRate.current;
-          au.onloadedmetadata = ()=>{ if(startFrac>0 && isFinite(au.duration)) { try{ au.currentTime = startFrac*au.duration; }catch(e){} } };
-          au.ontimeupdate = ()=>{ if(au.duration && speakToken.current===token) setPlayPct({ idx, v: Math.min(1000, Math.round(1000*(starts[n] + (au.currentTime/au.duration)*chunks[n].length)/total)) }); };
-          au.onended = res; au.onerror = res;
-          seekTo.current = (v)=>{                         // the bar was dragged
-            const target = (v/1000)*total; let m = 0;
-            while(m+1<chunks.length && starts[m+1]<=target) m++;
-            jump = { m, frac: Math.max(0, Math.min(0.98, (target-starts[m])/(chunks[m].length||1))) };
-            try{ au.pause(); }catch(e){} res();
-          };
-          au.play().catch(res);
-        });
-        seekTo.current = null;
-        if(speakToken.current!==token) return [];
-        if(jump){ n = jump.m; startFrac = jump.frac; } else { n++; startFrac = 0; }
-      }
-      return [];
-    } finally { urls.forEach(u=>{ if(u) URL.revokeObjectURL(u); }); }
-  };
-  const speakMsg = async (idx, text, again) => {
-    if(speakingIdx===idx && !again){ stopSpeak(); return; }
+  const speakMsg = async (idx, text) => {
+    if(speakingIdx===idx){ stopSpeak(); return; }
     const synth = ttsSupported ? window.speechSynthesis : null;
     try{ synth && synth.cancel(); }catch(e){}
-    try{ if(natAudio.current){ natAudio.current.pause(); natAudio.current=null; } }catch(e){}
-    let chunks = speechChunks(text); if(!chunks.length) return;
+    const chunks = speechChunks(text); if(!chunks.length) return;
     const token = ++speakToken.current;
     setSpeakingIdx(idx);
-    setVoiceNote(null);
-    if(!onlineDown.current && Date.now()>coolUntil.current){
-      // pieces grow as it goes (short first piece = fast start; later pieces are longer so the voice changes less)
-      const small = speechChunks(text, 130);
-      const targets = [130, 260, 450, 700];
-      const big = []; let cur = "", t = 0;
-      small.forEach(s=>{
-        const lim = targets[Math.min(t, targets.length-1)];
-        if(cur && (cur+" "+s).length>lim){ big.push(cur); cur=s; t++; } else cur = cur ? cur+" "+s : s;
-      });
-      if(cur) big.push(cur);
-      const rest = await runOnlineVoice(big, token, idx);
-      setPlayPct(null);
-      if(speakToken.current!==token) return;
-      if(!rest.length){ natAudio.current=null; setSpeakingIdx(null); return; }
-      chunks = speechChunks(rest.join(" "));
-    } else if(!onlineDown.current){
-      setVoiceNote("The online voice is resting (free limit), so the phone voice is reading. It tries again later.");
-    }
     if(!ttsSupported){ setSpeakingIdx(null); return; }
-    if(!voicesRef.current.length) await loadVoices();
+    if(!voicesRef.current.length) await loadVoices(); else voiceChoice.current = pickByNo(voiceNoRef.current);
     if(speakToken.current!==token) return; // stopped while waiting
-    runSession({ idx, chunks, n: 0 });
+    const starts = []; let total = 0; chunks.forEach(c=>{ starts.push(total); total += c.length; });
+    runSession({ idx, chunks, n: 0, starts, total: total || 1 });
   };
   // Share (phone share menu: WhatsApp, Telegram, etc.) and Copy
   const [copiedIdx, setCopiedIdx] = useState(null);
@@ -2940,9 +2880,9 @@ export default function ChemBaseBUK() {
                         {rateLabel}×
                       </button>
                     )}
-                    <button onClick={()=>pickOnlineVoice(voiceKey==="laura"?"slax":"laura",i,m.content)} aria-label="Change voice"
+                    <button onClick={cycleVoice} aria-label="Change voice"
                       style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
-                      {ONLINE_VOICES.find(v=>v[0]===voiceKey)[1]}
+                      Voice {voiceNo}
                     </button>
                     <button onClick={()=>copyMsg(i,m.content)} aria-label="Copy this answer"
                       style={{display:"flex",alignItems:"center",gap:5,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
@@ -2958,17 +2898,14 @@ export default function ChemBaseBUK() {
                     </button>
                   </div>
                   {speakingIdx===i && playPct && playPct.idx===i && (
-                    <div style={{display:"flex",alignItems:"center",gap:8,margin:"6px 2px 0"}}>
+                    <div id="cb-seek" style={{display:"flex",alignItems:"center",gap:8,margin:"8px 2px 6px"}}>
                       <input type="range" min={0} max={1000} value={scrub!==null?scrub:playPct.v} aria-label="Move through the reading"
-                        onChange={e=>setScrub(+e.target.value)}
-                        onPointerUp={()=>{ if(scrub!==null){ seekTo.current && seekTo.current(scrub); setScrub(null); } }}
-                        onTouchEnd={()=>{ if(scrub!==null){ seekTo.current && seekTo.current(scrub); setScrub(null); } }}
-                        onKeyUp={()=>{ if(scrub!==null){ seekTo.current && seekTo.current(scrub); setScrub(null); } }}
-                        style={{flex:1,accentColor:C.green,height:22,cursor:"pointer"}}/>
+                        onChange={e=>{ scrubRef.current=+e.target.value; setScrub(+e.target.value); }}
+                        onPointerUp={commitScrub} onMouseUp={commitScrub} onTouchEnd={commitScrub} onKeyUp={commitScrub}
+                        style={{flex:1,width:"100%",minWidth:0,accentColor:C.green,height:22,cursor:"pointer"}}/>
                       <span style={{fontSize:10.5,color:C.muted,minWidth:30,textAlign:"right"}}>{Math.round((scrub!==null?scrub:playPct.v)/10)}%</span>
                     </div>
                   )}
-                  {voiceNote && speakingIdx===i && <div style={{fontSize:10.5,color:C.muted,margin:"4px 2px 0"}}>{voiceNote}</div>}
                   </>
                 )}
               </div>
