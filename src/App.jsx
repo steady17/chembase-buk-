@@ -3397,7 +3397,7 @@ export default function ChemBaseBUK() {
                           ["Electrons (neutral atom)", sel.num],
                           ...(EL_RADIOACTIVE(sel.num)
                             ? [["Atomic mass (longest-lived isotope)", `${sel.mass} u`]]
-                            : [["Atomic mass", `${tbMass(sel)} u`], ["Atomic mass (precise)", `${sel.mass} u`]]),
+                            : [["Atomic mass", `${tbMass(sel)} u`]]),
                           [EL_RADIOACTIVE(sel.num)?"Mass number (longest-lived isotope)":"Mass number (atomic mass, nearest whole number)", Math.round(sel.mass)],
                           ["Group", si.g ?? "— (f-block)"],
                           ["Period", si.p],
