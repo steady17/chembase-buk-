@@ -3294,9 +3294,11 @@ export default function ChemBaseBUK() {
                     ))}
                   </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
+                    <button onClick={()=>setCatSel(null)} aria-label="Show all elements"
+                      style={{padding:"3px 12px",borderRadius:14,border:`1.5px solid ${C.green}`,background:!catSel?C.green:"transparent",color:!catSel?"#fff":C.green,fontSize:10.5,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>All</button>
                     {Object.entries(EL_CAT_COLOR).map(([name,col])=>(
                       <button key={name} onClick={()=>setCatSel(catSel===name?null:name)}
-                        style={{display:"flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:14,border:`1.5px solid ${col}`,background:catSel===name?col+"55":"transparent",color:C.ink,fontSize:10.5,cursor:"pointer"}}>
+                        style={{display:"flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:14,border:`1.5px solid ${col}`,background:catSel===name?col+"88":"transparent",fontWeight:catSel===name?700:400,color:C.ink,fontSize:10.5,cursor:"pointer"}}>
                         <span style={{width:9,height:9,borderRadius:3,background:col}}/>{name}
                       </button>
                     ))}
