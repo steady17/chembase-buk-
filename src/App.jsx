@@ -2355,7 +2355,13 @@ export default function ChemBaseBUK() {
     const q = periodicSearch.trim().toLowerCase();
     if (!q) return true;
     const alt = PERIODIC_ALT_NAMES[el.sym] || "";
-    return el.name.toLowerCase().includes(q) || alt.includes(q) || el.sym.toLowerCase()===q || String(el.num)===q;
+    const inf = ELEMENT_INFO[el.num];
+    const gm = q.match(/^group\s*(\d+)$/), pm = q.match(/^period\s*(\d+)$/);
+    if (gm) return inf.g === Number(gm[1]);
+    if (pm) return inf.p === Number(pm[1]);
+    if (/^[spdf](-block| block)?$/.test(q)) return inf.b === q[0];
+    return el.name.toLowerCase().includes(q) || alt.includes(q) || el.sym.toLowerCase()===q || String(el.num)===q
+      || (q.length>=3 && inf.c.toLowerCase().includes(q)) || (q.length>=3 && inf.st.toLowerCase().startsWith(q));
   });
 
   // ChemBot
@@ -3286,13 +3292,8 @@ export default function ChemBaseBUK() {
                 const gas = sel && si.st==="Gas";
                 return (
                 <div>
-                  <input placeholder="Search element name, symbol, or atomic number…" value={periodicSearch} onChange={e=>setPeriodicSearch(e.target.value)}
+                  <input placeholder="Search name, symbol, number, group (e.g. group 17), halogen…" value={periodicSearch} onChange={e=>setPeriodicSearch(e.target.value)}
                     style={{width:"100%",boxSizing:"border-box",padding:"11px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.card,color:C.ink,marginBottom:10}}/>
-                  <div style={{display:"flex",gap:8,marginBottom:10}}>
-                    {[["table","Table"],["list","List"]].map(([id,l])=>(
-                      <button key={id} onClick={()=>setPeriodicView(id)} style={{padding:"6px 16px",borderRadius:20,border:`1.5px solid ${periodicView===id?C.green:C.border}`,background:periodicView===id?C.green:C.card,color:periodicView===id?"#fff":C.green,fontWeight:"var(--fw-heavy)",fontSize:12.5,cursor:"pointer"}}>{l}</button>
-                    ))}
-                  </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
                     <button onClick={()=>setCatSel(null)} aria-label="Show all elements"
                       style={{padding:"3px 12px",borderRadius:14,border:`1.5px solid ${C.green}`,background:!catSel?C.green:"transparent",color:!catSel?"#fff":C.green,fontSize:10.5,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>All</button>
@@ -3304,20 +3305,7 @@ export default function ChemBaseBUK() {
                     ))}
                   </div>
 
-                  {periodicView==="table" ? (
-                    <div>
-                      <div style={{overflowX:"auto",paddingBottom:8,WebkitOverflowScrolling:"touch"}}>
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(18,42px)",gridTemplateRows:"repeat(7,52px)",gap:3,width:"max-content"}}>
-                          {main.map(el=>(<div key={el.num} style={gridPos(el)}><Cell el={el}/></div>))}
-                          <div style={{gridColumn:3,gridRow:6,width:42,height:52,boxSizing:"border-box",borderRadius:6,border:`1.5px dashed ${EL_CAT_COLOR["Lanthanide"]}`,fontSize:8.5,color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center"}}>57–71</div>
-                          <div style={{gridColumn:3,gridRow:7,width:42,height:52,boxSizing:"border-box",borderRadius:6,border:`1.5px dashed ${EL_CAT_COLOR["Actinide"]}`,fontSize:8.5,color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center"}}>89–103</div>
-                        </div>
-                        <div style={{display:"flex",gap:3,marginTop:14,paddingLeft:(42+3)*2}}>{lan.map(el=><Cell key={el.num} el={el}/>)}</div>
-                        <div style={{display:"flex",gap:3,marginTop:3,paddingLeft:(42+3)*2}}>{act.map(el=><Cell key={el.num} el={el}/>)}</div>
-                      </div>
-                      <div style={{fontSize:11,color:C.muted,marginTop:4}}>Swipe sideways to see the whole table. Tap any element for its details. Mass in [brackets] = mass number of the longest-lived isotope (radioactive).</div>
-                    </div>
-                  ) : (
+                  {(
                     <div>
                       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(84px,1fr))",gap:8}}>
                         {PERIODIC_TABLE.filter(shown).map(el=>{ const col=EL_CAT_COLOR[ELEMENT_INFO[el.num].c]; return (
@@ -3368,7 +3356,7 @@ export default function ChemBaseBUK() {
                             <span style={{fontWeight:600,textAlign:"right"}}>{String(v)}</span>
                           </div>
                         ))}
-                        <div style={{fontSize:11,color:C.muted,marginTop:10,lineHeight:1.5}}>"—" means no reliable value is listed. Properties of the newest elements (about 100 and above) are mostly predicted. Check your lecturer's table for exam values.</div>
+                        <div style={{fontSize:11,color:C.muted,marginTop:10,lineHeight:1.5}}>"—" means no reliable value is listed.</div>
                         <div style={{display:"flex",gap:10,marginTop:14}}>
                           <button disabled={sel.num<=1} onClick={()=>setElSel(sel.num-1)} style={{flex:1,padding:"10px",borderRadius:12,border:`1.5px solid ${C.border}`,background:C.card,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer",opacity:sel.num<=1?0.4:1}}>‹ Previous</button>
                           <button disabled={sel.num>=118} onClick={()=>setElSel(sel.num+1)} style={{flex:1,padding:"10px",borderRadius:12,border:"none",background:C.green,color:"#fff",fontWeight:"var(--fw-heavy)",cursor:"pointer",opacity:sel.num>=118?0.4:1}}>Next ›</button>
