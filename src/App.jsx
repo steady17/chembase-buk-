@@ -2077,6 +2077,8 @@ export default function ChemBaseBUK() {
   const voiceChoice = useRef(null);       // the voice in use
   const [rateLabel, setRateLabel] = useState(()=>{ try{ const r=parseFloat(localStorage.getItem("cb_rate")); return [0.85,1,1.25,1.5].includes(r)?r:1; }catch(e){ return 1; } });
   speakRate.current = rateLabel;
+  const [voiceNo, setVoiceNo] = useState(()=>{ try{ return localStorage.getItem("cb_voice")==="2"?2:1; }catch(e){ return 1; } });
+  const voiceNoRef = useRef(voiceNo); voiceNoRef.current = voiceNo;
   // Phones load their voice list a moment after the page opens; ask early so the good voice is ready.
   useEffect(()=>{ if(ttsSupported){ try{ window.speechSynthesis.getVoices(); }catch(e){} } },[]);
   const voicesReady = (synth) => new Promise(res=>{
@@ -2121,11 +2123,17 @@ export default function ChemBaseBUK() {
     setRateLabel(nxt); speakRate.current=nxt; try{ if(natAudio.current) natAudio.current.playbackRate=nxt; }catch(e){} try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
     restartChunk();
   };
+  // switch voice and read the answer again from the start in the new voice
+  const cycleVoice = (idx, text) => {
+    const nxt = voiceNo===1?2:1; setVoiceNo(nxt); voiceNoRef.current = nxt;
+    try{ localStorage.setItem("cb_voice",String(nxt)); }catch(e){}
+    speakMsg(idx, text, true);
+  };
   // Online voice (through our /api/tts). Returns the chunks it could NOT read (empty = all done).
   const runOnlineVoice = async (chunks, token) => {
     const fetchSound = async (n)=>{
       try{
-        const r = await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:chunks[n]})});
+        const r = await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:chunks[n],voice:voiceNoRef.current===2?"b":"a"})});
         if(!r.ok){ if(r.status===503) onlineDown.current=true; return null; }
         return URL.createObjectURL(await r.blob());
       }catch(e){ return null; }
@@ -2148,8 +2156,8 @@ export default function ChemBaseBUK() {
     }
     return [];
   };
-  const speakMsg = async (idx, text) => {
-    if(speakingIdx===idx){ stopSpeak(); return; }
+  const speakMsg = async (idx, text, again) => {
+    if(speakingIdx===idx && !again){ stopSpeak(); return; }
     const synth = ttsSupported ? window.speechSynthesis : null;
     try{ synth && synth.cancel(); }catch(e){}
     try{ if(natAudio.current){ natAudio.current.pause(); natAudio.current=null; } }catch(e){}
@@ -2886,6 +2894,12 @@ export default function ChemBaseBUK() {
                       <button onClick={cycleRate} aria-label="Change reading speed"
                         style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer",minWidth:40}}>
                         {rateLabel}×
+                      </button>
+                    )}
+                    {speakingIdx===i && (
+                      <button onClick={()=>cycleVoice(i,m.content)} aria-label="Change voice"
+                        style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
+                        Voice {voiceNo}
                       </button>
                     )}
                     <button onClick={()=>copyMsg(i,m.content)} aria-label="Copy this answer"

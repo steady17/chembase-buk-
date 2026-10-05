@@ -42,7 +42,7 @@ const UNIT_WORDS = {   // [plural, singular] - "joules per mole"
   kmol: ["kilomoles", "kilomole"], mmol: ["millimoles", "millimole"], mol: ["moles", "mole"], L: ["litres", "litre"], mL: ["millilitres", "millilitre"],
   K: ["kelvin", "kelvin"], kPa: ["kilopascals", "kilopascal"], MPa: ["megapascals", "megapascal"], Pa: ["pascals", "pascal"],
   atm: ["atmospheres", "atmosphere"], kW: ["kilowatts", "kilowatt"], W: ["watts", "watt"], N: ["newtons", "newton"],
-  km: ["kilometres", "kilometre"], cm: ["centimetres", "centimetre"], mm: ["millimetres", "millimetre"], m: ["metres", "metre"],
+  dm: ["decimetres", "decimetre"], MJ: ["megajoules", "megajoule"], km: ["kilometres", "kilometre"], cm: ["centimetres", "centimetre"], mm: ["millimetres", "millimetre"], m: ["metres", "metre"],
   min: ["minutes", "minute"], s: ["seconds", "second"], h: ["hours", "hour"], Hz: ["hertz", "hertz"], V: ["volts", "volt"],
 };
 const UNIT_NAMES = Object.keys(UNIT_WORDS).sort((a, b) => b.length - a.length).join("|");
@@ -54,7 +54,7 @@ const CHAIN_DOT = "(?:" + TOK + "\\s*\\/\\s*\\(\\s*" + TOK + "(?:\\s*[·⋅]\\s*
 const CHAIN_SP = TOK + "(?:(?:\\s*[·⋅]\\s*|\\s*\\/\\s*\\(?\\s*|\\s+)" + TOK + "\\)?)*";
 
 // lengths read as "square metres" / "cubic metres"; everything else as "squared" / "cubed"
-const LENGTHS = new Set(["m", "cm", "mm", "km"]);
+const LENGTHS = new Set(["m", "cm", "mm", "km", "dm"]);
 function withPower(x, word) {
   if (LENGTHS.has(x.u) && (x.mag === 2 || x.mag === 3)) return (x.mag === 2 ? "square " : "cubic ") + word;
   return word + powWord(x.mag);
@@ -146,10 +146,45 @@ const chargeWords = (c) => {
   const m = /^(\d*)([+\-−])$/.exec(c); if (!m) return "";
   return " " + (m[1] && m[1] !== "1" ? m[1] + " " : "") + (m[2] === "+" ? "plus" : "minus");
 };
+const ELNAMES = { H: "hydrogen", C: "carbon", N: "nitrogen", O: "oxygen", P: "phosphorus", S: "sulphur", Cl: "chlorine", I: "iodine", K: "potassium", Na: "sodium",
+  Fe: "iron", Cu: "copper", Mn: "manganese", Cr: "chromium", Pb: "lead", Sn: "tin", Hg: "mercury", Co: "cobalt", Ni: "nickel", Ti: "titanium", V: "vanadium",
+  Au: "gold", Ag: "silver", Ce: "cerium", Pt: "platinum", Os: "osmium", Ru: "ruthenium", Ir: "iridium", U: "uranium", Pu: "plutonium", Th: "thorium", Ra: "radium",
+  Rn: "radon", Cs: "caesium", Sr: "strontium", Tc: "technetium", Am: "americium", Zn: "zinc", Al: "aluminium", Mg: "magnesium", Ca: "calcium", Li: "lithium", He: "helium" };
 function chemPrep(s) {
+  const NAMES = ELNAMES;
+  const ROMAN = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 };
+  const SUPD = "⁰¹²³⁴⁵⁶⁷⁸⁹", supNum = (t) => t.split("").map((c) => SUP[c]).join("");
+  // isotopes: ¹⁴C, ^{14}C, ^14C, U-235, I-131  ->  "carbon 14", "uranium 235"
+  s = s.replace(/(^|[^A-Za-z0-9])([⁰¹²³⁴⁵⁶⁷⁸⁹]{1,3})([A-Z][a-z]?)(?![a-z])/g, (m, p, d, el) => p + (NAMES[el] || spellSym(el)) + " " + supNum(d) + " ");
+  s = s.replace(/(^|[^A-Za-z0-9])\^\{?(\d{1,3})\}?\s?([A-Z][a-z]?)(?![a-z])/g, (m, p, d, el) => ELEMENTS.has(el) ? p + (NAMES[el] || spellSym(el)) + " " + d + " " : m);
+  s = s.replace(/\b(U|Pu|Th|Ra|Rn|Cs|Sr|Tc|Co|I|C|K|Am)-(\d{2,3})\b/g, (m, el, d) => NAMES[el] + " " + d);
+  // oxidation states: Fe(III) -> "iron 3",  iron(III) -> "iron 3"
+  s = s.replace(/\b([A-Z][a-z]?)\(\s?(VIII|VII|VI|IV|IX|III|II|X|V|I)\s?\)/g, (m, el, r) => NAMES[el] ? NAMES[el] + " " + ROMAN[r] : m);
+  s = s.replace(/\b([a-z]{3,})\(\s?(VIII|VII|VI|IV|IX|III|II|X|V|I)\s?\)/g, (m, w, r) => w + " " + ROMAN[r]);
+  // standard-state symbols:  ΔH°, ΔHf°, ΔG°f, ΔS° , E°
+  const QTY = { H: "enthalpy", G: "Gibbs free energy", S: "entropy" }, OF = { f: " of formation", c: " of combustion", r: " of reaction", rxn: " of reaction", vap: " of vaporisation", fus: " of fusion" };
+  s = s.replace(/Δ\s?([HGS])\s?_?\{?(f|c|r|rxn|vap|fus)?\}?\s?°\s?_?\{?(f|c|r|rxn)?\}?/g, (m, q, a, b) => " standard " + QTY[q] + (OF[a || b] || " change") + " ");
+  s = s.replace(/(^|[^A-Za-z])E°/g, "$1standard electrode potential E ");
+  // pK_a, pH-like subscripts
+  s = s.replace(/\bpK_\{?([A-Za-z0-9]+)\}?/g, (m, b) => "p K " + subWord(b));
+  // percent by weight / volume, molarity
+  s = s.replace(/\bw\/w\b/g, "weight by weight").replace(/\bv\/v\b/g, "volume by volume").replace(/\bw\/v\b/g, "weight by volume").replace(/\bv\/w\b/g, "volume by weight");
+  s = s.replace(/(\d)\s?mM\b/g, "$1 millimolar").replace(/(\d)\s?[µμ]M\b/g, "$1 micromolar").replace(/(\d)\s?M(?![A-Za-z0-9])/g, "$1 molar");
+  // double and triple bonds between carbons: CH2=CH2, HC≡CH
+  s = s.replace(/\b(C[H\d]*)=(?=C[H\d]*\b)/g, "$1 double bond ").replace(/\b(H?C[H\d]*)≡(?=C[H\d]*\b)/g, "$1 triple bond ");
+  // bonds written with hyphens: CH3-CH2-OH, NaCl-H2O, a leading -COOH / -NH2
+  s = s.replace(/\bR-(?=[A-Z])/g, "R ");
+  s = s.replace(/(^|\s)-(?=(?:COOH|OH|NH2|CHO|CH3|NO2|SH|CN|CO|NH)(?![A-Za-z0-9]))/g, "$1");
+  for (let k = 0; k < 3; k++) s = s.replace(/\b([A-Za-z0-9()]*[A-Za-z0-9)])-([A-Z][A-Za-z0-9()]*)\b/g, (m, a, b) => {
+    const fa = formulaWords(a), fb = formulaWords(b);
+    const ok = (f, x) => f && (f.n >= 2 || f.digits || LONE.has(x));
+    return ok(fa, a) && ok(fb, b) ? a + ", " + b : m;
+  });
   // m3 -> m³, mol-1 -> mol⁻¹ (typed without superscripts)
-  s = s.replace(/(\d\s?|\/)(mm|cm|km|m)([23])(?![A-Za-z0-9])/g, (m, p, u, n) => p + u + (n === "2" ? "²" : "³"))
+  s = s.replace(/(\d\s?|\/)(mm|cm|km|dm|m)([23])(?![A-Za-z0-9])/g, (m, p, u, n) => p + u + (n === "2" ? "²" : "³"))
        .replace(/\b(mol|s|h|min|K|kg|g|L|J|W|Pa|m)-([12])(?![\d.])/g, (m, u, n) => u + (n === "1" ? "⁻¹" : "⁻²"));
+  // SO4(2-)  CO3(2-)
+  s = s.replace(/([A-Z][a-z]?\d*)\((\d*[+\-−])\)/g, (m, a, c) => a + "\uE005" + c);
   // Ca^2+ , SO4^2- , PO4^{3-}  (a charge, not a power)
   s = s.replace(/([A-Z][a-z]?\d*|\))\^\{?(\d*)([+\-−])\}?(?![A-Za-z0-9])/g, (m, a, d, sg) => a + "\uE005" + d + sg);
   // subscripts and superscript charges written as unicode -> plain characters
@@ -157,6 +192,11 @@ function chemPrep(s) {
   s = s.replace(/([A-Za-z0-9)\]])[\^\uE005]?\{?([⁰¹²³⁴⁵⁶⁷⁸⁹]*)([⁺⁻])\}?(?![⁰¹²³⁴⁵⁶⁷⁸⁹])/g, (m, a, d, sg) => a + "\uE005" + d.split("").map((c) => SUP[c]).join("") + SUP[sg]);
   s = s.replace(/([\d)])[·•]\s?(?=\d*[A-Z])/g, "$1 dot ");
   s = s.replace(/(\d)\s?e[\^\uE005]?\{?-\}?(?![A-Za-z0-9{])/g, (m, d) => d + (d === "1" ? " electron " : " electrons ")).replace(/(^|[^A-Za-z0-9])e[\^\uE005]?\{?-\}?(?![A-Za-z0-9{])/g, "$1electron ").replace(/\b(NO|SO)x\b/g, (m, a) => spellSym(a) + " x");
+  // complex ions: [Fe(CN)6]3-  [Cu(NH3)4]2+
+  s = s.replace(/\[([A-Z][A-Za-z0-9()]*)\][\^\uE005]?\{?(\d*[+\-−])\}?(?![A-Za-z0-9])/g, (m, inner, ch) => {
+    const f = formulaWords(inner);
+    return f ? " complex " + clean(f.t) + chargeWords(ch) + " " : m;
+  });
   // species in square brackets are concentrations:  [H+], [OH-], [C][D]/[A][B]
   {
     const one = (inner) => {
@@ -176,7 +216,7 @@ function chemPrep(s) {
 }
 function chemFormulas(s, wrap) {
   s = chemPrep(s);
-  s = s.replace(/(^|[^A-Za-z0-9_.\/\\])(\d*)((?:(?:[A-Z][a-z]?|\((?:[A-Z][a-z]?\d*)+\))\d*)+)([\^\uE005]?\{?\d*[+\-−]\}?)?(?:\((aq|g|l|s)\))?(?![A-Za-z0-9])/g, (m, pre, coef, body, ch, st) => {
+  s = s.replace(/(^|[^A-Za-z0-9_.\\])(\d*)((?:(?:[A-Z][a-z]?|\((?:[A-Z][a-z]?\d*)+\))\d*)+)([\^\uE005]?\{?\d*[+\-−]\}?)?(?:\((aq|g|l|s)\))?(?![A-Za-z0-9])/g, (m, pre, coef, body, ch, st) => {
     let charge = (ch || "").replace(/[\^\uE005{}]/g, "");
     // "Ca2+" / "SO42-": the digits just before the sign belong to the charge
     if (charge && charge.length === 1) {
@@ -195,7 +235,7 @@ function chemFormulas(s, wrap) {
     if (wrap) { CHEM_STORE.push(piece); return pre + open + "\\text{ chemqq" + alpha(CHEM_STORE.length - 1) + "z }" + close; }
     return pre + open + piece + close + " ";
   });
-  return wrap ? s : s.replace(/\b([A-Za-z]{3,})\s*\(\1\)/gi, "$1").replace(/\b(ethanol|methanol|glucose|water|methane|ammonia|acid)\s+\1\b/gi, "$1");
+  return wrap ? s : s.replace(/\b([A-Za-z]{3,})\s*\(\1\)/gi, "$1").replace(/\b(ethanol|methanol|glucose|water|methane|ammonia|acid|complex)[:,]?\s+\1\b/gi, "$1");
 }
 const SPELL = new Set(["CSTR", "PFR", "PQ", "PQs", "CGPA", "GPA", "BUK", "NSChE", "SIWES", "NSE", "LPG", "CNG", "PVC", "CFD", "PID", "HETP", "LMTD", "COD", "BOD", "TDS"]);
 const spellOne = (tok) => tok.replace(/([A-Z][a-z]?)(\d*)/g, (m, el, d) => el.toUpperCase().split("").join(" ") + (d ? " " + d : "") + " ").trim();
@@ -245,6 +285,12 @@ function subWord(b) {
 // chemistry written in LaTeX:  \ce{H2SO4},  \mathrm{H_2O},  Ca^{2+},  SO_4^{2-}  ->  plain "H2SO4", "Ca\uE0052+" for the formula reader
 function chemTeX(tex) {
   const el = (x) => ELEMENTS.has(x);
+  const QTY = { H: "enthalpy", G: "Gibbs free energy", S: "entropy" }, OF = { f: " of formation", c: " of combustion", r: " of reaction", rxn: " of reaction", vap: " of vaporisation", fus: " of fusion" };
+  tex = tex.replace(/\\Delta\s*([HGS])\s*(?:_\s*\{?\s*(?:\\mathrm\{|\\text\{)?([a-z]+)\}?\s*\}?)?\s*\^\s*\{?\s*\\circ\s*\}?\s*(?:_\s*\{?([a-z]+)\}?)?/g, (m, q, a, b) => " \\text{ standard " + QTY[q] + (OF[a || b] || " change") + " } ");
+  tex = tex.replace(/(\b[E])\s*\^\s*\{?\s*\\circ\s*\}?/g, " \\text{ standard electrode potential E } ");
+  tex = tex.replace(/(\^\s*\{?\s*\\circ\s*\}?)(\s*\\?(?:mathrm|text)?\{?\s*)([CF])\b/g, (m, a, b, u) => " \\text{ degrees " + (u === "C" ? "Celsius" : "Fahrenheit") + " } ");
+  tex = tex.replace(/\^\s*\{?\s*\\circ\s*\}?\s*\\?(?:mathrm|text)?\{?\s*(?=C\b|F\b)/g, " ");
+  tex = tex.replace(/\^\s*\{?\s*(\d{1,3})\s*\}?\s*\\?(?:mathrm|text)?\{?\s*([A-Z][a-z]?)\}?/g, (m, d, e) => ELEMENTS.has(e) ? " \\text{ " + (ELNAMES[e] || spellSym(e)) + " " + d + " } " : m);
   tex = tex.replace(/\\ce\s*\{([^{}]*)\}/g, (m, t) => " " + t.replace(/<=>/g, " \\rightleftharpoons ").replace(/->/g, " \\to ").replace(/<-/g, " \\leftarrow ").replace(/\^(?:\{(\d*[+\-−])\}|(\d*[+\-−])(?!\d))/g, (m, a, b) => "\uE005" + (a || b)).replace(/_\{?(\d+)\}?/g, "$1") + " ");
   tex = tex.replace(/\\(?:mathrm|text|textrm|mathit|mathbf)\s*\{([^{}]*)\}/g, (m, t, off, all) => {
     if (!/^[A-Z][A-Za-z0-9_^{}()+\-−]*$/.test(t) || !el((t.match(/^[A-Z][a-z]?/) || [""])[0])) return m;
