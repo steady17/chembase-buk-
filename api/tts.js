@@ -5,7 +5,7 @@ import WebSocket from 'ws';
 import crypto from 'node:crypto';
 
 const TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
-const VERSION = '1-130.0.2849.68';
+const VERSION = '1-143.0.3650.75';
 const VOICE = process.env.TTS_VOICE || 'en-US-AriaNeural';
 
 function gecToken() {
@@ -15,7 +15,7 @@ function gecToken() {
   return crypto.createHash('sha256').update(`${ticks}${TOKEN}`, 'ascii').digest('hex').toUpperCase();
 }
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-const stamp = () => new Date().toString().replace(/\(.*\)/, '').trim();
+const stamp = () => new Date().toUTCString().replace(/^(\w+), (\d+) (\w+) (\d+) ([\d:]+) GMT$/, '$1 $3 $2 $4 $5') + ' GMT+0000 (Coordinated Universal Time)';
 
 function synth(text) {
   return new Promise((resolve, reject) => {
@@ -26,7 +26,9 @@ function synth(text) {
         Pragma: 'no-cache',
         'Cache-Control': 'no-cache',
         Origin: 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+        'Accept-Language': 'en-US,en;q=0.9',
+        Cookie: `muid=${crypto.randomBytes(16).toString('hex').toUpperCase()};`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
       },
     });
     const parts = [];
@@ -53,6 +55,7 @@ function synth(text) {
         finish();
       }
     });
+    ws.on('unexpected-response', (rq, rs) => finish(new Error('Microsoft answered ' + rs.statusCode)));
     ws.on('error', (e) => finish(e));
     ws.on('close', () => finish());
   });
@@ -72,6 +75,6 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.status(200).send(audio);
   } catch (e) {
-    return res.status(502).send('Voice unavailable');
+    return res.status(502).send('Voice unavailable: ' + String((e && e.message) || e).slice(0, 120));
   }
 }

@@ -2094,7 +2094,8 @@ export default function ChemBaseBUK() {
   const speakKeep = useRef(null);
   const ttsSupported = typeof window!=="undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance!=="undefined";
   const stopSpeak = () => { speakToken.current++; try{ const a=audioEl.current; if(a){ a.onended=null; a.onerror=null; a.ontimeupdate=null; a.pause(); } }catch(e){} try{ window.speechSynthesis?.cancel(); }catch(e){}
-    setPlayPct(null); setSpeakingIdx(null); };
+    setPlayPct(null); setSpeakingIdx(null); setPaused(false); };
+  const [paused, setPaused] = useState(false);
   const speakRate = useRef(1);
   const speakSession = useRef(null);      // {idx, chunks, n, starts, total} - what is being read right now
   const voicesRef = useRef([]);           // English voices of this phone/computer, best first
@@ -2127,8 +2128,12 @@ export default function ChemBaseBUK() {
   const runSession = (sess) => {
     const synth = window.speechSynthesis;
     const token = ++speakToken.current;
-    speakSession.current = sess;
-    const phoneSay = (text, base) => {
+    speakSession.current = sess; setPaused(false);
+    const phoneSay = (full, base0) => {
+      sess.mode = "phone";
+      let off = Math.floor((sess.frac||0)*full.length); sess.frac = 0;
+      if(off>0){ const sp = full.indexOf(" ", off); off = sp<0 ? 0 : sp+1; }
+      const text = full.slice(off) || full; const base = base0 + (full.slice(off)?off:0);
       const u = new window.SpeechSynthesisUtterance(text);
       const voice = voiceChoice.current;
       if(voice){ u.voice=voice; u.lang=voice.lang; } else u.lang="en-GB";
@@ -2146,6 +2151,7 @@ export default function ChemBaseBUK() {
       if(sess.n>=sess.chunks.length){ setSpeakingIdx(null); setPlayPct(null); speakSession.current=null; return; }
       const text = sess.chunks[sess.n++]; const base = sess.starts[sess.n-1];
       setPlayPct({ idx: sess.idx, v: Math.round(1000*base/sess.total) });
+      const frac = sess.frac||0;
       const a = audioEl.current;
       if(a && Date.now()>onlineBad.current){
         fetchClip(text).then(url=>{
@@ -2154,6 +2160,8 @@ export default function ChemBaseBUK() {
           a.onended = next;
           a.onerror = ()=>{ if(speakToken.current!==token) return; a.onended=null; a.ontimeupdate=null; onlineBad.current = Date.now()+120000; phoneSay(text, base); };
           a.ontimeupdate = ()=>{ if(speakToken.current!==token || scrubRef.current!==null || !a.duration) return; const v = Math.round(1000*(base+text.length*a.currentTime/a.duration)/sess.total); setPlayPct(pp=> pp && pp.idx===sess.idx && Math.abs(v-pp.v)<4 ? pp : { idx: sess.idx, v: Math.min(1000,v) }); };
+          sess.mode = "aria"; sess.frac = 0;
+          a.onloadedmetadata = ()=>{ if(a.duration && isFinite(a.duration)){ sess.dur = sess.dur||{}; sess.dur[sess.n-1] = a.duration; if(frac>0) try{ a.currentTime = frac*a.duration; }catch(e){} } };
           a.src = url; a.playbackRate = speakRate.current;
           const pr = a.play(); if(pr && pr.catch) pr.catch(()=>{ if(speakToken.current!==token) return; a.onended=null; a.ontimeupdate=null; onlineBad.current = Date.now()+120000; phoneSay(text, base); });
         }).catch(()=>{ if(speakToken.current!==token) return; onlineBad.current = Date.now()+120000; phoneSay(text, base); });
@@ -2179,8 +2187,29 @@ export default function ChemBaseBUK() {
     const target = (v/1000)*sess.total; let m = 0;
     while(m+1<sess.chunks.length && sess.starts[m+1]<=target) m++;
     sess.n = m;
+    sess.frac = Math.max(0, Math.min(0.98, (target - sess.starts[m]) / Math.max(1, sess.chunks[m].length)));
     runSession(sess);
   };
+  const togglePause = () => {
+    const sess = speakSession.current; if(!sess) return;
+    const a = audioEl.current;
+    if(paused){
+      if(sess.mode==="aria" && a){ const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); } else { try{ window.speechSynthesis.resume(); }catch(e){} }
+      setPaused(false);
+    } else {
+      if(sess.mode==="aria" && a){ a.pause(); } else { try{ window.speechSynthesis.pause(); }catch(e){} }
+      setPaused(true);
+    }
+  };
+  // seconds: measured length of the sentences already loaded, the rest estimated from them
+  const secOf = (v) => {
+    const sess = speakSession.current; if(!sess) return 0;
+    let sec = 0, chars = 0; const d = sess.dur || {};
+    Object.keys(d).forEach(k=>{ sec += d[k]; chars += sess.chunks[k].length; });
+    const spc = chars>20 ? sec/chars : 0.068;     // seconds per letter
+    return Math.max(0, (v/1000)*sess.total*spc/Math.max(0.5,speakRate.current));
+  };
+  const clock = (t) => { t = Math.round(t); return Math.floor(t/60)+":"+String(t%60).padStart(2,"0"); };
   const cycleRate = () => {
     const order=[1,1.25,1.5,0.85]; const nxt=order[(order.indexOf(rateLabel)+1)%order.length];
     setRateLabel(nxt); speakRate.current=nxt; try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
@@ -2931,7 +2960,13 @@ export default function ChemBaseBUK() {
                   </div>
                   {speakingIdx===i && playPct && playPct.idx===i && (
                     <div id="cb-seek" style={{display:"flex",alignItems:"center",gap:10,margin:"10px 0 6px",width:"min(92vw, 560px)",maxWidth:"100%",boxSizing:"border-box"}}>
-<div role="slider" tabIndex={0} aria-label="Move through the reading" aria-valuemin={0} aria-valuemax={1000} aria-valuenow={scrub!==null?scrub:playPct.v}
+<button onClick={togglePause} aria-label={paused?"Resume reading":"Pause reading"}
+                        style={{width:32,height:32,flexShrink:0,borderRadius:16,border:"none",background:C.green,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",padding:0}}>
+                        {paused
+                          ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>
+                          : <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4.5" height="15" rx="1.2"/><rect x="13.5" y="4.5" width="4.5" height="15" rx="1.2"/></svg>}
+                      </button>
+                      <div role="slider" tabIndex={0} aria-label="Move through the reading" aria-valuemin={0} aria-valuemax={1000} aria-valuenow={scrub!==null?scrub:playPct.v}
                         onPointerDown={e=>{ try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(er){} const r=e.currentTarget.getBoundingClientRect(); const v=Math.max(0,Math.min(1000,Math.round(1000*(e.clientX-r.left)/r.width))); scrubRef.current=v; setScrub(v); }}
                         onPointerMove={e=>{ if(scrubRef.current===null) return; const r=e.currentTarget.getBoundingClientRect(); const v=Math.max(0,Math.min(1000,Math.round(1000*(e.clientX-r.left)/r.width))); scrubRef.current=v; setScrub(v); }}
                         onPointerUp={commitScrub} onPointerCancel={commitScrub}
@@ -2939,7 +2974,7 @@ export default function ChemBaseBUK() {
                         style={{flex:1,minWidth:0,height:34,display:"flex",alignItems:"center",gap:2,cursor:"pointer",touchAction:"none",userSelect:"none",WebkitUserSelect:"none"}}>
                         {Array.from({length:48},(_,k)=>{ const cur=(scrub!==null?scrub:playPct.v)/1000; const h=7+Math.round(17*Math.abs(Math.sin(k*1.7)*Math.cos(k*0.45+1))); const on=(k+0.5)/48<=cur; return <span key={k} style={{flex:1,height:h,borderRadius:3,background:on?C.green:C.border,transition:"background .12s"}}/>; })}
                       </div>
-                      <span style={{fontSize:10.5,color:C.muted,minWidth:30,textAlign:"right"}}>{Math.round((scrub!==null?scrub:playPct.v)/10)}%</span>
+                      <span style={{fontSize:10.5,color:C.muted,whiteSpace:"nowrap",textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{clock(secOf(scrub!==null?scrub:playPct.v))} / {clock(secOf(1000))}{speakSession.current && speakSession.current.mode==="phone" ? " · phone voice" : ""}</span>
                     </div>
                   )}
                   </>
