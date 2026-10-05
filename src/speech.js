@@ -102,17 +102,107 @@ function unitOnly(inner) {
   return new RegExp("^" + CHAIN_SP + "$").test(clean) ? speakChain(clean) : inner;
 }
 
-const KNOWN_FORMULAS = { NaCl: "sodium chloride", NaOH: "sodium hydroxide", KOH: "potassium hydroxide", CaCO3: "calcium carbonate" };
+// ── Chemical formulas ──────────────────────────────────────────────────────
+// "Al2(SO4)3" -> "A L 2, S O 4 taken 3 times"     "Ca2+" -> "C A 2 plus"     "[H+]" -> "concentration of H plus"
+const ELEMENTS = new Set("H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc Lv Ts Og".split(" "));
+// Well-known compounds are named when written on their own (no number in front).
+const KNOWN_FORMULAS = { NaCl: "sodium chloride", NaOH: "sodium hydroxide", KOH: "potassium hydroxide", CaCO3: "calcium carbonate",
+  HCl: "hydrochloric acid", H2SO4: "sulphuric acid", HNO3: "nitric acid", H3PO4: "phosphoric acid", H2O: "water", CO2: "carbon dioxide",
+  NH3: "ammonia", CH4: "methane", H2O2: "hydrogen peroxide", NaHCO3: "sodium bicarbonate", CaO: "calcium oxide", "Ca(OH)2": "calcium hydroxide",
+  KMnO4: "potassium permanganate", Na2CO3: "sodium carbonate", CuSO4: "copper sulphate", KCl: "potassium chloride", MgO: "magnesium oxide",
+  SO2: "sulphur dioxide", H2S: "hydrogen sulphide", NO2: "nitrogen dioxide", C2H5OH: "ethanol", CH3OH: "methanol", C6H12O6: "glucose" };
+const LONE = new Set("Fe Cu Ag Au Zn Pb Hg Mg Ca Na Li Al Si Cl Br Ni Mn Cr Sn Ti Pt Pd Cd Ba Sr Cs Rb Ar Ne Kr Xe Rn".split(" "));
+const spellSym = (sym) => sym.toUpperCase().split("").join(" ");
+// parse "Al2(SO4)3" -> spoken words, or null when it is not a real formula
+function formulaWords(body) {
+  const out = []; let i = 0, symbols = 0, digits = false;
+  while (i < body.length) {
+    const c = body[i];
+    if (c === "(") {
+      const j = body.indexOf(")", i);
+      if (j < 0) return null;
+      const inner = formulaWords(body.slice(i + 1, j));
+      if (inner === null) return null;
+      symbols += inner.n; let k = j + 1, num = "";
+      while (/\d/.test(body[k] || "")) num += body[k++];
+      if (num) digits = true;
+      out.push(", " + inner.t + (num ? " taken " + num + " times" : "") + ","); i = k;
+    } else if (/[A-Z]/.test(c)) {
+      let sym = c; if (/[a-z]/.test(body[i + 1] || "")) sym += body[i + 1];
+      if (!ELEMENTS.has(sym)) { if (sym.length === 2 && ELEMENTS.has(c)) sym = c; else return null; }
+      i += sym.length; symbols++; out.push(spellSym(sym));
+      let num = ""; while (/\d/.test(body[i] || "")) num += body[i++];
+      if (num) { digits = true; out.push(num); }
+    } else return null;
+  }
+  return { t: out.join(" ").replace(/\s+,/g, ",").replace(/,\s*,/g, ","), n: symbols, digits };
+}
+// spoken formulas found inside LaTeX wait here (as plain letters) until the whole text is cleaned, then go back in
+let CHEM_STORE = [];
+const alpha = (n) => { let r = ""; do { r = String.fromCharCode(97 + (n % 26)) + r; n = Math.floor(n / 26); } while (n > 0); return r; };
+const unalpha = (t) => [...t].reduce((a, c) => a * 26 + (c.charCodeAt(0) - 97), 0);
+const clean = (t) => t.replace(/^,\s*/, "").replace(/,\s*$/, "");
+const chargeWords = (c) => {
+  const m = /^(\d*)([+\-−])$/.exec(c); if (!m) return "";
+  return " " + (m[1] && m[1] !== "1" ? m[1] + " " : "") + (m[2] === "+" ? "plus" : "minus");
+};
+function chemPrep(s) {
+  // m3 -> m³, mol-1 -> mol⁻¹ (typed without superscripts)
+  s = s.replace(/(\d\s?|\/)(mm|cm|km|m)([23])(?![A-Za-z0-9])/g, (m, p, u, n) => p + u + (n === "2" ? "²" : "³"))
+       .replace(/\b(mol|s|h|min|K|kg|g|L|J|W|Pa|m)-([12])(?![\d.])/g, (m, u, n) => u + (n === "1" ? "⁻¹" : "⁻²"));
+  // Ca^2+ , SO4^2- , PO4^{3-}  (a charge, not a power)
+  s = s.replace(/([A-Z][a-z]?\d*|\))\^\{?(\d*)([+\-−])\}?(?![A-Za-z0-9])/g, (m, a, d, sg) => a + "\uE005" + d + sg);
+  // subscripts and superscript charges written as unicode -> plain characters
+  s = s.replace(/([A-Za-z)\]])([₀-₉]+)/g, (m, a, d) => a + d.split("").map((c) => SUB[c]).join(""));
+  s = s.replace(/([A-Za-z0-9)\]])[\^\uE005]?\{?([⁰¹²³⁴⁵⁶⁷⁸⁹]*)([⁺⁻])\}?(?![⁰¹²³⁴⁵⁶⁷⁸⁹])/g, (m, a, d, sg) => a + "\uE005" + d.split("").map((c) => SUP[c]).join("") + SUP[sg]);
+  s = s.replace(/([\d)])[·•]\s?(?=\d*[A-Z])/g, "$1 dot ");
+  s = s.replace(/(\d)\s?e[\^\uE005]?\{?-\}?(?![A-Za-z0-9{])/g, (m, d) => d + (d === "1" ? " electron " : " electrons ")).replace(/(^|[^A-Za-z0-9])e[\^\uE005]?\{?-\}?(?![A-Za-z0-9{])/g, "$1electron ").replace(/\b(NO|SO)x\b/g, (m, a) => spellSym(a) + " x");
+  // species in square brackets are concentrations:  [H+], [OH-], [C][D]/[A][B]
+  {
+    const one = (inner) => {
+      const mm = /^(.*?)(?:[\^\uE005]?(\d*[+\-−]))?$/.exec(inner);
+      if (/^[A-Z]$/.test(mm[1])) return "concentration of " + mm[1] + chargeWords(mm[2] || "");
+      const f = formulaWords(mm[1]);
+      if (!f || (!mm[2] && f.n < 2 && !f.digits)) return null;
+      return "concentration of " + clean(f.t) + chargeWords(mm[2] || "");
+    };
+    s = s.replace(/(?:\[[A-Z][A-Za-z0-9()^\uE005+\-−]*\])+/g, (run) => {
+      const parts = run.slice(1, -1).split("][").map(one);
+      return parts.includes(null) ? run : " " + parts.join(" times ") + " ";
+    });
+    s = s.replace(/(concentration of [^/]*?)\s*\/\s*(?=concentration of)/g, "$1, divided by ");
+  }
+  return s;
+}
+function chemFormulas(s, wrap) {
+  s = chemPrep(s);
+  s = s.replace(/(^|[^A-Za-z0-9_.\/\\])(\d*)((?:(?:[A-Z][a-z]?|\((?:[A-Z][a-z]?\d*)+\))\d*)+)([\^\uE005]?\{?\d*[+\-−]\}?)?(?:\((aq|g|l|s)\))?(?![A-Za-z0-9])/g, (m, pre, coef, body, ch, st) => {
+    let charge = (ch || "").replace(/[\^\uE005{}]/g, "");
+    // "Ca2+" / "SO42-": the digits just before the sign belong to the charge
+    if (charge && charge.length === 1) {
+      const t = /^([A-Za-z()]+?[A-Za-z)])(\d+)$/.exec(body);
+      if (t && /^[A-Z][a-z]?$/.test(t[1])) { body = t[1]; charge = t[2] + charge; }                       // single element: Ca2+
+      else { const u = /^(.*[A-Za-z)])(\d{2,})$/.exec(body); if (u) { body = u[1] + u[2].slice(0, -1); charge = u[2].slice(-1) + charge; } }   // SO42-
+    }
+    let open = "", close = "";
+    const w = /^\(([^()]*)\)$/.exec(body);
+    if (w) { body = w[1]; open = "("; close = ")"; }
+    const f = formulaWords(body);
+    if (!f) return m;
+    if (f.n < 2 && !f.digits && !charge && !coef && !(LONE.has(body) && body.length === 2)) return m;   // a lone "I", "He", "As" is just a word
+    const name = !coef && !charge && KNOWN_FORMULAS[body];
+    const piece = (coef ? coef + " " : "") + (name ? name : clean(f.t) + chargeWords(charge)) + (st ? " " + ({ aq: "aqueous", g: "gas", l: "liquid", s: "solid" })[st] : "");
+    if (wrap) { CHEM_STORE.push(piece); return pre + open + "\\text{ chemqq" + alpha(CHEM_STORE.length - 1) + "z }" + close; }
+    return pre + open + piece + close + " ";
+  });
+  return wrap ? s : s.replace(/\b([A-Za-z]{3,})\s*\(\1\)/gi, "$1").replace(/\b(ethanol|methanol|glucose|water|methane|ammonia|acid)\s+\1\b/gi, "$1");
+}
 const SPELL = new Set(["CSTR", "PFR", "PQ", "PQs", "CGPA", "GPA", "BUK", "NSChE", "SIWES", "NSE", "LPG", "CNG", "PVC", "CFD", "PID", "HETP", "LMTD", "COD", "BOD", "TDS"]);
 const spellOne = (tok) => tok.replace(/([A-Z][a-z]?)(\d*)/g, (m, el, d) => el.toUpperCase().split("").join(" ") + (d ? " " + d : "") + " ").trim();
 // "H2SO4" -> "H 2 S O 4", "HCl" -> "H C L", "CSTR" -> "C S T R", "2H2O" -> "2 H 2 O", "O2" -> "O 2"
 function spellFormulas(s) {
-  s = s.replace(/\b(\d*)((?:[A-Z][a-z]?\d*){2,})\b/g, (m, coef, tok) => {
-    if (KNOWN_FORMULAS[tok]) return (coef ? coef + " " : "") + KNOWN_FORMULAS[tok];
-    if (!(SPELL.has(tok) || /[a-z\d]/.test(tok))) return m;
-    return (coef ? coef + " " : "") + spellOne(tok);
-  });
-  return s.replace(/\b(\d*)([A-Z][a-z]?)(\d+)\b/g, (m, c, el, d) => (c ? c + " " : "") + el.toUpperCase().split("").join(" ") + " " + d);
+  // acronyms such as CSTR, PFR, LPG are spelled letter by letter (real formulas were handled earlier)
+  return s.replace(/\b([A-Za-z]{2,6})\b/g, (m, tok) => SPELL.has(tok) ? spellOne(tok) : m);
 }
 function expandAbbreviations(s) {
   return s.replace(/\be\.g\./gi, "for example").replace(/\bi\.e\./gi, "that is").replace(/\betc\.(?=\s+[A-Z])/g, "and so on.").replace(/\betc\./gi, "and so on")
@@ -150,6 +240,21 @@ function subWord(b) {
   if (/^[a-z]{4,}$/.test(t) || /^(in|out|top|net|mix|dry|wet|hot|cold|feed)$/.test(t)) return " " + t + " ";   // a real word
   // letters and digits: spell them out  (A0 -> "A 0", AB -> "A B", lm -> "L M")
   return " " + t.replace(/([A-Za-z])(?=[A-Za-z0-9])/g, "$1 ").replace(/(\d)(?=[A-Za-z])/g, "$1 ").replace(/\b[a-z]\b/g, (c) => c.toUpperCase()) + " ";
+}
+
+// chemistry written in LaTeX:  \ce{H2SO4},  \mathrm{H_2O},  Ca^{2+},  SO_4^{2-}  ->  plain "H2SO4", "Ca\uE0052+" for the formula reader
+function chemTeX(tex) {
+  const el = (x) => ELEMENTS.has(x);
+  tex = tex.replace(/\\ce\s*\{([^{}]*)\}/g, (m, t) => " " + t.replace(/<=>/g, " \\rightleftharpoons ").replace(/->/g, " \\to ").replace(/<-/g, " \\leftarrow ").replace(/\^(?:\{(\d*[+\-−])\}|(\d*[+\-−])(?!\d))/g, (m, a, b) => "\uE005" + (a || b)).replace(/_\{?(\d+)\}?/g, "$1") + " ");
+  tex = tex.replace(/\\(?:mathrm|text|textrm|mathit|mathbf)\s*\{([^{}]*)\}/g, (m, t, off, all) => {
+    if (!/^[A-Z][A-Za-z0-9_^{}()+\-−]*$/.test(t) || !el((t.match(/^[A-Z][a-z]?/) || [""])[0])) return m;
+    const multi = (t.match(/[A-Z]/g) || []).length >= 2 || /[\d_^]/.test(t);
+    const after = all.slice(off + m.length);
+    return multi || /^(?:_|\^\{?\d*[+\-−]\}?(?!\d))/.test(after) ? t : m;
+  });
+  tex = tex.replace(/([A-Z][a-z]?|\))_\{?(\d+)\}?/g, (m, a, d) => (a === ")" || el(a) ? a + d : m));
+  tex = tex.replace(/([A-Z][a-z]?\d*|\))\^(?:\{(\d*[+\-−])\}|(\d*[+\-−])(?!\d))/g, (m, a, c1, c2) => (a === ")" || el(a.replace(/\d+$/, "")) ? a + "\uE005" + (c1 || c2) : m));
+  return chemFormulas(tex, true);
 }
 
 // LaTeX -> plain spoken words
@@ -289,6 +394,7 @@ function symbolsToWords(s) {
 }
 
 export function speakable(md) {
+  CHEM_STORE = [];
   let s = String(md || "");
   // fenced blocks: real code is skipped, but a formula written in a code block is read like any other formula
   const fences = [];
@@ -300,7 +406,7 @@ export function speakable(md) {
   s = s.replace(/([\u1E40\u1E41\u1E44\u1E45\u1E56\u1E57\u1E58\u1E59\u1E86\u1E87\u1E8A\u1E8B\u1E8E\u1E8F])(?:_\{?([A-Za-z0-9]+)\}?)?/g, (_, c, sub) => dotPhrase(({ "\u1E40": "M", "\u1E41": "m", "\u1E44": "N", "\u1E45": "n", "\u1E56": "P", "\u1E57": "p", "\u1E58": "R", "\u1E59": "r", "\u1E86": "W", "\u1E87": "w", "\u1E8A": "X", "\u1E8B": "x", "\u1E8E": "Y", "\u1E8F": "y" })[c], sub));
 
   // maths first, so its symbols are not touched by the markdown clean-up
-  const done = (tex) => " " + mathToWords(tex) + " ";
+  const done = (tex) => " " + mathToWords(chemTeX(tex)) + " ";
   s = s.replace(/\$\$([\s\S]+?)\$\$/g, (_, t) => done(t));
   s = s.replace(/\\\[([\s\S]+?)\\\]/g, (_, t) => done(t));
   s = s.replace(/\\\(([\s\S]+?)\\\)/g, (_, t) => done(t));
@@ -336,6 +442,7 @@ export function speakable(md) {
   s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/https?:\/\/\S+/g, " link ");
   s = s.replace(/^\s{0,3}#{1,6}\s*(.+)$/gm, "$1.");
   s = s.replace(/^\s*>\s?/gm, "").replace(/^\s*[-*•]\s+/gm, "").replace(/^\s*-{3,}\s*$/gm, "");
+  s = chemPrep(s);
   s = expandAbbreviations(s);
   s = negUnitChains(s);
   s = expandUnits(s);
@@ -351,9 +458,11 @@ export function speakable(md) {
   s = symbolsToWords(s);
   s = unicodeToWords(s);
   s = s.replace(/\bChE\b/g, "Chemical Engineering");
+  s = chemFormulas(s);
   s = spellFormulas(s);
   s = s.replace(/\uE001(\d+)\uE002/g, (m, i) => " " + speakFence(fences[+i]) + " ");
   s = s.replace(/([^.!?:;,\s])[ \t]*\n+/g, "$1. ").replace(/\n+/g, " ");
+  s = s.replace(/chemqq([a-y]+)z/g, (m, a) => CHEM_STORE[unalpha(a)] || "");
   return s.replace(/\s+/g, " ").replace(/\(\s+/g, "(").replace(/\s+\)/g, ")").replace(/\s+([.,!?;:])/g, "$1").replace(/,\s*,/g, ",").replace(/\.\s*\./g, ".").trim();
 }
 
