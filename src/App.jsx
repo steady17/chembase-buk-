@@ -2074,9 +2074,26 @@ export default function ChemBaseBUK() {
   // Read an answer aloud. Formulas are turned into words first (see speech.js).
   const [speakingIdx, setSpeakingIdx] = useState(null);
   const speakToken = useRef(0);
+  const audioEl = useRef(null);            // one audio player, unlocked by the tap so phones let it play on
+  const onlineBad = useRef(0);             // when the natural voice failed, use the phone voice for a while
+  const clipCache = useRef(new Map());     // sentence text -> Promise of the audio address
+  const fetchClip = (text) => {
+    let p = clipCache.current.get(text);
+    if(!p){
+      const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 12000);
+      p = fetch("/api/tts",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text}), signal:ctl.signal })
+        .then(r=>{ if(!r.ok) throw new Error("voice"); return r.blob(); })
+        .then(b=>{ if(!b.size) throw new Error("empty"); return URL.createObjectURL(b); })
+        .finally(()=>clearTimeout(t));
+      p.catch(()=>{ clipCache.current.delete(text); });
+      clipCache.current.set(text,p);
+      if(clipCache.current.size>12){ const k=clipCache.current.keys().next().value; const old=clipCache.current.get(k); clipCache.current.delete(k); old.then(u=>URL.revokeObjectURL(u)).catch(()=>{}); }
+    }
+    return p;
+  };
   const speakKeep = useRef(null);
   const ttsSupported = typeof window!=="undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance!=="undefined";
-  const stopSpeak = () => { speakToken.current++; try{ window.speechSynthesis?.cancel(); }catch(e){}
+  const stopSpeak = () => { speakToken.current++; try{ const a=audioEl.current; if(a){ a.onended=null; a.onerror=null; a.ontimeupdate=null; a.pause(); } }catch(e){} try{ window.speechSynthesis?.cancel(); }catch(e){}
     setPlayPct(null); setSpeakingIdx(null); };
   const speakRate = useRef(1);
   const speakSession = useRef(null);      // {idx, chunks, n, starts, total} - what is being read right now
@@ -2111,15 +2128,12 @@ export default function ChemBaseBUK() {
     const synth = window.speechSynthesis;
     const token = ++speakToken.current;
     speakSession.current = sess;
-    const next = () => {
-      if(speakToken.current!==token) return;
-      if(sess.n>=sess.chunks.length){ setSpeakingIdx(null); setPlayPct(null); speakSession.current=null; return; }
-      setPlayPct({ idx: sess.idx, v: Math.round(1000*sess.starts[sess.n]/sess.total) });
-      const u = new window.SpeechSynthesisUtterance(sess.chunks[sess.n++]);
+    const phoneSay = (text, base) => {
+      const u = new window.SpeechSynthesisUtterance(text);
       const voice = voiceChoice.current;
       if(voice){ u.voice=voice; u.lang=voice.lang; } else u.lang="en-GB";
       u.rate = speakRate.current; u.pitch = 1;
-      const base = sess.starts[sess.n-1]; let lastV = -99;
+      let lastV = -99;
       u.onboundary = (ev)=>{ if(speakToken.current!==token || scrubRef.current!==null) return; const v = Math.round(1000*(base+(ev.charIndex||0))/sess.total); if(v-lastV>=4){ lastV=v; setPlayPct({ idx: sess.idx, v: Math.min(1000,v) }); } };
       u.onend = next;
       u.onerror = (ev)=>{ if(speakToken.current!==token) return; if(ev && (ev.error==="interrupted"||ev.error==="canceled")) return; setSpeakingIdx(null); setPlayPct(null); };
@@ -2127,11 +2141,32 @@ export default function ChemBaseBUK() {
       try{ synth.resume(); }catch(e){}
       synth.speak(u);
     };
+    function next(){
+      if(speakToken.current!==token) return;
+      if(sess.n>=sess.chunks.length){ setSpeakingIdx(null); setPlayPct(null); speakSession.current=null; return; }
+      const text = sess.chunks[sess.n++]; const base = sess.starts[sess.n-1];
+      setPlayPct({ idx: sess.idx, v: Math.round(1000*base/sess.total) });
+      const a = audioEl.current;
+      if(a && Date.now()>onlineBad.current){
+        fetchClip(text).then(url=>{
+          if(speakToken.current!==token) return;
+          if(sess.n<sess.chunks.length) fetchClip(sess.chunks[sess.n]).catch(()=>{});   // get the next sentence ready
+          a.onended = next;
+          a.onerror = ()=>{ if(speakToken.current!==token) return; a.onended=null; a.ontimeupdate=null; onlineBad.current = Date.now()+120000; phoneSay(text, base); };
+          a.ontimeupdate = ()=>{ if(speakToken.current!==token || scrubRef.current!==null || !a.duration) return; const v = Math.round(1000*(base+text.length*a.currentTime/a.duration)/sess.total); setPlayPct(pp=> pp && pp.idx===sess.idx && Math.abs(v-pp.v)<4 ? pp : { idx: sess.idx, v: Math.min(1000,v) }); };
+          a.src = url; a.playbackRate = speakRate.current;
+          const pr = a.play(); if(pr && pr.catch) pr.catch(()=>{ if(speakToken.current!==token) return; a.onended=null; a.ontimeupdate=null; onlineBad.current = Date.now()+120000; phoneSay(text, base); });
+        }).catch(()=>{ if(speakToken.current!==token) return; onlineBad.current = Date.now()+120000; phoneSay(text, base); });
+        return;
+      }
+      phoneSay(text, base);
+    }
     setTimeout(next, 60);   // iPhone and Safari swallow a speak() that comes right after cancel()
   };
   // after a speed or voice change, say the sentence that is playing again with the new setting
   const restartChunk = () => {
     const sess = speakSession.current; if(!sess) return;
+    try{ const a=audioEl.current; if(a){ a.onended=null; a.onerror=null; a.ontimeupdate=null; a.pause(); } }catch(e){}
     try{ window.speechSynthesis.cancel(); }catch(e){}
     sess.n = Math.max(0, sess.n-1);
     runSession(sess);
@@ -2139,6 +2174,7 @@ export default function ChemBaseBUK() {
   // the bar was dragged: carry on from that place
   const seekRead = (v) => {
     const sess = speakSession.current; if(!sess) return;
+    try{ const a=audioEl.current; if(a){ a.onended=null; a.onerror=null; a.ontimeupdate=null; a.pause(); } }catch(e){}
     try{ window.speechSynthesis.cancel(); }catch(e){}
     const target = (v/1000)*sess.total; let m = 0;
     while(m+1<sess.chunks.length && sess.starts[m+1]<=target) m++;
@@ -2152,6 +2188,10 @@ export default function ChemBaseBUK() {
   };
   const speakMsg = async (idx, text) => {
     if(speakingIdx===idx){ stopSpeak(); return; }
+    try{   // phones only let audio play if it was started by a tap: warm the player up right here
+      if(!audioEl.current) audioEl.current = new Audio();
+      const a = audioEl.current; a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA="; const pr = a.play(); if(pr && pr.catch) pr.catch(()=>{});
+    }catch(e){}
     const synth = ttsSupported ? window.speechSynthesis : null;
     try{ synth && synth.cancel(); }catch(e){}
     const chunks = speechChunks(text); if(!chunks.length) return;
@@ -2890,7 +2930,7 @@ export default function ChemBaseBUK() {
                     </button>
                   </div>
                   {speakingIdx===i && playPct && playPct.idx===i && (
-                    <div id="cb-seek" style={{display:"flex",alignItems:"center",gap:8,margin:"8px 2px 6px"}}>
+                    <div id="cb-seek" style={{display:"flex",alignItems:"center",gap:10,margin:"10px 0 6px",width:"min(92vw, 560px)",maxWidth:"100%",boxSizing:"border-box"}}>
                       <input type="range" min={0} max={1000} value={scrub!==null?scrub:playPct.v} aria-label="Move through the reading"
                         onChange={e=>{ scrubRef.current=+e.target.value; setScrub(+e.target.value); }}
                         onPointerUp={commitScrub} onPointerCancel={commitScrub} onMouseUp={commitScrub} onTouchEnd={commitScrub} onKeyUp={commitScrub} onBlur={commitScrub}
