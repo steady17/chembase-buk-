@@ -3397,13 +3397,12 @@ export default function ChemBaseBUK() {
                           ["Electrons (neutral atom)", sel.num],
                           ...(EL_RADIOACTIVE(sel.num)
                             ? [["Atomic mass (longest-lived isotope)", `${sel.mass} u`]]
-                            : [["Atomic mass (textbook, for calculations)", `${tbMass(sel)} u`], ["Atomic mass (precise)", `${sel.mass} u`]]),
+                            : [["Atomic mass", `${tbMass(sel)} u`], ["Atomic mass (precise)", `${sel.mass} u`]]),
                           [EL_RADIOACTIVE(sel.num)?"Mass number (longest-lived isotope)":"Mass number (atomic mass, nearest whole number)", Math.round(sel.mass)],
                           ["Group", si.g ?? "— (f-block)"],
                           ["Period", si.p],
                           ["Block", si.b+"-block"],
-                          [si.cfg.startsWith("[") ? "Electron configuration (short form)" : "Electron configuration", si.cfg],
-                          ...(si.cfg.startsWith("[") ? [["Electron configuration (full)", fullConfig(si.cfg)]] : []),
+                          ["Electron configuration", fullConfig(si.cfg)],
                           ["State at 25 °C", si.st],
                           ["Electronegativity (Pauling)", si.en ?? "—"],
                           ["Melting point", fmtT(si.mp)],
