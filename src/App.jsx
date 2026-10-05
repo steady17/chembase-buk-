@@ -2091,7 +2091,7 @@ export default function ChemBaseBUK() {
   const [rateLabel, setRateLabel] = useState(()=>{ try{ const r=parseFloat(localStorage.getItem("cb_rate")); return [0.85,1,1.25,1.5].includes(r)?r:1; }catch(e){ return 1; } });
   speakRate.current = rateLabel;
   // Voice 1 = the best female voice the device has, Voice 2 = the best male voice (same idea on iPhone, Android and computer)
-  const [voiceNo, setVoiceNo] = useState(()=>{ try{ return localStorage.getItem("cb_voice")==="2"?2:1; }catch(e){ return 1; } });
+  const [voiceNo, setVoiceNo] = useState(1);   // one voice only: the best voice on the phone
   const voiceNoRef = useRef(voiceNo); voiceNoRef.current = voiceNo;
   const pickByNo = (no) => { const g = voicesByGender(voicesRef.current); return (no===2 ? g.male : g.female) || voicesRef.current[0] || null; };
   // Phones load their voice list a moment after the page opens; ask early so the good voice is ready.
@@ -2119,6 +2119,8 @@ export default function ChemBaseBUK() {
       const voice = voiceChoice.current;
       if(voice){ u.voice=voice; u.lang=voice.lang; } else u.lang="en-GB";
       u.rate = speakRate.current; u.pitch = 1;
+      const base = sess.starts[sess.n-1]; let lastV = -99;
+      u.onboundary = (ev)=>{ if(speakToken.current!==token || scrubRef.current!==null) return; const v = Math.round(1000*(base+(ev.charIndex||0))/sess.total); if(v-lastV>=4){ lastV=v; setPlayPct({ idx: sess.idx, v: Math.min(1000,v) }); } };
       u.onend = next;
       u.onerror = (ev)=>{ if(speakToken.current!==token) return; if(ev && (ev.error==="interrupted"||ev.error==="canceled")) return; setSpeakingIdx(null); setPlayPct(null); };
       speakKeep.current = u; // keep a reference so the browser does not drop it mid-speech
@@ -2146,12 +2148,6 @@ export default function ChemBaseBUK() {
   const cycleRate = () => {
     const order=[1,1.25,1.5,0.85]; const nxt=order[(order.indexOf(rateLabel)+1)%order.length];
     setRateLabel(nxt); speakRate.current=nxt; try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
-    restartChunk();
-  };
-  const cycleVoice = () => {
-    const nxt = voiceNo===1?2:1; setVoiceNo(nxt); voiceNoRef.current = nxt;
-    try{ localStorage.setItem("cb_voice",String(nxt)); }catch(e){}
-    voiceChoice.current = pickByNo(nxt);
     restartChunk();
   };
   const speakMsg = async (idx, text) => {
@@ -2880,10 +2876,6 @@ export default function ChemBaseBUK() {
                         {rateLabel}×
                       </button>
                     )}
-                    <button onClick={cycleVoice} aria-label="Change voice"
-                      style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
-                      Voice {voiceNo}
-                    </button>
                     <button onClick={()=>copyMsg(i,m.content)} aria-label="Copy this answer"
                       style={{display:"flex",alignItems:"center",gap:5,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
                       {copiedIdx===i
@@ -2901,8 +2893,8 @@ export default function ChemBaseBUK() {
                     <div id="cb-seek" style={{display:"flex",alignItems:"center",gap:8,margin:"8px 2px 6px"}}>
                       <input type="range" min={0} max={1000} value={scrub!==null?scrub:playPct.v} aria-label="Move through the reading"
                         onChange={e=>{ scrubRef.current=+e.target.value; setScrub(+e.target.value); }}
-                        onPointerUp={commitScrub} onMouseUp={commitScrub} onTouchEnd={commitScrub} onKeyUp={commitScrub}
-                        style={{flex:1,width:"100%",minWidth:0,accentColor:C.green,height:22,cursor:"pointer"}}/>
+                        onPointerUp={commitScrub} onPointerCancel={commitScrub} onMouseUp={commitScrub} onTouchEnd={commitScrub} onKeyUp={commitScrub} onBlur={commitScrub}
+                        style={{flex:1,width:"100%",minWidth:0,accentColor:C.green,height:28,cursor:"pointer",touchAction:"none"}}/>
                       <span style={{fontSize:10.5,color:C.muted,minWidth:30,textAlign:"right"}}>{Math.round((scrub!==null?scrub:playPct.v)/10)}%</span>
                     </div>
                   )}
