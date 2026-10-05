@@ -346,8 +346,8 @@ const hods = [
   { name:"Dr. Adamu Abubakar Rasheed", years:"2025 – Present", current:true, photo:"/hod/rasheed.jpg" },
   { name:"Dr. Omar Ahmed Umar",        years:"2023 – 2025",                   photo:"/hod/omar.jpg" },
   { name:"Prof. Nurudeen Yusuf",       years:"2019 – 2023",                   photo:"/hod/yusuf.jpg" },
-  { name:"Prof. Nurudeen Salahudeen",  years:"2017 – 2019",                   photo:"/hod/salahudeen.jpg" },
-  { name:"Prof. Baba El-Yakubu Jibril",years:"2015 – 2017",                   photo:"/hod/jibril.jpg" },
+  { name:"Prof. Nurudeen Salahudeen",  years:"2016 – 2019",                   photo:"/hod/salahudeen.jpg" },
+  { name:"Prof. Baba El-Yakubu Jibril",years:"2015 – 2016",                   photo:"/hod/jibril.jpg" },
 ];
 
 const legacy = [
@@ -1664,109 +1664,140 @@ function HodLink({ year, C }) {
   );
 }
 
+// pdf.js is loaded from our own site (cached after the first time) and shared by every viewer.
+let _pdfjsP = null;
+function loadPdfjs() {
+  if (!_pdfjsP) {
+    _pdfjsP = new Function("u", "return import(u)")("/pdfjs/pdf.min.mjs").then(m => {
+      m.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.mjs";
+      return m;
+    }).catch(e => { _pdfjsP = null; throw e; });
+  }
+  return _pdfjsP;
+}
+
+// Past-question viewer. Pinch / double-tap / + and − zoom the PDF itself (the app around it
+// stays put), pages appear one by one as they are drawn, and the PDF library is fetched
+// in parallel with the file.
 function PQViewer({ url, C }) {
-  const containerRef = useRef(null);
-  const pdfRef = useRef(null);
+  const outerRef = useRef(null);
+  const innerRef = useRef(null);
+  const scaleRef = useRef(1);
   const [status, setStatus] = useState("loading"); // loading | error | ready
-  const [zoom, setZoom] = useState(1);
+  const [pages, setPages] = useState({ done: 0, total: 0 });
 
-  async function renderAtZoom(zoomMultiplier) {
-    const container = containerRef.current;
-    const pdf = pdfRef.current;
-    if (!container || !pdf) return;
-    container.innerHTML = "";
-
-    // Render at extra pixel density so pinch-zooming in with the fingers still looks sharp,
-    // not blurry — the CSS size stays the same, only the underlying resolution is higher.
-    const pixelDensity = Math.min(window.devicePixelRatio || 1, 2.5);
-
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const fitScale = (container.clientWidth || 360) / page.getViewport({ scale: 1 }).width;
-      const cssViewport = page.getViewport({ scale: fitScale * zoomMultiplier });
-      const renderViewport = page.getViewport({ scale: fitScale * zoomMultiplier * pixelDensity });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = renderViewport.width;
-      canvas.height = renderViewport.height;
-      canvas.style.width = `${cssViewport.width}px`;
-      canvas.style.height = `${cssViewport.height}px`;
-      canvas.style.display = "block";
-      canvas.style.margin = "0 auto 10px";
-      canvas.style.borderRadius = "6px";
-      canvas.style.boxShadow = "0 2px 10px rgba(0,0,0,0.3)";
-      container.appendChild(canvas);
-
-      const ctx = canvas.getContext("2d");
-      await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
-    }
+  const MAXZ = 5;
+  // Change the zoom while keeping the point (mx,my) of the viewer where it is under the fingers.
+  function zoomTo(next, mx, my) {
+    const el = outerRef.current, inner = innerRef.current;
+    if (!el || !inner) return;
+    next = Math.max(1, Math.min(MAXZ, next));
+    const old = scaleRef.current;
+    const cx = (el.scrollLeft + mx) / old, cy = (el.scrollTop + my) / old;
+    scaleRef.current = next;
+    inner.style.width = `${next * 100}%`;
+    el.scrollLeft = cx * next - mx;
+    el.scrollTop = cy * next - my;
   }
 
   useEffect(() => {
-    let cancelled = false;
-
-    function waitForPdfJs(tries = 0) {
-      if (cancelled) return;
-      if (window.pdfjsLib) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-          "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
-        loadPdf();
-      } else if (tries < 100) {
-        setTimeout(() => waitForPdfJs(tries + 1), 100);
-      } else {
-        setStatus("error");
-      }
-    }
-
-    async function loadPdf() {
+    let cancelled = false, doc = null;
+    setStatus("loading"); setPages({ done: 0, total: 0 });
+    scaleRef.current = 1;
+    if (innerRef.current) innerRef.current.style.width = "100%";
+    (async () => {
       try {
-        const pdf = await window.pdfjsLib.getDocument(url).promise;
+        const [pdfjs, buf] = await Promise.all([
+          loadPdfjs(),
+          fetch(url).then(r => { if (!r.ok) throw new Error("fetch"); return r.arrayBuffer(); }),
+        ]);
         if (cancelled) return;
-        pdfRef.current = pdf;
-        setZoom(1);
-        await renderAtZoom(1);
-        if (!cancelled) setStatus("ready");
+        doc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
+        if (cancelled) return;
+        const inner = innerRef.current;
+        inner.innerHTML = "";
+        setPages({ done: 0, total: doc.numPages });
+        const cssW = (outerRef.current.clientWidth || 360) - 20;
+        const bitmapW = Math.min(1500, Math.round(cssW * Math.min((window.devicePixelRatio || 1) * 1.6, 3.2)));
+        for (let n = 1; n <= doc.numPages; n++) {
+          const page = await doc.getPage(n);
+          if (cancelled) return;
+          const vp = page.getViewport({ scale: bitmapW / page.getViewport({ scale: 1 }).width });
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
+          canvas.style.cssText = "display:block;width:100%;height:auto;margin:0 0 10px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.3);background:#fff";
+          await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+          if (cancelled) return;
+          inner.appendChild(canvas);
+          page.cleanup();
+          if (n === 1) setStatus("ready");
+          setPages({ done: n, total: doc.numPages });
+        }
       } catch (e) {
+        console.error("PQ viewer:", e);
         if (!cancelled) setStatus("error");
       }
-    }
-
-    setStatus("loading");
-    waitForPdfJs();
-    return () => { cancelled = true; };
+    })();
+    return () => { cancelled = true; try { doc && doc.destroy(); } catch (e) {} };
   }, [url]);
 
-  // Allow pinch-to-zoom with the fingers while this viewer is open — the rest of the
-  // app keeps pinch-zoom disabled, this restores the normal viewport on close.
+  // Two-finger pinch and double tap, inside the viewer only.
   useEffect(() => {
-    const meta = document.querySelector('meta[name="viewport"]');
-    const original = meta ? meta.getAttribute('content') : null;
-    if (meta) meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
-    return () => { if (meta && original) meta.setAttribute('content', original); };
+    const el = outerRef.current;
+    if (!el) return;
+    let pinch = null, lastTap = 0;
+    const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const mid = t => { const r = el.getBoundingClientRect(); return [(t[0].clientX + t[1].clientX) / 2 - r.left, (t[0].clientY + t[1].clientY) / 2 - r.top]; };
+    const start = e => {
+      if (e.touches.length === 2) pinch = { d: dist(e.touches), s: scaleRef.current };
+      else if (e.touches.length === 1) {
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          const r = el.getBoundingClientRect();
+          zoomTo(scaleRef.current > 1.2 ? 1 : 2.5, e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+          lastTap = 0; e.preventDefault();
+        } else lastTap = now;
+      }
+    };
+    const move = e => {
+      if (pinch && e.touches.length === 2) {
+        e.preventDefault();
+        const [mx, my] = mid(e.touches);
+        zoomTo(pinch.s * dist(e.touches) / pinch.d, mx, my);
+      }
+    };
+    const end = e => { if (e.touches.length < 2) pinch = null; };
+    el.addEventListener("touchstart", start, { passive: false });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
   }, []);
 
-  function adjustZoom(delta) {
-    const next = Math.max(0.5, Math.min(3, Math.round((zoom + delta) * 100) / 100));
-    setZoom(next);
-    renderAtZoom(next);
-  }
+  const btn = { width:40, height:40, borderRadius:"50%", border:"none", background:C.green, color:"#fff", fontSize:20, fontWeight:"var(--fw-heavy)", cursor:"pointer", boxShadow:"0 2px 10px rgba(0,0,0,0.4)" };
+  const step = f => { const el = outerRef.current; zoomTo(scaleRef.current * f, el.clientWidth / 2, el.clientHeight / 2); };
 
   return (
-    <div style={{flex:1,position:"relative",overflow:"auto",background:"#1a1a1a",padding:"14px 10px"}}>
-      {status==="loading" && (
-        <div style={{color:"#fff",textAlign:"center",padding:"60px 20px",opacity:0.8}}>Loading PDF…</div>
-      )}
-      {status==="error" && (
-        <div style={{color:"#fff",textAlign:"center",padding:"60px 20px"}}>
-          <div style={{marginBottom:10}}>Couldn't load the PDF.</div>
-          <a href={url} download style={{color:C.greenLight||"#9fe0bb",fontWeight:"var(--fw-heavy)"}}>Download it instead</a>
-        </div>
-      )}
-      <div ref={containerRef}/>
+    <div style={{flex:1,position:"relative",minHeight:0,display:"flex",flexDirection:"column",background:"#1a1a1a"}}>
+      <div ref={outerRef} data-pqscroll style={{flex:1,overflow:"auto",touchAction:"pan-x pan-y",WebkitOverflowScrolling:"touch",padding:"10px 10px 80px"}}>
+        {status==="loading" && (
+          <div style={{color:"#fff",textAlign:"center",padding:"60px 20px",opacity:0.8}}>Opening…</div>
+        )}
+        {status==="error" && (
+          <div style={{color:"#fff",textAlign:"center",padding:"60px 20px"}}>
+            <div style={{marginBottom:10}}>Couldn't load the PDF.</div>
+            <a href={url.replace("&mode=view","")} download style={{color:C.greenLight||"#9fe0bb",fontWeight:"var(--fw-heavy)"}}>Download it instead</a>
+          </div>
+        )}
+        <div ref={innerRef} style={{width:"100%"}}/>
+        {status==="ready" && pages.done<pages.total && (
+          <div style={{color:"#fff",textAlign:"center",padding:"6px 0 14px",opacity:0.7,fontSize:12}}>Page {pages.done+1} of {pages.total}…</div>
+        )}
+      </div>
       {status==="ready" && (
-        <div style={{position:"fixed",right:14,bottom:20,display:"flex",flexDirection:"column",gap:8,zIndex:1001}}>
-          <button onClick={()=>adjustZoom(0.25)} style={{width:40,height:40,borderRadius:"50%",border:"none",background:C.green,color:"#fff",fontSize:20,fontWeight:"var(--fw-heavy)",cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.4)"}}>+</button>
-          <button onClick={()=>adjustZoom(-0.25)} style={{width:40,height:40,borderRadius:"50%",border:"none",background:C.green,color:"#fff",fontSize:20,fontWeight:"var(--fw-heavy)",cursor:"pointer",boxShadow:"0 2px 10px rgba(0,0,0,0.4)"}}>−</button>
+        <div style={{position:"absolute",right:14,bottom:20,display:"flex",flexDirection:"column",gap:8,zIndex:2}}>
+          <button aria-label="Zoom in" onClick={()=>step(1.4)} style={btn}>+</button>
+          <button aria-label="Zoom out" onClick={()=>step(1/1.4)} style={btn}>−</button>
         </div>
       )}
     </div>

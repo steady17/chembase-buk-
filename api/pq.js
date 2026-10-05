@@ -30,7 +30,7 @@ export default async function handler(req, res) {
     const disposition = mode === 'view' ? 'inline' : 'attachment';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}.pdf"`);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400');
     res.status(200).send(buffer);
   } catch (e) {
     res.status(500).send('Error fetching file');
