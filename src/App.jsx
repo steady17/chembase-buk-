@@ -2077,8 +2077,10 @@ export default function ChemBaseBUK() {
   const voiceChoice = useRef(null);       // the voice in use
   const [rateLabel, setRateLabel] = useState(()=>{ try{ const r=parseFloat(localStorage.getItem("cb_rate")); return [0.85,1,1.25,1.5].includes(r)?r:1; }catch(e){ return 1; } });
   speakRate.current = rateLabel;
-  const [voiceNo, setVoiceNo] = useState(()=>{ try{ return localStorage.getItem("cb_voice")==="2"?2:1; }catch(e){ return 1; } });
-  const voiceNoRef = useRef(voiceNo); voiceNoRef.current = voiceNo;
+  const ONLINE_VOICES = [["selene","Selene","calm, female"],["laura","Laura","confident, female"],["sarah","Sarah","lively, female"],["adrian","Adrian","steady, male"],["slax","Slax","clear, male"],["ethan","Ethan","curious, male"]];
+  const [voiceKey, setVoiceKey] = useState(()=>{ try{ const v=localStorage.getItem("cb_voice"); return ONLINE_VOICES.some(x=>x[0]===v)?v:"selene"; }catch(e){ return "selene"; } });
+  const voiceNoRef = useRef(voiceKey); voiceNoRef.current = voiceKey;
+  const [voiceMenu, setVoiceMenu] = useState(null);   // message index whose voice list is open
   // Phones load their voice list a moment after the page opens; ask early so the good voice is ready.
   useEffect(()=>{ if(ttsSupported){ try{ window.speechSynthesis.getVoices(); }catch(e){} } },[]);
   const voicesReady = (synth) => new Promise(res=>{
@@ -2123,17 +2125,18 @@ export default function ChemBaseBUK() {
     setRateLabel(nxt); speakRate.current=nxt; try{ if(natAudio.current) natAudio.current.playbackRate=nxt; }catch(e){} try{ localStorage.setItem("cb_rate",String(nxt)); }catch(e){}
     restartChunk();
   };
-  // switch voice and read the answer again from the start in the new voice
-  const cycleVoice = (idx, text) => {
-    const nxt = voiceNo===1?2:1; setVoiceNo(nxt); voiceNoRef.current = nxt;
-    try{ localStorage.setItem("cb_voice",String(nxt)); }catch(e){}
+  // pick a voice and read the answer again from the start in it
+  const pickOnlineVoice = (key, idx, text) => {
+    setVoiceKey(key); voiceNoRef.current = key; setVoiceMenu(null);
+    try{ localStorage.setItem("cb_voice",key); }catch(e){}
+    onlineDown.current = false;
     speakMsg(idx, text, true);
   };
   // Online voice (through our /api/tts). Returns the chunks it could NOT read (empty = all done).
   const runOnlineVoice = async (chunks, token) => {
     const fetchSound = async (n)=>{
       try{
-        const r = await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:chunks[n],voice:voiceNoRef.current===2?"b":"a"})});
+        const r = await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:chunks[n],voice:voiceNoRef.current})});
         if(!r.ok){ if(r.status===503) onlineDown.current=true; return null; }
         return URL.createObjectURL(await r.blob());
       }catch(e){ return null; }
@@ -2880,6 +2883,7 @@ export default function ChemBaseBUK() {
                   </div>
                 </div>
                 {m.role==="assistant" && (
+                  <>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:2,flexWrap:"wrap"}}>
                     {(
                       <button onClick={()=>speakMsg(i,m.content)} aria-label={speakingIdx===i?"Stop reading":"Read this answer aloud"}
@@ -2896,12 +2900,10 @@ export default function ChemBaseBUK() {
                         {rateLabel}×
                       </button>
                     )}
-                    {speakingIdx===i && (
-                      <button onClick={()=>cycleVoice(i,m.content)} aria-label="Change voice"
-                        style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
-                        Voice {voiceNo}
-                      </button>
-                    )}
+                    <button onClick={()=>setVoiceMenu(voiceMenu===i?null:i)} aria-label="Choose voice"
+                      style={{background:voiceMenu===i?C.green:C.greenLight,border:`1.5px solid ${voiceMenu===i?C.green:C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:voiceMenu===i?"#fff":C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
+                      Voice: {ONLINE_VOICES.find(v=>v[0]===voiceKey)[1]} ▾
+                    </button>
                     <button onClick={()=>copyMsg(i,m.content)} aria-label="Copy this answer"
                       style={{display:"flex",alignItems:"center",gap:5,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
                       {copiedIdx===i
@@ -2915,6 +2917,18 @@ export default function ChemBaseBUK() {
                       Share
                     </button>
                   </div>
+                  {voiceMenu===i && (
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginLeft:2,marginTop:6}}>
+                      {ONLINE_VOICES.map(([key,name,desc])=>(
+                        <button key={key} onClick={()=>pickOnlineVoice(key,i,m.content)}
+                          style={{background:voiceKey===key?C.green:C.card,color:voiceKey===key?"#fff":C.ink,border:`1.5px solid ${voiceKey===key?C.green:C.border}`,borderRadius:10,padding:"5px 10px",fontSize:11.5,cursor:"pointer",textAlign:"left",lineHeight:1.25}}>
+                          <div style={{fontWeight:"var(--fw-heavy)"}}>{name}</div>
+                          <div style={{opacity:0.75,fontSize:10}}>{desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  </>
                 )}
               </div>
             ))}

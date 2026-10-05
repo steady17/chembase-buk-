@@ -5,8 +5,15 @@
 const MODEL = process.env.TTS_MODEL || 'fish-audio/s2.1-pro-free:free';
 
 // One fixed Fish voice so every piece sounds the same. Change it from Vercel with TTS_VOICE (a Fish voice ID).
-// "a" and "b" are the two voices the app's Voice button switches between (both are public Fish voice IDs).
-const VOICES = { a: process.env.TTS_VOICE || 'b347db033a6549378b48d00acb0d06cd', b: process.env.TTS_VOICE_B || '802e3bc2b27e49c2995d23ef70e6ac89' };
+// Public Fish Audio voices the app's Voice menu can pick from (the key is what the app sends).
+const VOICES = {
+  selene: process.env.TTS_VOICE || 'b347db033a6549378b48d00acb0d06cd',   // calm female
+  laura:  'e3cd384158934cc9a01029cd7d278634',                            // confident female narrator
+  sarah:  '933563129e564b19a115bedd57b7406a',                            // engaged young female
+  adrian: 'bf322df2096a46f18c579d0baa36f41d',                            // steady, reliable male narrator
+  slax:   'c5f56a6cc2ec4fa8920cb4c5889a3fb7',                            // clear, precise male (educational)
+  ethan:  '536d3a5e000945adb7038665781a4aca',                            // curious male explainer
+};
 
 async function speak(key, text, voice) {
   const body = { model: MODEL, input: text, response_format: 'mp3' };
@@ -36,7 +43,7 @@ export default async function handler(req, res) {
   if (!text) return res.status(400).json({ error: 'No text.' });
 
   try {
-    const VOICE = VOICES[String((req.body && req.body.voice) || 'a')] || VOICES.a;
+    const VOICE = VOICES[String((req.body && req.body.voice) || 'selene')] || VOICES.selene;
     let r = await speak(key, text, VOICE);
     // If the chosen voice is rejected, still speak (default voice) rather than go silent.
     if (!r.ok && VOICE && r.status >= 400 && r.status < 500 && r.status !== 429) r = await speak(key, text, '');
