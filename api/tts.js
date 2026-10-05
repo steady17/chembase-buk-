@@ -4,6 +4,24 @@
 // to the phone's own voice.
 const MODEL = process.env.TTS_MODEL || 'fish-audio/s2.1-pro-free:free';
 
+// One fixed Fish voice so every piece sounds the same. Change it from Vercel with TTS_VOICE (a Fish voice ID).
+const VOICE = process.env.TTS_VOICE === undefined ? 'b347db033a6549378b48d00acb0d06cd' : process.env.TTS_VOICE;
+
+async function speak(key, text, voice) {
+  const body = { model: MODEL, input: text, response_format: 'mp3' };
+  if (voice) body.voice = voice;
+  return fetch('https://openrouter.ai/api/v1/audio/speech', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`,
+      'HTTP-Referer': 'https://chembase-buk-qmxr.vercel.app',
+      'X-Title': 'ChemBase BUK',
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -17,16 +35,9 @@ export default async function handler(req, res) {
   if (!text) return res.status(400).json({ error: 'No text.' });
 
   try {
-    const r = await fetch('https://openrouter.ai/api/v1/audio/speech', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`,
-        'HTTP-Referer': 'https://chembase-buk-qmxr.vercel.app',
-        'X-Title': 'ChemBase BUK',
-      },
-      body: JSON.stringify({ model: MODEL, input: text, response_format: 'mp3' }),
-    });
+    let r = await speak(key, text, VOICE);
+    // If the chosen voice is rejected, still speak (default voice) rather than go silent.
+    if (!r.ok && VOICE && r.status >= 400 && r.status < 500 && r.status !== 429) r = await speak(key, text, '');
     if (!r.ok) {
       const msg = (await r.text().catch(() => '')).slice(0, 200);
       return res.status(r.status === 429 ? 429 : 502).json({ error: `Voice failed (${r.status}) ${msg}` });
