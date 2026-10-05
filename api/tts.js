@@ -8,8 +8,9 @@ const TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
 const VERSION = '1-143.0.3650.75';
 const VOICE = process.env.TTS_VOICE || 'en-US-AriaNeural';
 
+let skew = 0;   // seconds our clock is off from Microsoft's (learned from a 403 reply)
 function gecToken() {
-  let ticks = Math.floor(Date.now() / 1000) + 11644473600;
+  let ticks = Math.floor(Date.now() / 1000 + skew) + 11644473600;
   ticks -= ticks % 300;
   ticks *= 1e7;
   return crypto.createHash('sha256').update(`${ticks}${TOKEN}`, 'ascii').digest('hex').toUpperCase();
@@ -55,7 +56,11 @@ function synth(text) {
         finish();
       }
     });
-    ws.on('unexpected-response', (rq, rs) => finish(new Error('Microsoft answered ' + rs.statusCode)));
+    ws.on('unexpected-response', (rq, rs) => {
+      const e = new Error('Microsoft answered ' + rs.statusCode);
+      if (rs.statusCode === 403 && rs.headers.date) { const t = Date.parse(rs.headers.date); if (t) { skew = t / 1000 - Date.now() / 1000; e.retry = true; } }
+      finish(e);
+    });
     ws.on('error', (e) => finish(e));
     ws.on('close', () => finish());
   });
@@ -70,7 +75,8 @@ export default async function handler(req, res) {
   const text = String((body && body.text) || '').trim().slice(0, 1200);
   if (!text) return res.status(400).send('No text');
   try {
-    const audio = await synth(text);
+    let audio;
+    try { audio = await synth(text); } catch (e) { if (e && e.retry) audio = await synth(text); else throw e; }
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.status(200).send(audio);
