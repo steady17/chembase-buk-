@@ -499,6 +499,9 @@ const tbMass = (el) => {
   if (EL_RADIOACTIVE(el.num)) return m;
   return Math.abs((m - Math.floor(m)) - 0.5) < 0.06 ? Math.floor(m) + 0.5 : Math.round(m);
 };
+const NOBLE_CORE = { He: "1s²", Ne: "1s² 2s² 2p⁶", Ar: "1s² 2s² 2p⁶ 3s² 3p⁶", Kr: "1s² 2s² 2p⁶ 3s² 3p⁶ 3d¹⁰ 4s² 4p⁶",
+  Xe: "1s² 2s² 2p⁶ 3s² 3p⁶ 3d¹⁰ 4s² 4p⁶ 4d¹⁰ 5s² 5p⁶", Rn: "1s² 2s² 2p⁶ 3s² 3p⁶ 3d¹⁰ 4s² 4p⁶ 4d¹⁰ 5s² 5p⁶ 4f¹⁴ 5d¹⁰ 6s² 6p⁶" };
+const fullConfig = (cfg) => cfg.replace(/^\[(\w+)\]\s?/, (m, g) => (NOBLE_CORE[g] ? NOBLE_CORE[g] + " " : m));
 const fmtTb = (el) => EL_RADIOACTIVE(el.num) ? `[${el.mass}]` : String(tbMass(el));
 const PERIODIC_TABLE = [
   [1,"H","Hydrogen",1.008],[2,"He","Helium",4.003],[3,"Li","Lithium",6.94],[4,"Be","Beryllium",9.012],
@@ -3399,7 +3402,8 @@ export default function ChemBaseBUK() {
                           ["Group", si.g ?? "— (f-block)"],
                           ["Period", si.p],
                           ["Block", si.b+"-block"],
-                          ["Electron configuration", si.cfg],
+                          [si.cfg.startsWith("[") ? "Electron configuration (short form)" : "Electron configuration", si.cfg],
+                          ...(si.cfg.startsWith("[") ? [["Electron configuration (full)", fullConfig(si.cfg)]] : []),
                           ["State at 25 °C", si.st],
                           ["Electronegativity (Pauling)", si.en ?? "—"],
                           ["Melting point", fmtT(si.mp)],
