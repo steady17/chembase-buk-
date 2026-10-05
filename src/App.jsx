@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { speechChunks, pickVoice, englishVoices, shareable } from "./speech.js";
+import { ELEMENT_INFO } from "./elements.js";
 
 const FUN_FACTS = [
   "Water is densest at about 4 °C. That is why ice floats and lakes freeze from the top down.",
@@ -486,6 +487,12 @@ const ANTOINE_SUBSTANCES = {
 // American spellings, so searching "sulfur" or "aluminum" still finds the element.
 const PERIODIC_ALT_NAMES = { S:"sulfur", Al:"aluminum", Cs:"cesium" };
 
+const EL_CAT_COLOR = {
+  "Alkali metal":"#ef5350", "Alkaline earth metal":"#ff9800", "Transition metal":"#29b6f6", "Post-transition metal":"#66bb6a",
+  "Metalloid":"#26a69a", "Reactive nonmetal":"#fbc02d", "Halogen":"#ab47bc", "Noble gas":"#7e57c2", "Lanthanide":"#ec407a", "Actinide":"#8d6e63",
+};
+const EL_RADIOACTIVE = (n) => n === 43 || n === 61 || n >= 84;
+const fmtMass = (m) => (Number.isInteger(m) ? `[${m}]` : String(m));
 const PERIODIC_TABLE = [
   [1,"H","Hydrogen",1.008],[2,"He","Helium",4.003],[3,"Li","Lithium",6.94],[4,"Be","Beryllium",9.012],
   [5,"B","Boron",10.81],[6,"C","Carbon",12.011],[7,"N","Nitrogen",14.007],[8,"O","Oxygen",15.999],
@@ -1891,6 +1898,9 @@ export default function ChemBaseBUK() {
   const [idealGas, setIdealGas] = useState({solveFor:"P",P:"",V:"",n:"",T:""});
   const [antoine, setAntoine]   = useState({substance:"water",T:""});
   const [periodicSearch, setPeriodicSearch] = useState("");
+  const [periodicView, setPeriodicView] = useState("table");   // "table" | "list"
+  const [elSel, setElSel] = useState(null);                     // atomic number of the element whose card is open
+  const [catSel, setCatSel] = useState(null);                    // highlight one category
   const [calc, setCalc] = useState(CALC_INIT);
   const [calcTab, setCalcTab] = useState("calc"); // "calc" | "eq" | "mat"
   const [calcFrac, setCalcFrac] = useState(false);
@@ -2218,9 +2228,13 @@ export default function ChemBaseBUK() {
   const globalResults  = isGlobalSearch
     ? allCourses.filter(c => c.name.toLowerCase().includes(globalSearch.toLowerCase()) || c.code.toLowerCase().includes(globalSearch.toLowerCase()))
     : [];
-  const currentCourses = (courses[level][semester]||[]).filter(
-    c => c.name.toLowerCase().includes(courseSearch.toLowerCase()) || c.code.toLowerCase().includes(courseSearch.toLowerCase())
-  );
+  // searching on the Past Questions page looks through EVERY level and semester; with no search it shows the chosen semester
+  const pqSearching = courseSearch.trim().length > 0;
+  const currentCourses = pqSearching
+    ? allCourses.filter(c => c.name.toLowerCase().includes(courseSearch.trim().toLowerCase()) || c.code.toLowerCase().includes(courseSearch.trim().toLowerCase()))
+    : (courses[level][semester]||[]);
+  // after jumping to a course from search, bring that course into view
+  useEffect(()=>{ if(tab==="pq" && openCourse){ const t=setTimeout(()=>{ const el=document.getElementById("course-"+openCourse); if(el) el.scrollIntoView({behavior:"smooth",block:"center"}); },120); return ()=>clearTimeout(t); } },[tab,openCourse]);
 
   // GPA
   const addGpaCourse    = () => setGpaCourses(p=>[...p,{id:Date.now(),name:"",units:"",grade:"A"}]);
@@ -2567,7 +2581,7 @@ export default function ChemBaseBUK() {
                   ? <div style={{textAlign:"center",padding:20,color:C.muted}}>No courses found</div>
                   : globalResults.map((c,i)=>(
                     <div key={i} style={{...card,padding:"12px 16px",cursor:"pointer"}}
-                      onClick={()=>{setLevel(c.level);setSemester(c.semester);setTab("pq");setGlobalSearch("");}}>
+                      onClick={()=>{setLevel(c.level);setSemester(c.semester);setCourseSearch("");setOpenCourse(c.code);setTab("pq");setGlobalSearch("");}}>
                       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:4}}>
                         <span style={{background:C.greenLight,color:C.green,fontWeight:"var(--fw-heavy)",fontSize:11,padding:"2px 10px",borderRadius:20}}>{c.code}</span>
                         <span style={{fontSize:11,color:C.muted}}>{c.level} · {c.semester}</span>
@@ -2659,7 +2673,8 @@ export default function ChemBaseBUK() {
           <h2 style={{margin:"0 0 4px",fontWeight:"var(--fw-xheavy)",fontSize:20}}>Past Questions</h2>
           <p style={{margin:"0 0 14px",color:C.muted,fontSize:13}}>Select level and semester. Tap a course to download.</p>
 
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+          {pqSearching && <div style={{margin:"0 0 10px",fontSize:12.5,color:C.green,fontWeight:"var(--fw-heavy)"}}>Searching all levels and semesters · {currentCourses.length} found</div>}
+          <div style={{display:pqSearching?"none":"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
             {Object.keys(courses).map(l=>(
               <button key={l} onClick={()=>{setLevel(l);setOpenCourse(null);setCourseSearch("");setSemester("First Semester");}} style={{
                 padding:"7px 16px",borderRadius:24,border:`2px solid ${level===l?C.green:C.border}`,
@@ -2668,7 +2683,7 @@ export default function ChemBaseBUK() {
             ))}
           </div>
 
-          <div style={{display:"flex",gap:8,marginBottom:14}}>
+          <div style={{display:pqSearching?"none":"flex",gap:8,marginBottom:14}}>
             {["First Semester","Second Semester"].map(s=>(
               <button key={s} onClick={()=>{setSemester(s);setOpenCourse(null);}} style={{
                 padding:"6px 14px",borderRadius:20,border:`1.5px solid ${semester===s?C.green:C.border}`,
@@ -2686,13 +2701,14 @@ export default function ChemBaseBUK() {
 
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {currentCourses.map(course=>(
-              <div key={course.code} style={{...card,border:`1.5px solid ${openCourse===course.code?C.green:C.border}`,boxShadow:openCourse===course.code?`0 0 0 3px ${C.greenMid}`:"0 1px 4px rgba(0,0,0,0.05)",overflow:"hidden"}}>
+              <div key={course.code} id={"course-"+course.code} style={{...card,border:`1.5px solid ${openCourse===course.code?C.green:C.border}`,boxShadow:openCourse===course.code?`0 0 0 3px ${C.greenMid}`:"0 1px 4px rgba(0,0,0,0.05)",overflow:"hidden"}}>
                 <div onClick={()=>setOpenCourse(openCourse===course.code?null:course.code)}
                   style={{padding:"13px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
                   <div style={{flex:1}}>
                     <div style={{display:"flex",gap:8,marginBottom:4,flexWrap:"wrap",alignItems:"center"}}>
                       <span style={{background:C.greenLight,color:C.green,fontWeight:"var(--fw-heavy)",fontSize:11,padding:"2px 10px",borderRadius:20}}>{course.code}</span>
                       <span style={{fontSize:11,color:C.muted}}>{course.units} units</span>
+                      {pqSearching && <span style={{fontSize:10.5,color:C.muted,background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"1px 8px"}}>{course.level} · {course.semester}</span>}
                     </div>
                     <div style={{fontWeight:600,fontSize:14,color:C.ink,lineHeight:1.4}}>{course.name}</div>
                   </div>
@@ -3247,23 +3263,118 @@ export default function ChemBaseBUK() {
                 </div>
               )}
 
-              {toolboxView==="periodic" && (
+              {toolboxView==="periodic" && (() => {
+                const q = periodicSearch.trim().toLowerCase();
+                const matches = (el) => !q || periodicFiltered.includes(el);
+                const shown = (el) => matches(el) && (!catSel || ELEMENT_INFO[el.num].c===catSel);
+                const byNum = (n) => PERIODIC_TABLE[n-1];
+                const Cell = ({el}) => {
+                  const inf = ELEMENT_INFO[el.num], col = EL_CAT_COLOR[inf.c], on = shown(el);
+                  return (
+                    <div onClick={()=>setElSel(el.num)} role="button" aria-label={el.name}
+                      style={{width:42,height:52,boxSizing:"border-box",borderRadius:6,border:`1.5px solid ${col}`,background:col+"26",padding:"2px 3px",cursor:"pointer",position:"relative",opacity:on?1:0.18,transition:"opacity .2s",color:C.ink,flexShrink:0}}>
+                      <div style={{fontSize:8,color:C.muted,lineHeight:1.1}}>{el.num}</div>
+                      <div style={{fontSize:15,fontWeight:"var(--fw-xheavy)",lineHeight:1.1,textAlign:"center",color:C.ink}}>{el.sym}</div>
+                      <div style={{fontSize:7,color:C.muted,textAlign:"center",lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"clip"}}>{fmtMass(el.mass)}</div>
+                    </div>);
+                };
+                const main = PERIODIC_TABLE.filter(el=>{ const n=el.num; return !((n>=57&&n<=71)||(n>=89&&n<=103)); });
+                const gridPos = (el) => { const inf=ELEMENT_INFO[el.num]; return {gridColumn:inf.g, gridRow:inf.p}; };
+                const lan = PERIODIC_TABLE.filter(el=>el.num>=57&&el.num<=71), act = PERIODIC_TABLE.filter(el=>el.num>=89&&el.num<=103);
+                const sel = elSel ? byNum(elSel) : null, si = sel ? ELEMENT_INFO[sel.num] : null;
+                const fmtT = (v) => v===undefined ? "—" : (typeof v==="number" ? `${v} °C` : v);
+                const gas = sel && si.st==="Gas";
+                return (
                 <div>
                   <input placeholder="Search element name, symbol, or atomic number…" value={periodicSearch} onChange={e=>setPeriodicSearch(e.target.value)}
-                    style={{width:"100%",boxSizing:"border-box",padding:"11px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.card,color:C.ink,marginBottom:12}}/>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(84px,1fr))",gap:8}}>
-                    {periodicFiltered.map(el=>(
-                      <div key={el.num} style={{...card,padding:"10px 6px",textAlign:"center"}}>
-                        <div style={{fontSize:10.5,color:C.muted}}>{el.num}</div>
-                        <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)",color:C.green}}>{el.sym}</div>
-                        <div style={{fontSize:10.5,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{el.name}</div>
-                        <div style={{fontSize:10,color:C.muted}}>{el.mass}</div>
-                      </div>
+                    style={{width:"100%",boxSizing:"border-box",padding:"11px 12px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",background:C.card,color:C.ink,marginBottom:10}}/>
+                  <div style={{display:"flex",gap:8,marginBottom:10}}>
+                    {[["table","Table"],["list","List"]].map(([id,l])=>(
+                      <button key={id} onClick={()=>setPeriodicView(id)} style={{padding:"6px 16px",borderRadius:20,border:`1.5px solid ${periodicView===id?C.green:C.border}`,background:periodicView===id?C.green:C.card,color:periodicView===id?"#fff":C.green,fontWeight:"var(--fw-heavy)",fontSize:12.5,cursor:"pointer"}}>{l}</button>
                     ))}
                   </div>
-                  {periodicFiltered.length===0 && <div style={{textAlign:"center",color:C.muted,padding:30,fontSize:13}}>No matching element</div>}
-                </div>
-              )}
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
+                    {Object.entries(EL_CAT_COLOR).map(([name,col])=>(
+                      <button key={name} onClick={()=>setCatSel(catSel===name?null:name)}
+                        style={{display:"flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:14,border:`1.5px solid ${col}`,background:catSel===name?col+"55":"transparent",color:C.ink,fontSize:10.5,cursor:"pointer"}}>
+                        <span style={{width:9,height:9,borderRadius:3,background:col}}/>{name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {periodicView==="table" ? (
+                    <div>
+                      <div style={{overflowX:"auto",paddingBottom:8,WebkitOverflowScrolling:"touch"}}>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(18,42px)",gridTemplateRows:"repeat(7,52px)",gap:3,width:"max-content"}}>
+                          {main.map(el=>(<div key={el.num} style={gridPos(el)}><Cell el={el}/></div>))}
+                          <div style={{gridColumn:3,gridRow:6,width:42,height:52,boxSizing:"border-box",borderRadius:6,border:`1.5px dashed ${EL_CAT_COLOR["Lanthanide"]}`,fontSize:8.5,color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center"}}>57–71</div>
+                          <div style={{gridColumn:3,gridRow:7,width:42,height:52,boxSizing:"border-box",borderRadius:6,border:`1.5px dashed ${EL_CAT_COLOR["Actinide"]}`,fontSize:8.5,color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center"}}>89–103</div>
+                        </div>
+                        <div style={{display:"flex",gap:3,marginTop:14,paddingLeft:(42+3)*2}}>{lan.map(el=><Cell key={el.num} el={el}/>)}</div>
+                        <div style={{display:"flex",gap:3,marginTop:3,paddingLeft:(42+3)*2}}>{act.map(el=><Cell key={el.num} el={el}/>)}</div>
+                      </div>
+                      <div style={{fontSize:11,color:C.muted,marginTop:4}}>Swipe sideways to see the whole table. Tap any element for its details. Mass in [brackets] = mass number of the longest-lived isotope (radioactive).</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(84px,1fr))",gap:8}}>
+                        {PERIODIC_TABLE.filter(shown).map(el=>{ const col=EL_CAT_COLOR[ELEMENT_INFO[el.num].c]; return (
+                          <div key={el.num} onClick={()=>setElSel(el.num)} role="button" style={{...card,padding:"10px 6px",textAlign:"center",cursor:"pointer",borderBottom:"none",boxShadow:`inset 0 -3px 0 ${col}`}}>
+                            <div style={{fontSize:10.5,color:C.muted}}>{el.num}</div>
+                            <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)",color:C.green}}>{el.sym}</div>
+                            <div style={{fontSize:10.5,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{el.name}</div>
+                            <div style={{fontSize:10,color:C.muted}}>{fmtMass(el.mass)}</div>
+                          </div>); })}
+                      </div>
+                      {PERIODIC_TABLE.filter(shown).length===0 && <div style={{textAlign:"center",color:C.muted,padding:30,fontSize:13}}>No matching element</div>}
+                    </div>
+                  )}
+
+                  {sel && (
+                    <div onClick={()=>setElSel(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+                      <div onClick={e=>e.stopPropagation()} className="cb-rise" style={{width:"100%",maxWidth:520,maxHeight:"86vh",overflowY:"auto",background:C.card,color:C.ink,borderRadius:"22px 22px 0 0",padding:"18px 18px 28px",boxShadow:"0 -8px 30px rgba(0,0,0,0.35)"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+                          <div style={{width:78,height:86,borderRadius:12,border:`2px solid ${EL_CAT_COLOR[si.c]}`,background:EL_CAT_COLOR[si.c]+"2e",padding:"5px 7px",boxSizing:"border-box",flexShrink:0}}>
+                            <div style={{fontSize:12,color:C.muted}}>{sel.num}</div>
+                            <div style={{fontSize:34,fontWeight:"var(--fw-xheavy)",textAlign:"center",lineHeight:1.05}}>{sel.sym}</div>
+                            <div style={{fontSize:10.5,color:C.muted,textAlign:"center"}}>{fmtMass(sel.mass)}</div>
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:22,fontWeight:"var(--fw-xheavy)"}}>{sel.name}</div>
+                            <div style={{display:"inline-block",marginTop:4,padding:"2px 10px",borderRadius:14,background:EL_CAT_COLOR[si.c]+"33",border:`1px solid ${EL_CAT_COLOR[si.c]}`,fontSize:11.5}}>{si.c}</div>
+                          </div>
+                          <button onClick={()=>setElSel(null)} aria-label="Close" style={{background:C.greenLight,border:"none",color:C.green,width:34,height:34,borderRadius:"50%",fontSize:18,cursor:"pointer",alignSelf:"flex-start"}}>✕</button>
+                        </div>
+                        {[
+                          ["Atomic number (protons)", sel.num],
+                          ["Electrons (neutral atom)", sel.num],
+                          ["Atomic mass", `${sel.mass} u`],
+                          [EL_RADIOACTIVE(sel.num)?"Mass number (longest-lived isotope)":"Mass number (atomic mass, nearest whole number)", Math.round(sel.mass)],
+                          ["Group", si.g ?? "— (f-block)"],
+                          ["Period", si.p],
+                          ["Block", si.b+"-block"],
+                          ["Electron configuration", si.cfg],
+                          ["State at 25 °C", si.st],
+                          ["Electronegativity (Pauling)", si.en ?? "—"],
+                          ["Melting point", fmtT(si.mp)],
+                          ["Boiling point", fmtT(si.bp)],
+                          ["Density", si.d===undefined ? "—" : gas ? `${si.d} g/L (at 0 °C, 1 atm)` : `${si.d} g/cm³`],
+                          ["Common oxidation states", si.ox ?? "—"],
+                        ].map(([k,v],i)=>(
+                          <div key={k} style={{display:"flex",justifyContent:"space-between",gap:14,padding:"9px 2px",borderTop:i?`1px solid ${C.border}`:"none",fontSize:13.5}}>
+                            <span style={{color:C.muted}}>{k}</span>
+                            <span style={{fontWeight:600,textAlign:"right"}}>{String(v)}</span>
+                          </div>
+                        ))}
+                        <div style={{fontSize:11,color:C.muted,marginTop:10,lineHeight:1.5}}>"—" means no reliable value is listed. Properties of the newest elements (about 100 and above) are mostly predicted. Check your lecturer's table for exam values.</div>
+                        <div style={{display:"flex",gap:10,marginTop:14}}>
+                          <button disabled={sel.num<=1} onClick={()=>setElSel(sel.num-1)} style={{flex:1,padding:"10px",borderRadius:12,border:`1.5px solid ${C.border}`,background:C.card,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer",opacity:sel.num<=1?0.4:1}}>‹ Previous</button>
+                          <button disabled={sel.num>=118} onClick={()=>setElSel(sel.num+1)} style={{flex:1,padding:"10px",borderRadius:12,border:"none",background:C.green,color:"#fff",fontWeight:"var(--fw-heavy)",cursor:"pointer",opacity:sel.num>=118?0.4:1}}>Next ›</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>); })()}
 
               {toolboxView==="reynolds" && (
                 <div style={{display:"flex",flexDirection:"column",gap:14}}>
