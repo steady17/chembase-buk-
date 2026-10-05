@@ -493,6 +493,13 @@ const EL_CAT_COLOR = {
 };
 const EL_RADIOACTIVE = (n) => n === 43 || n === 61 || n >= 84;
 const fmtMass = (m) => (Number.isInteger(m) ? `[${m}]` : String(m));
+// The value used in class and exams: 15.999 -> 16, 35.45 -> 35.5, 63.546 -> 63.5, 24.305 -> 24
+const tbMass = (el) => {
+  const m = el.mass;
+  if (EL_RADIOACTIVE(el.num)) return m;
+  return Math.abs((m - Math.floor(m)) - 0.5) < 0.06 ? Math.floor(m) + 0.5 : Math.round(m);
+};
+const fmtTb = (el) => EL_RADIOACTIVE(el.num) ? `[${el.mass}]` : String(tbMass(el));
 const PERIODIC_TABLE = [
   [1,"H","Hydrogen",1.008],[2,"He","Helium",4.003],[3,"Li","Lithium",6.94],[4,"Be","Beryllium",9.012],
   [5,"B","Boron",10.81],[6,"C","Carbon",12.011],[7,"N","Nitrogen",14.007],[8,"O","Oxygen",15.999],
@@ -2077,10 +2084,9 @@ export default function ChemBaseBUK() {
   const voiceChoice = useRef(null);       // the voice in use
   const [rateLabel, setRateLabel] = useState(()=>{ try{ const r=parseFloat(localStorage.getItem("cb_rate")); return [0.85,1,1.25,1.5].includes(r)?r:1; }catch(e){ return 1; } });
   speakRate.current = rateLabel;
-  const ONLINE_VOICES = [["selene","Selene","calm, female"],["laura","Laura","confident, female"],["sarah","Sarah","lively, female"],["adrian","Adrian","steady, male"],["slax","Slax","clear, male"],["ethan","Ethan","curious, male"]];
-  const [voiceKey, setVoiceKey] = useState(()=>{ try{ const v=localStorage.getItem("cb_voice"); return ONLINE_VOICES.some(x=>x[0]===v)?v:"selene"; }catch(e){ return "selene"; } });
+  const ONLINE_VOICES = [["laura","Voice 1"],["slax","Voice 2"]];   // Voice 1 = Laura (female), Voice 2 = Slax (male)
+  const [voiceKey, setVoiceKey] = useState(()=>{ try{ const v=localStorage.getItem("cb_voice"); return ONLINE_VOICES.some(x=>x[0]===v)?v:"laura"; }catch(e){ return "laura"; } });
   const voiceNoRef = useRef(voiceKey); voiceNoRef.current = voiceKey;
-  const [voiceMenu, setVoiceMenu] = useState(null);   // message index whose voice list is open
   // Phones load their voice list a moment after the page opens; ask early so the good voice is ready.
   useEffect(()=>{ if(ttsSupported){ try{ window.speechSynthesis.getVoices(); }catch(e){} } },[]);
   const voicesReady = (synth) => new Promise(res=>{
@@ -2127,10 +2133,10 @@ export default function ChemBaseBUK() {
   };
   // pick a voice and read the answer again from the start in it
   const pickOnlineVoice = (key, idx, text) => {
-    setVoiceKey(key); voiceNoRef.current = key; setVoiceMenu(null);
+    setVoiceKey(key); voiceNoRef.current = key;
     try{ localStorage.setItem("cb_voice",key); }catch(e){}
     onlineDown.current = false;
-    speakMsg(idx, text, true);
+    if(speakingIdx===idx) speakMsg(idx, text, true);
   };
   // Online voice (through our /api/tts). Returns the chunks it could NOT read (empty = all done).
   const runOnlineVoice = async (chunks, token) => {
@@ -2900,9 +2906,9 @@ export default function ChemBaseBUK() {
                         {rateLabel}×
                       </button>
                     )}
-                    <button onClick={()=>setVoiceMenu(voiceMenu===i?null:i)} aria-label="Choose voice"
-                      style={{background:voiceMenu===i?C.green:C.greenLight,border:`1.5px solid ${voiceMenu===i?C.green:C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:voiceMenu===i?"#fff":C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
-                      Voice: {ONLINE_VOICES.find(v=>v[0]===voiceKey)[1]} ▾
+                    <button onClick={()=>pickOnlineVoice(voiceKey==="laura"?"slax":"laura",i,m.content)} aria-label="Change voice"
+                      style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 9px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
+                      {ONLINE_VOICES.find(v=>v[0]===voiceKey)[1]}
                     </button>
                     <button onClick={()=>copyMsg(i,m.content)} aria-label="Copy this answer"
                       style={{display:"flex",alignItems:"center",gap:5,background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:C.green,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>
@@ -2917,17 +2923,6 @@ export default function ChemBaseBUK() {
                       Share
                     </button>
                   </div>
-                  {voiceMenu===i && (
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginLeft:2,marginTop:6}}>
-                      {ONLINE_VOICES.map(([key,name,desc])=>(
-                        <button key={key} onClick={()=>pickOnlineVoice(key,i,m.content)}
-                          style={{background:voiceKey===key?C.green:C.card,color:voiceKey===key?"#fff":C.ink,border:`1.5px solid ${voiceKey===key?C.green:C.border}`,borderRadius:10,padding:"5px 10px",fontSize:11.5,cursor:"pointer",textAlign:"left",lineHeight:1.25}}>
-                          <div style={{fontWeight:"var(--fw-heavy)"}}>{name}</div>
-                          <div style={{opacity:0.75,fontSize:10}}>{desc}</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
                   </>
                 )}
               </div>
@@ -3340,7 +3335,7 @@ export default function ChemBaseBUK() {
                       style={{width:42,height:52,boxSizing:"border-box",borderRadius:6,border:`1.5px solid ${col}`,background:col+"26",padding:"2px 3px",cursor:"pointer",position:"relative",opacity:on?1:0.18,transition:"opacity .2s",color:C.ink,flexShrink:0}}>
                       <div style={{fontSize:8,color:C.muted,lineHeight:1.1}}>{el.num}</div>
                       <div style={{fontSize:15,fontWeight:"var(--fw-xheavy)",lineHeight:1.1,textAlign:"center",color:C.ink}}>{el.sym}</div>
-                      <div style={{fontSize:7,color:C.muted,textAlign:"center",lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"clip"}}>{fmtMass(el.mass)}</div>
+                      <div style={{fontSize:7,color:C.muted,textAlign:"center",lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"clip"}}>{fmtTb(el)}</div>
                     </div>);
                 };
                 const main = PERIODIC_TABLE.filter(el=>{ const n=el.num; return !((n>=57&&n<=71)||(n>=89&&n<=103)); });
@@ -3372,7 +3367,7 @@ export default function ChemBaseBUK() {
                             <div style={{fontSize:10.5,color:C.muted}}>{el.num}</div>
                             <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)",color:C.green}}>{el.sym}</div>
                             <div style={{fontSize:10.5,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{el.name}</div>
-                            <div style={{fontSize:10,color:C.muted}}>{fmtMass(el.mass)}</div>
+                            <div style={{fontSize:10,color:C.muted}}>{fmtTb(el)}</div>
                           </div>); })}
                       </div>
                       {PERIODIC_TABLE.filter(shown).length===0 && <div style={{textAlign:"center",color:C.muted,padding:30,fontSize:13}}>No matching element</div>}
@@ -3386,7 +3381,7 @@ export default function ChemBaseBUK() {
                           <div style={{width:78,height:86,borderRadius:12,border:`2px solid ${EL_CAT_COLOR[si.c]}`,background:EL_CAT_COLOR[si.c]+"2e",padding:"5px 7px",boxSizing:"border-box",flexShrink:0}}>
                             <div style={{fontSize:12,color:C.muted}}>{sel.num}</div>
                             <div style={{fontSize:34,fontWeight:"var(--fw-xheavy)",textAlign:"center",lineHeight:1.05}}>{sel.sym}</div>
-                            <div style={{fontSize:10.5,color:C.muted,textAlign:"center"}}>{fmtMass(sel.mass)}</div>
+                            <div style={{fontSize:10.5,color:C.muted,textAlign:"center"}}>{fmtTb(sel)}</div>
                           </div>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:22,fontWeight:"var(--fw-xheavy)"}}>{sel.name}</div>
@@ -3397,7 +3392,9 @@ export default function ChemBaseBUK() {
                         {[
                           ["Atomic number (protons)", sel.num],
                           ["Electrons (neutral atom)", sel.num],
-                          ["Atomic mass", `${sel.mass} u`],
+                          ...(EL_RADIOACTIVE(sel.num)
+                            ? [["Atomic mass (longest-lived isotope)", `${sel.mass} u`]]
+                            : [["Atomic mass (textbook, for calculations)", `${tbMass(sel)} u`], ["Atomic mass (precise)", `${sel.mass} u`]]),
                           [EL_RADIOACTIVE(sel.num)?"Mass number (longest-lived isotope)":"Mass number (atomic mass, nearest whole number)", Math.round(sel.mass)],
                           ["Group", si.g ?? "— (f-block)"],
                           ["Period", si.p],
