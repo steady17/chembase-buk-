@@ -2931,10 +2931,14 @@ export default function ChemBaseBUK() {
                   </div>
                   {speakingIdx===i && playPct && playPct.idx===i && (
                     <div id="cb-seek" style={{display:"flex",alignItems:"center",gap:10,margin:"10px 0 6px",width:"min(92vw, 560px)",maxWidth:"100%",boxSizing:"border-box"}}>
-                      <input type="range" min={0} max={1000} value={scrub!==null?scrub:playPct.v} aria-label="Move through the reading"
-                        onChange={e=>{ scrubRef.current=+e.target.value; setScrub(+e.target.value); }}
-                        onPointerUp={commitScrub} onPointerCancel={commitScrub} onMouseUp={commitScrub} onTouchEnd={commitScrub} onKeyUp={commitScrub} onBlur={commitScrub}
-                        style={{flex:1,width:"100%",minWidth:0,accentColor:C.green,height:28,cursor:"pointer",touchAction:"none"}}/>
+<div role="slider" tabIndex={0} aria-label="Move through the reading" aria-valuemin={0} aria-valuemax={1000} aria-valuenow={scrub!==null?scrub:playPct.v}
+                        onPointerDown={e=>{ try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(er){} const r=e.currentTarget.getBoundingClientRect(); const v=Math.max(0,Math.min(1000,Math.round(1000*(e.clientX-r.left)/r.width))); scrubRef.current=v; setScrub(v); }}
+                        onPointerMove={e=>{ if(scrubRef.current===null) return; const r=e.currentTarget.getBoundingClientRect(); const v=Math.max(0,Math.min(1000,Math.round(1000*(e.clientX-r.left)/r.width))); scrubRef.current=v; setScrub(v); }}
+                        onPointerUp={commitScrub} onPointerCancel={commitScrub}
+                        onKeyDown={e=>{ const cur=scrub!==null?scrub:playPct.v; if(e.key==="ArrowRight"||e.key==="ArrowLeft"){ const v=Math.max(0,Math.min(1000,cur+(e.key==="ArrowRight"?50:-50))); scrubRef.current=v; setScrub(v); e.preventDefault(); } }} onKeyUp={commitScrub}
+                        style={{flex:1,minWidth:0,height:34,display:"flex",alignItems:"center",gap:2,cursor:"pointer",touchAction:"none",userSelect:"none",WebkitUserSelect:"none"}}>
+                        {Array.from({length:48},(_,k)=>{ const cur=(scrub!==null?scrub:playPct.v)/1000; const h=7+Math.round(17*Math.abs(Math.sin(k*1.7)*Math.cos(k*0.45+1))); const on=(k+0.5)/48<=cur; return <span key={k} style={{flex:1,height:h,borderRadius:3,background:on?C.green:C.border,transition:"background .12s"}}/>; })}
+                      </div>
                       <span style={{fontSize:10.5,color:C.muted,minWidth:30,textAlign:"right"}}>{Math.round((scrub!==null?scrub:playPct.v)/10)}%</span>
                     </div>
                   )}
