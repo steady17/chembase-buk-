@@ -2755,6 +2755,9 @@ export default function ChemBaseBUK() {
       @media (min-width: 900px) {
         :root { --fw-xheavy: 600; --fw-heavy: 600; }
         b, strong { font-weight: 600; }
+        /* ChemBot answers: a touch heavier body text and clearly bold headings on PC */
+        .cb-ai { font-weight: 500; }
+        .cb-ai [style*="font-weight"], .cb-ai b, .cb-ai strong { font-weight: 700 !important; }
         [style*="font-weight: 700"], [style*="font-weight: 800"] { font-weight: 600 !important; }
         /* Computer / projector: use the width, and make everything bigger so a hall can read it */
         [style*="max-width: 700px"], [style*="max-width: 720px"], [style*="max-width: 600px"] { max-width: 1040px !important; }
@@ -3097,7 +3100,7 @@ export default function ChemBaseBUK() {
             {chatHistory.map((m,i)=>(
               <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",gap:4,marginBottom:m.role==="assistant"?10:0}}>
                 <div style={{display:"flex",alignItems:"flex-start",gap:8,flexDirection:m.role==="user"?"row-reverse":"row",width:m.role==="user"?"auto":"100%",maxWidth:"100%"}}>
-                  <div style={m.role==="user"
+                  <div className={m.role==="assistant"?"cb-ai":undefined} style={m.role==="user"
                     ? {maxWidth:"85%",padding:"10px 14px",borderRadius:"18px 18px 4px 18px",background:C.green,color:"#fff",fontSize:14.5,lineHeight:1.7,overflowWrap:"break-word",minWidth:0}
                     : {width:"100%",padding:"2px 2px",color:C.ink,fontSize:15,lineHeight:1.75,overflowWrap:"break-word",minWidth:0}}>
                     {m.role==="assistant" && (
