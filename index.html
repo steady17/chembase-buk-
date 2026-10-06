@@ -30,6 +30,8 @@
     <script>
       (function(){
         var t0=Date.now(), el=document.getElementById('splash');
+        // The installed Android app already shows its own opening screen, so skip ours there (one screen only).
+        try{ if(/Android/i.test(navigator.userAgent) && window.matchMedia('(display-mode: standalone)').matches){ el.parentNode.removeChild(el); return; } }catch(e){}
         function hide(){ if(!el) return; var e=el; el=null; e.style.opacity='0'; e.style.pointerEvents='none'; setTimeout(function(){ if(e.parentNode) e.parentNode.removeChild(e); },400); }
         var iv=setInterval(function(){
           var r=document.getElementById('root'), age=Date.now()-t0;
