@@ -1697,6 +1697,8 @@ function PQViewer({ url, C }) {
   const [pages, setPages] = useState({ done: 0, total: 0 });
 
   const MAXZ = 5;
+  // on a wide screen (computer / projector) keep the page a readable width, centred, instead of stretching it across the hall
+  const baseW = () => Math.max(200, Math.min(960, (outerRef.current ? outerRef.current.clientWidth : 360) - 20));
   // Change the zoom while keeping the point (mx,my) of the viewer where it is under the fingers.
   function zoomTo(next, mx, my) {
     const el = outerRef.current, inner = innerRef.current;
@@ -1705,7 +1707,7 @@ function PQViewer({ url, C }) {
     const old = scaleRef.current;
     const cx = (el.scrollLeft + mx) / old, cy = (el.scrollTop + my) / old;
     scaleRef.current = next;
-    inner.style.width = `${next * 100}%`;
+    inner.style.width = `${baseW() * next}px`;
     el.scrollLeft = cx * next - mx;
     el.scrollTop = cy * next - my;
   }
@@ -1714,7 +1716,7 @@ function PQViewer({ url, C }) {
     let cancelled = false, doc = null;
     setStatus("loading"); setPages({ done: 0, total: 0 });
     scaleRef.current = 1;
-    if (innerRef.current) innerRef.current.style.width = "100%";
+    if (innerRef.current) innerRef.current.style.width = `${baseW()}px`;
     (async () => {
       try {
         const [pdfjs, buf] = await Promise.all([
@@ -1727,7 +1729,7 @@ function PQViewer({ url, C }) {
         const inner = innerRef.current;
         inner.innerHTML = "";
         setPages({ done: 0, total: doc.numPages });
-        const cssW = (outerRef.current.clientWidth || 360) - 20;
+        const cssW = baseW();
         const bitmapW = Math.min(1500, Math.round(cssW * Math.min((window.devicePixelRatio || 1) * 1.6, 3.2)));
         for (let n = 1; n <= doc.numPages; n++) {
           const page = await doc.getPage(n);
@@ -1799,7 +1801,7 @@ function PQViewer({ url, C }) {
             <a href={url.replace("&mode=view","")} download style={{color:C.greenLight||"#9fe0bb",fontWeight:"var(--fw-heavy)"}}>Download it instead</a>
           </div>
         )}
-        <div ref={innerRef} style={{width:"100%"}}/>
+        <div ref={innerRef} style={{width:"100%",margin:"0 auto"}}/>
         {status==="ready" && pages.done<pages.total && (
           <div style={{color:"#fff",textAlign:"center",padding:"6px 0 14px",opacity:0.7,fontSize:12}}>Page {pages.done+1} of {pages.total}…</div>
         )}
@@ -1909,6 +1911,8 @@ function formatMsg(text) {
 }
 
 export default function ChemBaseBUK() {
+  const [wide,setWide]=useState(()=>typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(min-width:900px)').matches);
+  useEffect(()=>{const m=window.matchMedia('(min-width:900px)');const f=()=>setWide(m.matches);m.addEventListener?m.addEventListener('change',f):m.addListener(f);return()=>{m.removeEventListener?m.removeEventListener('change',f):m.removeListener(f);};},[]);
   const [tab, setTab]               = useState("home");
   const [dark, setDark]             = useState(false);
   const [level, setLevel]           = useState("300 Level");
@@ -2635,9 +2639,13 @@ export default function ChemBaseBUK() {
         div[style*="position: fixed"][style*="inset: 62px"] { top: 68px !important; }
         div[style*="position: fixed"][style*="inset: 62px"] > * { max-width: 1040px; width: 100%; margin-left: auto !important; margin-right: auto !important; box-sizing: border-box; }
         /* bottom menu: keep the buttons together in the middle instead of spread across the hall */
-        nav[style*="position: fixed"] { justify-content: center !important; gap: 56px; }
-        nav[style*="position: fixed"] > button { min-width: 84px; }
+        nav[style*="position: fixed"] { display: none !important; }
+        .cb-topnav { display: flex !important; gap: 4px; }
+        .cb-grid2 { display: grid !important; grid-template-columns: 1fr 1fr; gap: 12px !important; align-items: start; }
+        div[style*="padding-bottom: 80px"] { padding-bottom: 28px !important; }
+        div[style*="position: fixed"][style*="inset: 62px"] { bottom: 0 !important; }
       }
+      .cb-topnav { display: none; }
       :root { --z: 1; }
       @media (min-width: 1000px) { :root { --z: 1.2; } html { zoom: 1.2; } }
       @media (min-width: 1500px) { :root { --z: 1.3; } html { zoom: 1.3; } }
@@ -2662,6 +2670,14 @@ export default function ChemBaseBUK() {
             <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>NSChE · BUK Chapter</div>
           </div>
         </div>
+        {wide&&<div className="cb-topnav">
+          {navItems.map(n=>(
+            <button key={n.id} onClick={()=>{ if(n.id==="toolbox" && tab==="toolbox") setToolboxView(null); setTab(n.id); }}
+              style={{background:tab===n.id?"rgba(255,255,255,0.20)":"transparent",border:"none",borderRadius:10,padding:"7px 14px",cursor:"pointer",color:"#fff",opacity:tab===n.id?1:0.82,fontSize:13.5,fontWeight:tab===n.id?700:500,display:"flex",alignItems:"center",gap:7,fontFamily:"inherit"}}>
+              <span style={{fontSize:16}}>{n.icon}</span>{n.label}
+            </button>
+          ))}
+        </div>}
         <button onClick={()=>setDark(!dark)} style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:16,color:"#fff"}}>{dark?"☀️":"🌙"}</button>
       </nav>
 
@@ -2820,7 +2836,7 @@ export default function ChemBaseBUK() {
               style={{width:"100%",padding:"10px 16px 10px 36px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",boxSizing:"border-box",background:C.card,color:C.ink}}/>
           </div>
 
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div className="cb-grid2" style={{display:"flex",flexDirection:"column",gap:10}}>
             {currentCourses.map(course=>(
               <div key={course.code} id={"course-"+course.code} style={{...card,border:`1.5px solid ${openCourse===course.code?C.green:C.border}`,boxShadow:openCourse===course.code?`0 0 0 3px ${C.greenMid}`:"0 1px 4px rgba(0,0,0,0.05)",overflow:"hidden"}}>
                 <div onClick={()=>setOpenCourse(openCourse===course.code?null:course.code)}
@@ -3081,7 +3097,7 @@ export default function ChemBaseBUK() {
               {TOOLBOX_TOOLS.map(g=>(
                 <div key={g.group} style={{marginBottom:20}}>
                   <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1,margin:"0 4px 10px"}}>{g.group}</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  <div className="cb-grid2" style={{display:"flex",flexDirection:"column",gap:10}}>
                     {g.items.map(t=>(
                       <button key={t.id} onClick={()=>openTool(t.id)}
                         style={{...card,width:"100%",display:"flex",alignItems:"center",gap:14,padding:"14px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",color:C.ink,boxSizing:"border-box"}}>
