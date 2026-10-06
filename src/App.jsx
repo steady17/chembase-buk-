@@ -3526,6 +3526,11 @@ export default function ChemBaseBUK() {
 
               {toolboxView==="convert" && (
                 <div>
+                  <div style={{padding:"12px 14px",background:C.greenLight,border:`1px solid ${C.border}`,borderRadius:12,marginBottom:14,fontSize:12.5,lineHeight:1.6,color:C.ink}}>
+                    <div style={{fontWeight:"var(--fw-heavy)",color:C.green,marginBottom:3}}>📝 Use this to check your work</div>
+                    In the exam, you will do conversions by hand. Learn the conversion factors and practise writing the units in every step.
+                    <div style={{marginTop:6,color:C.muted}}>Tip: multiply by a fraction equal to 1, like (1 atm / 101.325 kPa), and let the units cancel.</div>
+                  </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
                     {Object.keys(UNIT_CATEGORIES).map(cat=>(
                       <button key={cat} onClick={()=>selectConvCategory(cat)}
