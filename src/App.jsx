@@ -1589,6 +1589,50 @@ Rules:
   }
 }
 
+// ── Sign-in + chat backup (Supabase Auth, email + password) ──
+const AUTH_KEY = "cb_auth";
+function authLoad(){ try{ return JSON.parse(localStorage.getItem(AUTH_KEY)||"null"); }catch{ return null; } }
+function authSave(a){ try{ if(a) localStorage.setItem(AUTH_KEY,JSON.stringify(a)); else localStorage.removeItem(AUTH_KEY); }catch{} }
+async function authCall(path, body, token){
+  const res = await fetch(`${SUPA_URL}/auth/v1${path}`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPA_ANON,...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify(body)});
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j.msg||j.error_description||j.message||"Something went wrong");
+  return j;
+}
+function authFromReply(j){
+  const a = {access:j.access_token,refresh:j.refresh_token,exp:Date.now()+((j.expires_in||3600)-60)*1000,email:(j.user&&j.user.email)||"",uid:j.user&&j.user.id};
+  authSave(a); return a;
+}
+async function authToken(){
+  let a = authLoad(); if(!a) throw new Error("Not signed in");
+  if(Date.now() > a.exp){
+    const j = await authCall("/token?grant_type=refresh_token",{refresh_token:a.refresh});
+    a = authFromReply(j);
+  }
+  return a;
+}
+async function cloudPull(){
+  const a = await authToken();
+  const res = await fetch(`${SUPA_URL}/rest/v1/chat_backups?user_id=eq.${a.uid}&select=data`,{headers:{apikey:SUPA_ANON,Authorization:`Bearer ${a.access}`}});
+  if(!res.ok) throw new Error("Could not reach your saved chats");
+  const rows = await res.json();
+  return rows[0] ? rows[0].data : [];
+}
+async function cloudPush(sessions){
+  const a = await authToken();
+  const res = await fetch(`${SUPA_URL}/rest/v1/chat_backups?on_conflict=user_id`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPA_ANON,Authorization:`Bearer ${a.access}`,Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:a.uid,data:sessions,updated_at:new Date().toISOString()})});
+  if(!res.ok) throw new Error("Backup failed");
+}
+function chatsForCloud(list){
+  // words only: pictures are never uploaded
+  const rep = (k,v) => (k==="content" && Array.isArray(v)) ? (v.filter(p=>p.type==="text").map(p=>p.text).join("\n") + " [picture not saved]").trim() : (k==="thumb"?"":v);
+  return JSON.parse(JSON.stringify(list,rep));
+}
+function mergeChats(a,b){
+  const m = new Map(); [...a,...b].forEach(x=>{ const o=m.get(x.id); if(!o||(x.updatedAt||0)>(o.updatedAt||0)) m.set(x.id,x); });
+  return [...m.values()];
+}
+
 async function supabaseRequest(path, method="GET", body=null) {
   const opts = {
     method,
@@ -1996,6 +2040,42 @@ export default function ChemBaseBUK() {
     try { return localStorage.getItem("chembot-active-session") || null; } catch { return null; }
   });
   const [showHistory, setShowHistory] = useState(false);
+  // account (sign-in + chat backup)
+  const [acct, setAcct] = useState(()=>authLoad());
+  const [authMode, setAuthMode] = useState("in"); // in | up
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPass, setAuthPass] = useState("");
+  const [authMsg, setAuthMsg] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [syncNote, setSyncNote] = useState("");
+  const syncReady = useRef(false);
+  const sessionsRef = useRef([]);
+  async function restoreFromCloud(){
+    const cloud = await cloudPull();
+    setChatSessions(prev=>mergeChats(prev, Array.isArray(cloud)?cloud:[]));
+    syncReady.current = true;
+  }
+  async function doAuth(){
+    if(authBusy) return;
+    const email = authEmail.trim().toLowerCase();
+    if(!/^\S+@\S+\.\S+$/.test(email)){ setAuthMsg("Enter a valid email."); return; }
+    if(authPass.length<6){ setAuthMsg("Password must be at least 6 characters."); return; }
+    setAuthBusy(true); setAuthMsg("");
+    try{
+      let j;
+      if(authMode==="up"){
+        j = await authCall("/signup",{email,password:authPass});
+        if(!j.access_token){ setAuthMsg("Account created. Check your email to confirm it, then sign in."); setAuthMode("in"); setAuthBusy(false); return; }
+      } else {
+        j = await authCall("/token?grant_type=password",{email,password:authPass});
+      }
+      const a = authFromReply(j); setAcct(a); setAuthPass("");
+      await restoreFromCloud();
+      setSyncNote("Your chats are backed up.");
+    }catch(e){ setAuthMsg(/invalid login/i.test(e.message)?"Wrong email or password.":e.message); }
+    setAuthBusy(false);
+  }
+  function doSignOut(){ authSave(null); setAcct(null); syncReady.current=false; setSyncNote(""); }
   const chatHistory = chatSessions.find(s=>s.id===activeSessionId)?.messages || [];
   // Writes to a specific session by id — never re-reads activeSessionId from the
   // outer closure, which can still be stale (null) on the second of two quick
@@ -2309,6 +2389,15 @@ export default function ChemBaseBUK() {
       else localStorage.removeItem("chembot-active-session");
     } catch {}
   }, [activeSessionId]);
+
+  // keep the cloud copy up to date while signed in (words only, a moment after each change)
+  useEffect(()=>{ sessionsRef.current = chatSessions; },[chatSessions]);
+  useEffect(()=>{ if(acct && !syncReady.current){ restoreFromCloud().then(()=>setSyncNote("Your chats are backed up.")).catch(()=>setSyncNote("Could not reach your backup — chats are still saved on this phone.")); } },[acct]);
+  useEffect(()=>{
+    if(!acct || !syncReady.current) return;
+    const t = setTimeout(()=>{ cloudPush(chatsForCloud(chatSessions)).then(()=>setSyncNote("Backed up just now.")).catch(()=>setSyncNote("Backup failed — will retry on the next change.")); }, 2500);
+    return ()=>clearTimeout(t);
+  },[chatSessions,acct]);
 
   useEffect(() => { loadQuestions(); }, []);
 
@@ -2902,6 +2991,27 @@ export default function ChemBaseBUK() {
                 <button onClick={()=>setShowHistory(false)} style={{background:"none",border:"none",color:C.muted,fontSize:18,cursor:"pointer"}}>✕</button>
               </div>
               <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
+                {/* Account: sign in to keep chats when you change phone */}
+                <div style={{background:C.card,border:`1.5px solid ${C.border}`,borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+                  {acct ? (
+                    <div>
+                      <div style={{fontSize:13,fontWeight:"var(--fw-heavy)",color:C.ink}}>☁️ Signed in</div>
+                      <div style={{fontSize:12,color:C.muted,marginTop:2,wordBreak:"break-all"}}>{acct.email}</div>
+                      {syncNote && <div style={{fontSize:11.5,color:C.green,marginTop:6}}>{syncNote}</div>}
+                      <button onClick={doSignOut} style={{marginTop:8,background:"none",border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer"}}>Sign out</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{fontSize:13,fontWeight:"var(--fw-heavy)",color:C.ink}}>☁️ Keep your chats safe</div>
+                      <div style={{fontSize:12,color:C.muted,margin:"2px 0 8px"}}>Sign in to get your chats back on a new phone. Only the words are saved, not pictures.</div>
+                      <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email" autoComplete="email" placeholder="Email" style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:9,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:14,marginBottom:6,fontFamily:"inherit"}}/>
+                      <input value={authPass} onChange={e=>setAuthPass(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doAuth();}} type="password" autoComplete={authMode==="up"?"new-password":"current-password"} placeholder="Password (6+ characters)" style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:9,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:14,marginBottom:8,fontFamily:"inherit"}}/>
+                      {authMsg && <div style={{fontSize:12,color:authMsg.startsWith("Account created")?C.green:"#c0392b",marginBottom:8}}>{authMsg}</div>}
+                      <button onClick={doAuth} disabled={authBusy} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"10px",borderRadius:9,fontWeight:"var(--fw-heavy)",fontSize:14,cursor:"pointer",opacity:authBusy?0.6:1}}>{authBusy?"Please wait…":authMode==="up"?"Create account":"Sign in"}</button>
+                      <button onClick={()=>{setAuthMode(authMode==="up"?"in":"up");setAuthMsg("");}} style={{marginTop:8,background:"none",border:"none",color:C.green,fontSize:12.5,cursor:"pointer",padding:0}}>{authMode==="up"?"I already have an account":"New here? Create an account"}</button>
+                    </div>
+                  )}
+                </div>
                 <button onClick={startNewChat} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"12px",borderRadius:10,fontWeight:"var(--fw-heavy)",fontSize:14,cursor:"pointer",marginBottom:14}}>+ Start New Chat</button>
                 {chatSessions.length===0 ? (
                   <div style={{textAlign:"center",color:C.muted,padding:30,fontSize:13}}>No conversations yet</div>
