@@ -2865,10 +2865,10 @@ export default function ChemBaseBUK() {
                 const dstr=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
                 const SPECIAL = {"2026-10-07":[
                   {k:"f", text:"The Haber–Bosch process makes the ammonia in fertilizer. Chemists invented it and chemical engineers scaled it up. It helps feed about half the people alive today."},
-                  {k:"t", text:"Try the past questions before you look at the answers. Testing yourself beats re-reading, and it shows you what the lecturer repeats."},
+                  {k:"t", text:"When solving an engineering problem, start with system → knowns → unknowns → assumptions → equations → units. A clear setup can make a difficult problem much easier."},
                   {k:"c", text:"Chemical engineering is one of the most flexible degrees. Graduates work in oil and gas, food, medicine, water, energy, finance and tech. Whatever you enjoy, there is a place for you."},
-                  {k:"m", text:"Every plant, every medicine and every clean glass of water was designed by someone who once sat where you sit now."},
-                  {k:"d", text:"Catalyst: a substance that speeds up a reaction without being used up. The catalytic converter in a car uses one to turn poisonous exhaust gases into safer ones."},
+                  {k:"m", text:"That difficult equation you're avoiding today may become the skill someone pays you for tomorrow."},
+                  {k:"d", text:"Heat exchanger: a device that moves heat from a hot fluid to a cold one without mixing them. The radiator in a car is one."},
                 ]};
                 const picks=SPECIAL[dstr]||[
                   {k:"f", text:FUN_FACTS.concat(MORE_FUN)[day%(FUN_FACTS.length+MORE_FUN.length)]},
