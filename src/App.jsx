@@ -2639,12 +2639,7 @@ export default function ChemBaseBUK() {
         div[style*="position: fixed"][style*="inset: 62px"] { top: 68px !important; }
         div[style*="position: fixed"][style*="inset: 62px"] > * { max-width: 1040px; width: 100%; margin-left: auto !important; margin-right: auto !important; box-sizing: border-box; }
         /* bottom menu: keep the buttons together in the middle instead of spread across the hall */
-        nav[style*="position: fixed"] { display: none !important; }
-        .cb-topnav { display: flex !important; gap: 4px; }
-        div[style*="padding-bottom: 80px"] { padding-bottom: 28px !important; }
-        div[style*="position: fixed"][style*="inset: 62px"] { bottom: 0 !important; }
       }
-      .cb-topnav { display: none; }
       :root { --z: 1; }
       @media (min-width: 1000px) { :root { --z: 1.2; } html { zoom: 1.2; } }
       @media (min-width: 1500px) { :root { --z: 1.3; } html { zoom: 1.3; } }
@@ -2669,14 +2664,6 @@ export default function ChemBaseBUK() {
             <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>NSChE · BUK Chapter</div>
           </div>
         </div>
-        {wide&&<div className="cb-topnav">
-          {navItems.map(n=>(
-            <button key={n.id} onClick={()=>{ if(n.id==="toolbox" && tab==="toolbox") setToolboxView(null); setTab(n.id); }}
-              style={{background:tab===n.id?"rgba(255,255,255,0.20)":"transparent",border:"none",borderRadius:10,padding:"7px 14px",cursor:"pointer",color:"#fff",opacity:tab===n.id?1:0.82,fontSize:13.5,fontWeight:tab===n.id?700:500,display:"flex",alignItems:"center",gap:7,fontFamily:"inherit"}}>
-              <span style={{fontSize:16}}>{n.icon}</span>{n.label}
-            </button>
-          ))}
-        </div>}
         <button onClick={()=>setDark(!dark)} style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:16,color:"#fff"}}>{dark?"☀️":"🌙"}</button>
       </nav>
 
