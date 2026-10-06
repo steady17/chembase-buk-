@@ -1629,23 +1629,6 @@ function chatsForCloud(list){
   const rep = (k,v) => (k==="content" && Array.isArray(v)) ? (v.filter(p=>p.type==="text").map(p=>p.text).join("\n") + " [picture not saved]").trim() : (k==="thumb"?"":v);
   return JSON.parse(JSON.stringify(list,rep));
 }
-function googleStart(){
-  const back = window.location.origin + "/";
-  window.location.href = `${SUPA_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(back)}`;
-}
-async function googleFinish(){
-  // coming back from Google: the tokens are in the address after the #
-  const h = window.location.hash || "";
-  if(!/access_token=/.test(h)) return null;
-  const q = new URLSearchParams(h.replace(/^#/,""));
-  const access = q.get("access_token"), refresh = q.get("refresh_token");
-  try{ history.replaceState(null,"",window.location.pathname+window.location.search); }catch{}
-  if(!access) return null;
-  const res = await fetch(`${SUPA_URL}/auth/v1/user`,{headers:{apikey:SUPA_ANON,Authorization:`Bearer ${access}`}});
-  if(!res.ok) return null;
-  const u = await res.json();
-  return authFromReply({access_token:access,refresh_token:refresh,expires_in:Number(q.get("expires_in"))||3600,user:u});
-}
 function mergeChats(a,b){
   const m = new Map(); [...a,...b].forEach(x=>{ const o=m.get(x.id); if(!o||(x.updatedAt||0)>(o.updatedAt||0)) m.set(x.id,x); });
   return [...m.values()];
@@ -2409,7 +2392,6 @@ export default function ChemBaseBUK() {
   }, [activeSessionId]);
 
   // keep the cloud copy up to date while signed in (words only, a moment after each change)
-  useEffect(()=>{ googleFinish().then(a=>{ if(a){ setAcct(a); setTab("ai"); } }).catch(()=>{}); },[]);
   useEffect(()=>{ sessionsRef.current = chatSessions; },[chatSessions]);
   useEffect(()=>{ if(acct && !syncReady.current){ restoreFromCloud().then(()=>setSyncNote("Your chats are backed up.")).catch(()=>setSyncNote("Could not reach your backup — chats are still saved on this phone.")); } },[acct]);
   useEffect(()=>{
@@ -3027,8 +3009,6 @@ export default function ChemBaseBUK() {
                       <input value={authPass} onChange={e=>setAuthPass(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doAuth();}} type="password" autoComplete={authMode==="up"?"new-password":"current-password"} placeholder="Password (6+ characters)" style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:9,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:14,marginBottom:8,fontFamily:"inherit"}}/>
                       {authMsg && <div style={{fontSize:12,color:authMsg.startsWith("Account created")?C.green:"#c0392b",marginBottom:8}}>{authMsg}</div>}
                       <button onClick={doAuth} disabled={authBusy} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"10px",borderRadius:9,fontWeight:"var(--fw-heavy)",fontSize:14,cursor:"pointer",opacity:authBusy?0.6:1}}>{authBusy?"Please wait…":authMode==="up"?"Create account":"Sign in"}</button>
-                      <div style={{textAlign:"center",fontSize:11.5,color:C.muted,margin:"8px 0"}}>or</div>
-                      <button onClick={googleStart} style={{width:"100%",background:"#fff",color:"#3c4043",border:"1.5px solid #dadce0",padding:"10px",borderRadius:9,fontWeight:600,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.5 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.5 7l7.1 5.5c4.2-3.9 6.6-9.6 6.6-17z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.1-5.5c-2 1.4-4.9 2.3-8.8 2.3-6.3 0-11.6-4-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Continue with Google</button>
                       <button onClick={()=>{setAuthMode(authMode==="up"?"in":"up");setAuthMsg("");}} style={{marginTop:8,background:"none",border:"none",color:C.green,fontSize:12.5,cursor:"pointer",padding:0}}>{authMode==="up"?"I already have an account":"New here? Create an account"}</button>
                     </div>
                   )}
