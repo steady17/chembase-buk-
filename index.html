@@ -17,6 +17,23 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   </head>
   <body style="margin:0;padding:0;">
+    <div id="splash" aria-hidden="true" style="position:fixed;inset:0;z-index:99999;background:#fefefe;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .35s ease;">
+      <img src="/icon-512.png" alt="" style="width:min(56vw,260px);height:auto;display:block;margin-top:-4vh;" />
+      <div style="position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 9vh);text-align:center;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;">
+        <div style="font-size:24px;font-weight:800;letter-spacing:.4px;color:#0e7a3c;">ChemBase BUK</div>
+        <div style="font-size:12px;letter-spacing:.8px;color:#6b7a70;margin-top:6px;">NSChE · Bayero University Kano</div>
+      </div>
+    </div>
+    <script>
+      (function(){
+        var t0=Date.now(), el=document.getElementById('splash');
+        function hide(){ if(!el) return; var e=el; el=null; e.style.opacity='0'; e.style.pointerEvents='none'; setTimeout(function(){ if(e.parentNode) e.parentNode.removeChild(e); },400); }
+        var iv=setInterval(function(){
+          var r=document.getElementById('root'), age=Date.now()-t0;
+          if((r && r.childElementCount>0 && age>=1100) || age>3500){ clearInterval(iv); hide(); }
+        },100);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
