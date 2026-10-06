@@ -537,109 +537,6 @@ const PERIODIC_TABLE = [
 ].map(([num,sym,name,mass])=>({num,sym,name,mass}));
 
 // The vertical tool list shown on the Toolbox landing screen.
-// ── Reaction balancer (pure functions) ──
-const BAL_SYMBOLS = new Set("H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc Lv Ts Og".split(" "));
-function balNormalize(s){
-  return s.replace(/[₀-₉]/g,c=>String(c.charCodeAt(0)-0x2080)).replace(/[→⇒⟶➔]/g,"->").replace(/[·•∙*]/g,".").replace(/\s+/g," ").trim();
-}
-function balParseFormula(f){
-  // returns {El:count}; supports (), [], and hydrates like CuSO4.5H2O
-  const parts = f.split(".");
-  const total = {};
-  parts.forEach((part,pi)=>{
-    let mult = 1;
-    const m = part.match(/^(\d+)(.*)$/);
-    if(pi>0 && m){ mult = parseInt(m[1],10); part = m[2]; }
-    else if(pi===0 && m){ throw new Error(`"${f}" starts with a number. Type only the formula, like H2O.`); }
-    let i = 0;
-    function parseGroup(close){
-      const out = {};
-      while(i<part.length){
-        const ch = part[i];
-        if(ch==="("||ch==="["){
-          i++; const inner = parseGroup(ch==="("?")":"]");
-          let n = ""; while(i<part.length && /\d/.test(part[i])) n += part[i++];
-          const k = n?parseInt(n,10):1;
-          for(const e in inner) out[e] = (out[e]||0)+inner[e]*k;
-        } else if(ch===")"||ch==="]"){
-          if(ch!==close) throw new Error(`Brackets do not match in ${f}.`);
-          i++; return out;
-        } else if(/[A-Z]/.test(ch)){
-          let el = ch; i++;
-          if(i<part.length && /[a-z]/.test(part[i])){ el += part[i]; i++; }
-          if(!BAL_SYMBOLS.has(el)) throw new Error(`"${el}" is not an element (in ${f}). Check capital and small letters, like Co and CO.`);
-          let n = ""; while(i<part.length && /\d/.test(part[i])) n += part[i++];
-          out[el] = (out[el]||0)+(n?parseInt(n,10):1);
-        } else {
-          throw new Error(`Cannot read "${ch}" in ${f}.`);
-        }
-      }
-      if(close) throw new Error(`Brackets do not match in ${f}.`);
-      return out;
-    }
-    const g = parseGroup(null);
-    for(const e in g) total[e] = (total[e]||0)+g[e]*mult;
-  });
-  if(!Object.keys(total).length) throw new Error("Empty formula.");
-  return total;
-}
-function balGcd(a,b){ a=a<0n?-a:a; b=b<0n?-b:b; while(b){ [a,b]=[b,a%b]; } return a; }
-function balSolve(matrix, ncols){
-  // fraction-free nullspace via BigInt Gaussian elimination; returns null space basis (array of integer vectors)
-  const rows = matrix.map(r=>r.map(x=>BigInt(x)));
-  const pivots = []; let r = 0;
-  for(let c=0;c<ncols && r<rows.length;c++){
-    let p = -1; for(let k=r;k<rows.length;k++){ if(rows[k][c]!==0n){ p=k; break; } }
-    if(p<0) continue;
-    [rows[r],rows[p]] = [rows[p],rows[r]];
-    for(let k=0;k<rows.length;k++){
-      if(k===r || rows[k][c]===0n) continue;
-      const a = rows[r][c], b = rows[k][c];
-      for(let j=0;j<ncols;j++) rows[k][j] = rows[k][j]*a - rows[r][j]*b;
-      let g = 0n; for(let j=0;j<ncols;j++) g = balGcd(g,rows[k][j]);
-      if(g>1n) for(let j=0;j<ncols;j++) rows[k][j] /= g;
-    }
-    pivots.push(c); r++;
-  }
-  const free = []; for(let c=0;c<ncols;c++) if(!pivots.includes(c)) free.push(c);
-  const basis = free.map(fc=>{
-    // x_fc = D, pivot vars = -row[fc]*D/row[pivot]; use D = product of pivot entries (lcm-ish), then reduce
-    let D = 1n; pivots.forEach((pc,ri)=>{ const a = rows[ri][pc]<0n?-rows[ri][pc]:rows[ri][pc]; D = D*a/balGcd(D,a); });
-    const v = new Array(ncols).fill(0n); v[fc] = D;
-    pivots.forEach((pc,ri)=>{ v[pc] = -rows[ri][fc]*D/rows[ri][pc]; });
-    let g = 0n; v.forEach(x=>{ g = balGcd(g,x); }); if(g>1n) for(let j=0;j<ncols;j++) v[j]/=g;
-    return v;
-  });
-  return basis;
-}
-function balSubDigits(t){ return t.replace(/\d+/g,d=>d.split("").map(x=>"₀₁₂₃₄₅₆₇₈₉"[x]).join("")); }
-function balSub(f){ return f.split(".").map((p,i)=> i>0 ? p.replace(/^(\d*)(.*)$/,(m,a,b)=>a+balSubDigits(b)) : balSubDigits(p)).join("·"); }
-function balanceEquation(input){
-  const s = balNormalize(input);
-  const arrow = s.match(/->|=>|=|-->/);
-  if(!arrow) throw new Error("Put an arrow between the two sides, like H2 + O2 -> H2O.");
-  const [L,R] = [s.slice(0,arrow.index), s.slice(arrow.index+arrow[0].length)];
-  const side = t => t.split("+").map(x=>x.trim().replace(/^\d+\s*/,"")).filter(Boolean);
-  const left = side(L), right = side(R);
-  if(!left.length || !right.length) throw new Error("Both sides need at least one substance.");
-  const all = left.concat(right);
-  const comps = all.map(balParseFormula);
-  const els = [...new Set(comps.flatMap(c=>Object.keys(c)))];
-  const onlyL = els.filter(e=>!right.some((_,i)=>comps[left.length+i][e])), onlyR = els.filter(e=>!left.some((_,i)=>comps[i][e]));
-  if(onlyL.length||onlyR.length) throw new Error(`${(onlyL.concat(onlyR)).join(", ")} appears on one side only, so this cannot balance. Check the formulas.`);
-  const matrix = els.map(e=>all.map((_,j)=>(j<left.length?1:-1)*(comps[j][e]||0)));
-  const basis = balSolve(matrix, all.length);
-  if(basis.length===0) throw new Error("This cannot be balanced. Check the formulas.");
-  if(basis.length>1) throw new Error("This has more than one possible answer (the reactions are mixed). Try one reaction at a time.");
-  let v = basis[0];
-  if(v.some(x=>x<0n)) v = v.map(x=>-x);
-  if(v.some(x=>x<=0n)) throw new Error("This cannot be balanced with whole positive numbers. Check the formulas.");
-  const co = v.map(x=>Number(x));
-  const fmt = (arr,off)=>arr.map((f,i)=>(co[off+i]===1?"":co[off+i]+" ")+balSub(f)).join(" + ");
-  const count = (off,n)=>els.map(e=>{ let t=0; for(let i=0;i<n;i++) t += (comps[off+i][e]||0)*co[off+i]; return t; });
-  return { equation: `${fmt(left,0)} → ${fmt(right,left.length)}`, elements: els, leftCount: count(0,left.length), rightCount: count(left.length,right.length), coefficients: co };
-}
-
 const TOOLBOX_TOOLS = [
   { group:"Academics", items:[
     { id:"gpa", icon:"🧮", title:"GPA Calculator", desc:"Work out your GPA on the BUK 5-point scale" },
@@ -654,7 +551,6 @@ const TOOLBOX_TOOLS = [
     { id:"reynolds", icon:"🌊", title:"Reynolds Number", desc:"Re = ρvD/μ: laminar, transitional or turbulent" },
     { id:"gas",      icon:"🎈", title:"Ideal Gas Law",   desc:"PV = nRT: solve for P, V, n or T" },
     { id:"antoine",  icon:"🌡️", title:"Vapor Pressure",  desc:"Antoine equation for common solvents" },
-    { id:"balance",  icon:"⚖️", title:"Reaction Balancer", desc:"Type a reaction and get it balanced" },
   ]},
 ];
 
@@ -2105,7 +2001,6 @@ export default function ChemBaseBUK() {
   const [convFromUnit, setConvFromUnit] = useState("m");
   const [convToUnit, setConvToUnit]     = useState("ft");
   const [convValue, setConvValue]       = useState("");
-  const [balInput, setBalInput] = useState("C3H8 + O2 -> CO2 + H2O");
   const [reynolds, setReynolds] = useState({density:"",velocity:"",diameter:"",viscosity:""});
   const [idealGas, setIdealGas] = useState({solveFor:"P",P:"",V:"",n:"",T:""});
   const [antoine, setAntoine]   = useState({substance:"water",T:""});
@@ -3792,40 +3687,6 @@ export default function ChemBaseBUK() {
                   </div>
                 </div>
               )}
-
-              {toolboxView==="balance" && (() => {
-                let res = null, err = "";
-                if(balInput.trim()){ try{ res = balanceEquation(balInput); }catch(e){ err = e.message; } }
-                const ex = ["H2 + O2 -> H2O","C3H8 + O2 -> CO2 + H2O","Fe + O2 -> Fe2O3","Al + HCl -> AlCl3 + H2","KMnO4 + HCl -> KCl + MnCl2 + H2O + Cl2"];
-                return (
-                <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                  <div style={{...card,padding:16}}>
-                    <div style={{fontSize:12,color:C.muted,marginBottom:6,fontWeight:600}}>Type the reaction (use -> for the arrow)</div>
-                    <input value={balInput} onChange={e=>setBalInput(e.target.value)} autoCapitalize="off" autoCorrect="off" spellCheck={false} placeholder="H2 + O2 -> H2O"
-                      style={{width:"100%",boxSizing:"border-box",padding:"12px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:16,fontFamily:"inherit"}}/>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>
-                      {ex.map(x=>(<button key={x} onClick={()=>setBalInput(x)} style={{background:C.greenLight,border:`1px solid ${C.border}`,color:C.green,borderRadius:16,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{x.replace("->","→")}</button>))}
-                    </div>
-                  </div>
-                  {res && (<>
-                    <ToolResult label="Balanced equation" value={res.equation}/>
-                    <div style={{...card,padding:16}}>
-                      <div style={{fontSize:12,color:C.muted,marginBottom:8,fontWeight:600}}>Check: atoms on each side</div>
-                      {res.elements.map((e,i)=>(
-                        <div key={e} style={{display:"flex",justifyContent:"space-between",fontSize:14,padding:"5px 0",borderTop:i?`1px solid ${C.border}`:"none"}}>
-                          <span style={{fontWeight:"var(--fw-heavy)"}}>{e}</span>
-                          <span>{res.leftCount[i]} = {res.rightCount[i]} ✓</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>)}
-                  {err && <div style={{padding:"12px 16px",background:"#fdecea",color:"#b3261e",borderRadius:10,fontSize:13,lineHeight:1.5}}>{err}</div>}
-                  <div style={{padding:"12px 16px",background:C.greenLight,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.6}}>
-                    Write each substance as a formula, with capital and small letters exactly (Co is cobalt, CO is carbon monoxide). Brackets like Ca(OH)2 work. Ions and charges are not supported.
-                  </div>
-                </div>
-                );
-              })()}
 
               {toolboxView==="gas" && (
                 <div style={{display:"flex",flexDirection:"column",gap:14}}>
