@@ -35,7 +35,7 @@
         function hide(){ if(!el) return; var e=el; el=null; e.style.opacity='0'; e.style.pointerEvents='none'; setTimeout(function(){ if(e.parentNode) e.parentNode.removeChild(e); },400); }
         var iv=setInterval(function(){
           var r=document.getElementById('root'), age=Date.now()-t0;
-          if((r && r.childElementCount>0 && age>=700) || age>3500){ clearInterval(iv); hide(); }
+          if((r && r.childElementCount>0 && age>=2200) || age>4500){ clearInterval(iv); hide(); }
         },100);
       })();
     </script>
