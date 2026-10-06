@@ -1629,6 +1629,23 @@ function chatsForCloud(list){
   const rep = (k,v) => (k==="content" && Array.isArray(v)) ? (v.filter(p=>p.type==="text").map(p=>p.text).join("\n") + " [picture not saved]").trim() : (k==="thumb"?"":v);
   return JSON.parse(JSON.stringify(list,rep));
 }
+async function authRecover(email){
+  const res = await fetch(`${SUPA_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(window.location.origin+"/")}`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPA_ANON},body:JSON.stringify({email})});
+  if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.msg||j.error_description||"Could not send the email"); }
+}
+function recoveryFromUrl(){
+  const h = window.location.hash||"";
+  if(!/type=recovery/.test(h)) return null;
+  const q = new URLSearchParams(h.replace(/^#/,""));
+  try{ history.replaceState(null,"",window.location.pathname+window.location.search); }catch{}
+  return {access:q.get("access_token"),refresh:q.get("refresh_token"),exp:Number(q.get("expires_in"))||3600};
+}
+async function authSetPassword(rec,password){
+  const res = await fetch(`${SUPA_URL}/auth/v1/user`,{method:"PUT",headers:{"Content-Type":"application/json",apikey:SUPA_ANON,Authorization:`Bearer ${rec.access}`},body:JSON.stringify({password})});
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j.msg||j.error_description||"Could not change password");
+  return authFromReply({access_token:rec.access,refresh_token:rec.refresh,expires_in:rec.exp,user:j});
+}
 function mergeChats(a,b){
   const m = new Map(); [...a,...b].forEach(x=>{ const o=m.get(x.id); if(!o||(x.updatedAt||0)>(o.updatedAt||0)) m.set(x.id,x); });
   return [...m.values()];
@@ -2049,6 +2066,23 @@ export default function ChemBaseBUK() {
   const [authMsg, setAuthMsg] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [syncNote, setSyncNote] = useState("");
+  const [recov, setRecov] = useState(null);
+  useEffect(()=>{ const r=recoveryFromUrl(); if(r){ setRecov(r); setTab("ai"); setShowHistory(true); setAuthMsg(""); } },[]);
+  async function doForgot(){
+    const email = authEmail.trim().toLowerCase();
+    if(!/^\S+@\S+\.\S+$/.test(email)){ setAuthMsg("Type your email above first."); return; }
+    setAuthBusy(true); setAuthMsg("");
+    try{ await authRecover(email); setAuthMsg("Done. Check your email for the reset link (look in Spam too)."); }
+    catch(e){ setAuthMsg(e.message); }
+    setAuthBusy(false);
+  }
+  async function doNewPass(){
+    if(authPass.length<6){ setAuthMsg("Password must be at least 6 characters."); return; }
+    setAuthBusy(true); setAuthMsg("");
+    try{ const a = await authSetPassword(recov,authPass); setAcct(a); setRecov(null); setAuthPass(""); }
+    catch(e){ setAuthMsg(e.message); }
+    setAuthBusy(false);
+  }
   const syncReady = useRef(false);
   const sessionsRef = useRef([]);
   async function restoreFromCloud(){
@@ -2994,7 +3028,14 @@ export default function ChemBaseBUK() {
               <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
                 {/* Account: sign in to keep chats when you change phone */}
                 <div style={{background:C.card,border:`1.5px solid ${C.border}`,borderRadius:12,padding:"12px 14px",marginBottom:14}}>
-                  {acct ? (
+                  {recov ? (
+                    <div>
+                      <div style={{fontSize:13,fontWeight:"var(--fw-heavy)",color:C.ink}}>🔑 Choose a new password</div>
+                      <input value={authPass} onChange={e=>setAuthPass(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doNewPass();}} type="password" autoComplete="new-password" placeholder="New password (6+ characters)" style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:9,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:14,margin:"8px 0",fontFamily:"inherit"}}/>
+                      {authMsg && <div style={{fontSize:12,color:"#c0392b",marginBottom:8}}>{authMsg}</div>}
+                      <button onClick={doNewPass} disabled={authBusy} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"10px",borderRadius:9,fontWeight:"var(--fw-heavy)",fontSize:14,cursor:"pointer",opacity:authBusy?0.6:1}}>{authBusy?"Please wait…":"Save new password"}</button>
+                    </div>
+                  ) : acct ? (
                     <div>
                       <div style={{fontSize:13,fontWeight:"var(--fw-heavy)",color:C.ink}}>☁️ Signed in</div>
                       <div style={{fontSize:12,color:C.muted,marginTop:2,wordBreak:"break-all"}}>{acct.email}</div>
@@ -3007,8 +3048,9 @@ export default function ChemBaseBUK() {
                       <div style={{fontSize:12,color:C.muted,margin:"2px 0 8px"}}>Sign in to get your chats back on a new phone. Only the words are saved, not pictures.</div>
                       <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email" autoComplete="email" placeholder="Email" style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:9,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:14,marginBottom:6,fontFamily:"inherit"}}/>
                       <input value={authPass} onChange={e=>setAuthPass(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doAuth();}} type="password" autoComplete={authMode==="up"?"new-password":"current-password"} placeholder="Password (6+ characters)" style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:9,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:14,marginBottom:8,fontFamily:"inherit"}}/>
-                      {authMsg && <div style={{fontSize:12,color:authMsg.startsWith("Account created")?C.green:"#c0392b",marginBottom:8}}>{authMsg}</div>}
+                      {authMsg && <div style={{fontSize:12,color:/^Account created|^Done|reset link/.test(authMsg)?C.green:"#c0392b",marginBottom:8}}>{authMsg}</div>}
                       <button onClick={doAuth} disabled={authBusy} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"10px",borderRadius:9,fontWeight:"var(--fw-heavy)",fontSize:14,cursor:"pointer",opacity:authBusy?0.6:1}}>{authBusy?"Please wait…":authMode==="up"?"Create account":"Sign in"}</button>
+                      {authMode==="in" && <button onClick={doForgot} disabled={authBusy} style={{display:"block",marginTop:8,background:"none",border:"none",color:C.muted,fontSize:12.5,cursor:"pointer",padding:0,textDecoration:"underline"}}>Forgot password?</button>}
                       <button onClick={()=>{setAuthMode(authMode==="up"?"in":"up");setAuthMsg("");}} style={{marginTop:8,background:"none",border:"none",color:C.green,fontSize:12.5,cursor:"pointer",padding:0}}>{authMode==="up"?"I already have an account":"New here? Create an account"}</button>
                     </div>
                   )}
