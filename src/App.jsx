@@ -3045,7 +3045,7 @@ export default function ChemBaseBUK() {
                   ) : (
                     <div>
                       <div style={{fontSize:13,fontWeight:"var(--fw-heavy)",color:C.ink}}>☁️ Keep your chats safe</div>
-                      <div style={{fontSize:12,color:C.muted,margin:"2px 0 8px"}}>Sign in to get your chats back on a new phone. Only the words are saved, not pictures.</div>
+                      <div style={{fontSize:12,color:C.muted,margin:"2px 0 8px"}}>Sign in to get your chats back on a new phone.</div>
                       <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email" autoComplete="email" placeholder="Email" style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:9,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:14,marginBottom:6,fontFamily:"inherit"}}/>
                       <input value={authPass} onChange={e=>setAuthPass(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")doAuth();}} type="password" autoComplete={authMode==="up"?"new-password":"current-password"} placeholder="Password (6+ characters)" style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:9,border:`1.5px solid ${C.border}`,background:C.bg,color:C.ink,fontSize:14,marginBottom:8,fontFamily:"inherit"}}/>
                       {authMsg && <div style={{fontSize:12,color:/^Account created|^Done|reset link/.test(authMsg)?C.green:"#c0392b",marginBottom:8}}>{authMsg}</div>}
@@ -3230,7 +3230,7 @@ export default function ChemBaseBUK() {
                 <div style={{fontSize:34,lineHeight:1}}>🧰</div>
                 <div style={{minWidth:0}}>
                   <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)"}}>ChemE Toolbox</div>
-                  <div style={{fontSize:12.5,opacity:0.88,marginTop:2}}>Calculators, converters and quick references.</div>
+                  <div style={{fontSize:12.5,opacity:0.88,marginTop:2}}>Quick tools for your coursework.</div>
                 </div>
               </div>
               {TOOLBOX_TOOLS.map(g=>(
