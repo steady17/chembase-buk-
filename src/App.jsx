@@ -2626,7 +2626,21 @@ export default function ChemBaseBUK() {
       :root { --fw-xheavy: 800; --fw-heavy: 700; }
       @media (min-width: 900px) {
         :root { --fw-xheavy: 700; --fw-heavy: 600; }
+        /* Computer / projector: use the width, and make everything bigger so a hall can read it */
+        [style*="max-width: 700px"], [style*="max-width: 720px"], [style*="max-width: 600px"] { max-width: 1040px !important; }
+        .cb-qa { grid-template-columns: repeat(4, 1fr) !important; }
+        .cb-hero { padding: 16px 24px 40px !important; }
+        .cb-hero img { width: 84px !important; height: 84px !important; }
+        /* ChemBot: keep the chat in a readable centred column, and clear the taller top bar */
+        div[style*="position: fixed"][style*="inset: 62px"] { top: 68px !important; }
+        div[style*="position: fixed"][style*="inset: 62px"] > * { max-width: 1040px; width: 100%; margin-left: auto !important; margin-right: auto !important; box-sizing: border-box; }
+        /* bottom menu: keep the buttons together in the middle instead of spread across the hall */
+        nav[style*="position: fixed"] { justify-content: center !important; gap: 56px; }
+        nav[style*="position: fixed"] > button { min-width: 84px; }
       }
+      @media (min-width: 1000px) { html { zoom: 1.2; } }
+      @media (min-width: 1500px) { html { zoom: 1.3; } }
+      @media (min-width: 1900px) { html { zoom: 1.5; } }
     `}</style>
     <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:C.bg,color:C.ink,paddingBottom:tab==="ai"?0:80,overflow:tab==="ai"?"hidden":"auto",transition:"background 0.3s,color 0.3s"}}>
 
@@ -2645,7 +2659,7 @@ export default function ChemBaseBUK() {
       {/* HOME */}
       {tab==="home" && (
         <div>
-          <div style={{background:`radial-gradient(circle at 80% 0%,rgba(255,255,255,0.16) 0%,rgba(255,255,255,0) 45%),linear-gradient(150deg,${LIGHT.greenDark} 0%,${LIGHT.green} 65%,#22b05f 100%)`,padding:"36px 24px 52px",textAlign:"center",position:"relative",overflow:"hidden",borderRadius:"0 0 32px 32px",boxShadow:"0 10px 28px rgba(8,92,44,0.25)"}}>
+          <div className="cb-hero" style={{background:`radial-gradient(circle at 80% 0%,rgba(255,255,255,0.16) 0%,rgba(255,255,255,0) 45%),linear-gradient(150deg,${LIGHT.greenDark} 0%,${LIGHT.green} 65%,#22b05f 100%)`,padding:"36px 24px 52px",textAlign:"center",position:"relative",overflow:"hidden",borderRadius:"0 0 32px 32px",boxShadow:"0 10px 28px rgba(8,92,44,0.25)"}}>
             <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.13) 1.2px, transparent 1.4px)",backgroundSize:"18px 18px",opacity:0.55,pointerEvents:"none"}}/>
             <div style={{position:"absolute",top:-55,right:-55,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.07)"}}/>
             <div style={{position:"absolute",bottom:-55,left:-55,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.07)"}}/>
@@ -2695,7 +2709,7 @@ export default function ChemBaseBUK() {
           {!isGlobalSearch && (
             <div style={{padding:"16px 16px 0",maxWidth:600,margin:"0 auto"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16,marginBottom:14}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Quick Access</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div className="cb-qa" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[
                   {icon:"📂",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
                   {icon:"🤖",title:"ChemBot AI",desc:"AI study assistant",action:()=>setTab("ai"),color:dark?"#64b5f6":"#1565c0"},
