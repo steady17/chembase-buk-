@@ -3230,7 +3230,7 @@ export default function ChemBaseBUK() {
                 <div style={{fontSize:34,lineHeight:1}}>🧰</div>
                 <div style={{minWidth:0}}>
                   <div style={{fontSize:20,fontWeight:"var(--fw-xheavy)"}}>ChemE Toolbox</div>
-                  
+                  <div style={{fontSize:12.5,opacity:0.88,marginTop:2}}>Calculators, converters and quick references.</div>
                 </div>
               </div>
               {TOOLBOX_TOOLS.map(g=>(
