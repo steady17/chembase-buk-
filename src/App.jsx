@@ -2638,9 +2638,18 @@ export default function ChemBaseBUK() {
         nav[style*="position: fixed"] { justify-content: center !important; gap: 56px; }
         nav[style*="position: fixed"] > button { min-width: 84px; }
       }
-      @media (min-width: 1000px) { html { zoom: 1.2; } }
-      @media (min-width: 1500px) { html { zoom: 1.3; } }
-      @media (min-width: 1900px) { html { zoom: 1.5; } }
+      :root { --z: 1; }
+      @media (min-width: 1000px) { :root { --z: 1.2; } html { zoom: 1.2; } }
+      @media (min-width: 1500px) { :root { --z: 1.3; } html { zoom: 1.3; } }
+      @media (min-width: 1900px) { :root { --z: 1.5; } html { zoom: 1.5; } }
+      @media (min-width: 1000px) {
+        /* screen-height sizes must be divided by the zoom, or pages and pop-ups grow taller than the screen */
+        div[style*="min-height: 100vh"] { min-height: calc(100vh / var(--z)) !important; }
+        div[style*="max-height: 86vh"] { max-height: calc(88vh / var(--z)) !important; box-sizing: border-box !important; }
+        div[style*="max-width: 420px"] { max-width: 540px !important; }
+        .cb-sheet-bg { align-items: center !important; }
+        .cb-sheet { border-radius: 22px !important; max-width: 600px !important; }
+      }
     `}</style>
     <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",minHeight:"100vh",background:C.bg,color:C.ink,paddingBottom:tab==="ai"?0:80,overflow:tab==="ai"?"hidden":"auto",transition:"background 0.3s,color 0.3s"}}>
 
@@ -3453,8 +3462,8 @@ export default function ChemBaseBUK() {
                   )}
 
                   {sel && (
-                    <div onClick={()=>setElSel(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-                      <div onClick={e=>e.stopPropagation()} className="cb-rise" style={{width:"100%",maxWidth:520,maxHeight:"86vh",overflowY:"auto",background:C.card,color:C.ink,borderRadius:"22px 22px 0 0",padding:"18px 18px 28px",boxShadow:"0 -8px 30px rgba(0,0,0,0.35)"}}>
+                    <div className="cb-sheet-bg" onClick={()=>setElSel(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+                      <div onClick={e=>e.stopPropagation()} className="cb-rise cb-sheet" style={{width:"100%",maxWidth:520,maxHeight:"86vh",overflowY:"auto",background:C.card,color:C.ink,borderRadius:"22px 22px 0 0",padding:"18px 18px 28px",boxShadow:"0 -8px 30px rgba(0,0,0,0.35)"}}>
                         <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
                           <div style={{width:78,height:86,borderRadius:12,border:`2px solid ${EL_CAT_COLOR[si.c]}`,background:EL_CAT_COLOR[si.c]+"2e",padding:"5px 7px",boxSizing:"border-box",flexShrink:0}}>
                             <div style={{fontSize:12,color:C.muted}}>{sel.num}</div>
