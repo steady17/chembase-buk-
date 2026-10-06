@@ -33,7 +33,7 @@ async function callOpenRouter(messages, orKey, model, maxTokens = 3500) {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${orKey}`,
-      'HTTP-Referer': 'https://chembase-buk-qmxr.vercel.app',
+      'HTTP-Referer': 'https://chembase-buk.vercel.app',
       'X-Title': 'ChemBase BUK'
     },
     body: JSON.stringify({
