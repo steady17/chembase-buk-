@@ -2641,7 +2641,6 @@ export default function ChemBaseBUK() {
         /* bottom menu: keep the buttons together in the middle instead of spread across the hall */
         nav[style*="position: fixed"] { display: none !important; }
         .cb-topnav { display: flex !important; gap: 4px; }
-        .cb-grid2 { display: grid !important; grid-template-columns: 1fr 1fr; gap: 12px !important; align-items: start; }
         div[style*="padding-bottom: 80px"] { padding-bottom: 28px !important; }
         div[style*="position: fixed"][style*="inset: 62px"] { bottom: 0 !important; }
       }
@@ -2836,7 +2835,7 @@ export default function ChemBaseBUK() {
               style={{width:"100%",padding:"10px 16px 10px 36px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:14,outline:"none",boxSizing:"border-box",background:C.card,color:C.ink}}/>
           </div>
 
-          <div className="cb-grid2" style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {currentCourses.map(course=>(
               <div key={course.code} id={"course-"+course.code} style={{...card,border:`1.5px solid ${openCourse===course.code?C.green:C.border}`,boxShadow:openCourse===course.code?`0 0 0 3px ${C.greenMid}`:"0 1px 4px rgba(0,0,0,0.05)",overflow:"hidden"}}>
                 <div onClick={()=>setOpenCourse(openCourse===course.code?null:course.code)}
@@ -3097,7 +3096,7 @@ export default function ChemBaseBUK() {
               {TOOLBOX_TOOLS.map(g=>(
                 <div key={g.group} style={{marginBottom:20}}>
                   <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",color:C.muted,textTransform:"uppercase",letterSpacing:1,margin:"0 4px 10px"}}>{g.group}</div>
-                  <div className="cb-grid2" style={{display:"flex",flexDirection:"column",gap:10}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {g.items.map(t=>(
                       <button key={t.id} onClick={()=>openTool(t.id)}
                         style={{...card,width:"100%",display:"flex",alignItems:"center",gap:14,padding:"14px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",color:C.ink,boxSizing:"border-box"}}>
