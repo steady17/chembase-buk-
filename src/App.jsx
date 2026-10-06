@@ -2753,7 +2753,9 @@ export default function ChemBaseBUK() {
          without touching how they already look fine on phones. */
       :root { --fw-xheavy: 800; --fw-heavy: 700; }
       @media (min-width: 900px) {
-        :root { --fw-xheavy: 700; --fw-heavy: 600; }
+        :root { --fw-xheavy: 600; --fw-heavy: 600; }
+        b, strong { font-weight: 600; }
+        [style*="font-weight: 700"], [style*="font-weight: 800"] { font-weight: 600 !important; }
         /* Computer / projector: use the width, and make everything bigger so a hall can read it */
         [style*="max-width: 700px"], [style*="max-width: 720px"], [style*="max-width: 600px"] { max-width: 1040px !important; }
         .cb-qa { grid-template-columns: repeat(4, 1fr) !important; }
