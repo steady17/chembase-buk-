@@ -3091,7 +3091,7 @@ export default function ChemBaseBUK() {
                 <div style={{fontWeight:"var(--fw-heavy)",fontSize:17,marginBottom:4,color:C.ink,textAlign:"center"}}>Ask me anything ChE</div>
                 <div style={{fontSize:13,color:C.muted,marginBottom:20,textAlign:"center"}}>Step-by-step solutions. Upload images or PDFs too.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:10,width:"100%"}}>
-                  {["What is material balance and how do I apply it?","Explain the difference between batch and continuous reactors","How do I use the ideal gas law to solve a problem?"].map(q=>(
+                  {["What is material balance and how do I apply it?","Explain the difference between batch and continuous reactors","Explain how distillation works in simple words"].map(q=>(
                     <button key={q} onClick={()=>setChatInput(q)} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:12,padding:"12px 16px",fontSize:14,cursor:"pointer",color:C.green,fontWeight:600,textAlign:"left",width:"100%"}}>{q}</button>
                   ))}
                 </div>
