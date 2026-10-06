@@ -3528,7 +3528,7 @@ export default function ChemBaseBUK() {
                 <div>
                   <div style={{padding:"12px 14px",background:C.greenLight,border:`1px solid ${C.border}`,borderRadius:12,marginBottom:14,fontSize:12.5,lineHeight:1.6,color:C.ink}}>
                     <div style={{fontWeight:"var(--fw-heavy)",color:C.green,marginBottom:3}}>📝 Use this as a guide</div>
-                    But still study and practise for your exams.
+                    But still study and practice for your exams.
                   </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
                     {Object.keys(UNIT_CATEGORIES).map(cat=>(
