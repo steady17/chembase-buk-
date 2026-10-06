@@ -39,6 +39,30 @@
         },100);
       })();
     </script>
+    <script>
+      // Keep installed copies fresh: when the app comes back to the screen, check for a newer build and reload.
+      (function(){
+        var s=document.querySelector('script[type="module"][src*="/assets/"]'); if(!s) return;
+        var cur=s.getAttribute('src');
+        function check(){
+          try{
+            var last=+sessionStorage.getItem('cb_upd')||0; if(Date.now()-last<120000) return;
+            fetch('/?_='+Date.now(),{cache:'no-store'}).then(function(r){return r.text();}).then(function(t){
+              var m=t.match(/\/assets\/index-[^"']+\.js/);
+              if(m && cur.indexOf(m[0])<0){
+                var ta=document.querySelector('textarea'); if(ta && ta.value) return;
+                try{ if(window.speechSynthesis && window.speechSynthesis.speaking) return; }catch(e){}
+                try{ sessionStorage.setItem('cb_upd',String(Date.now())); }catch(e){}
+                location.reload();
+              }
+            }).catch(function(){});
+          }catch(e){}
+        }
+        document.addEventListener('visibilitychange',function(){ if(!document.hidden) check(); });
+        window.addEventListener('focus',check);
+        setTimeout(check,4000); setInterval(check,300000);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
