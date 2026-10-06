@@ -13,7 +13,9 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <title>ChemBase BUK</title>
     <meta name="description" content="Official academic resource hub for NSCHE BUK - past questions, GPA calculator, academic help, AI assistant and society legacy" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"></noscript>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   </head>
   <body style="margin:0;padding:0;">
@@ -31,7 +33,7 @@
         function hide(){ if(!el) return; var e=el; el=null; e.style.opacity='0'; e.style.pointerEvents='none'; setTimeout(function(){ if(e.parentNode) e.parentNode.removeChild(e); },400); }
         var iv=setInterval(function(){
           var r=document.getElementById('root'), age=Date.now()-t0;
-          if((r && r.childElementCount>0 && age>=1100) || age>3500){ clearInterval(iv); hide(); }
+          if((r && r.childElementCount>0 && age>=700) || age>3500){ clearInterval(iv); hide(); }
         },100);
       })();
     </script>
