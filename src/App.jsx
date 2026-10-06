@@ -2647,11 +2647,10 @@ export default function ChemBaseBUK() {
         <div>
           <div style={{background:`radial-gradient(circle at 80% 0%,rgba(255,255,255,0.16) 0%,rgba(255,255,255,0) 45%),linear-gradient(150deg,${LIGHT.greenDark} 0%,${LIGHT.green} 65%,#22b05f 100%)`,padding:"36px 24px 52px",textAlign:"center",position:"relative",overflow:"hidden",borderRadius:"0 0 32px 32px",boxShadow:"0 10px 28px rgba(8,92,44,0.25)"}}>
             <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.13) 1.2px, transparent 1.4px)",backgroundSize:"18px 18px",opacity:0.55,pointerEvents:"none"}}/>
-            <div style={{position:"absolute",top:-60,right:-60,width:200,height:200,borderRadius:"50%",background:"rgba(255,255,255,0.07)"}}/>
-            <div style={{position:"absolute",bottom:-50,left:-50,width:160,height:160,borderRadius:"50%",background:"rgba(255,255,255,0.06)"}}/>
+            <div style={{position:"absolute",top:-55,right:-55,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.07)"}}/>
+            <div style={{position:"absolute",bottom:-55,left:-55,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.07)"}}/>
             <div style={{position:"relative",display:"inline-block",marginBottom:14}}>
-              <div style={{position:"absolute",inset:-8,borderRadius:"50%",background:"rgba(255,255,255,0.18)",filter:"blur(10px)"}}/>
-              <img src={LOGO} alt="NSChE BUK" style={{position:"relative",width:100,height:100,borderRadius:"50%",objectFit:"cover",border:"3px solid rgba(255,255,255,0.7)",boxShadow:"0 6px 24px rgba(0,0,0,0.35)",background:"#fff"}}/>
+              <img src={LOGO} alt="NSChE BUK" style={{position:"relative",width:100,height:100,borderRadius:"50%",objectFit:"cover",border:"3px solid rgba(255,255,255,0.4)",boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}/>
             </div>
             <div style={{position:"relative",color:"rgba(255,255,255,0.85)",fontSize:13,marginBottom:4}}>{(()=>{ const h=new Date().getHours(); return h<12?"Good morning ☀️":h<17?"Good afternoon 👋":"Good evening 🌙"; })()}</div>
             <h1 style={{position:"relative",color:"#fff",margin:"0 0 8px",fontSize:28,fontWeight:"var(--fw-xheavy)",letterSpacing:0.3}}>ChemBase BUK</h1>
