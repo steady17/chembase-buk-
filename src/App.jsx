@@ -2470,7 +2470,6 @@ export default function ChemBaseBUK() {
   const [adminMode, setAdminMode]   = useState(false);
   const [showPin, setShowPin]       = useState(false);
   const [pinInput, setPinInput]     = useState("");
-  const ADMIN_PIN = "2580";
   const [answerDrafts, setAnswerDrafts]     = useState({});
   const [pendingAnsFile, setPendingAnsFile] = useState({});
 
@@ -2495,7 +2494,7 @@ export default function ChemBaseBUK() {
   const postNotice = async () => {
     if(nBusy) return;
     if(!nForm.title.trim()){ setNMsg("Add a title first."); return; }
-    if(!nPin){ setNMsg("Enter the notice PIN."); return; }
+    if(!nPin){ setNMsg("Please unlock Admin again."); return; }
     setNBusy(true); setNMsg("");
     try{
       await noticeRpc("notice_post",{
@@ -2508,7 +2507,7 @@ export default function ChemBaseBUK() {
   };
   const removeNotice = async (id) => {
     if(nBusy) return;
-    if(!nPin){ setNMsg("Enter the notice PIN to delete."); return; }
+    if(!nPin){ setNMsg("Please unlock Admin again."); return; }
     if(!window.confirm("Delete this notice?")) return;
     setNBusy(true); setNMsg("");
     try{ await noticeRpc("notice_delete",{p_pin:nPin,p_id:id}); setNMsg("Deleted."); loadNotices(); }
@@ -2750,8 +2749,22 @@ export default function ChemBaseBUK() {
   };
 
   // Academic Help
-  const handleAdminClick = () => { if(adminMode){setAdminMode(false);return;} setShowPin(true);setPinInput(""); };
-  const handlePinSubmit  = () => { if(pinInput===ADMIN_PIN){setAdminMode(true);setShowPin(false);}else{alert("Incorrect PIN");setPinInput("");} };
+  const handleAdminClick = () => { if(adminMode){setAdminMode(false);setNPin("");return;} setShowPin(true);setPinInput(""); };
+  const handlePinSubmit  = async () => {
+    if(!pinInput||nBusy) return;
+    setNBusy(true);
+    let ok=false;
+    try{
+      const res=await fetch(`${SUPA_URL}/rest/v1/rpc/notice_check`,{method:"POST",
+        headers:{"Content-Type":"application/json","apikey":SUPA_ANON,"Authorization":`Bearer ${SUPA_ANON}`},
+        body:JSON.stringify({p_pin:pinInput})});
+      ok = res.ok && (await res.json())===true;
+    }catch{ ok=false; }
+    setNBusy(false);
+    if(ok){ setNPin(pinInput); setAdminMode(true); setShowPin(false); setNMsg(""); }
+    else{ alert("Incorrect PIN"); }
+    setPinInput("");
+  };
 
   const handleQFileSelect = async e => {
     const f=e.target.files[0]; if(!f) return;
@@ -3985,13 +3998,13 @@ export default function ChemBaseBUK() {
           {showPin && (
             <div style={{...card,padding:"16px",marginBottom:14,textAlign:"center"}}>
               <div style={{fontWeight:"var(--fw-heavy)",fontSize:14,marginBottom:10}}>🔐 Enter Admin PIN</div>
-              <input type="password" maxLength={6} value={pinInput} onChange={e=>setPinInput(e.target.value)}
+              <input type="password" maxLength={24} value={pinInput} onChange={e=>setPinInput(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&handlePinSubmit()}
                 placeholder="Enter PIN"
                 style={{width:"100%",padding:"10px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:18,outline:"none",boxSizing:"border-box",textAlign:"center",letterSpacing:6,marginBottom:10,background:C.bg,color:C.ink}}/>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={()=>setShowPin(false)} style={{flex:1,background:C.greenLight,border:"none",borderRadius:8,padding:"9px",color:C.muted,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Cancel</button>
-                <button onClick={handlePinSubmit} style={{flex:2,background:C.green,border:"none",borderRadius:8,padding:"9px",color:"#fff",fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Unlock</button>
+                <button onClick={handlePinSubmit} disabled={nBusy} style={{flex:2,background:C.green,border:"none",borderRadius:8,padding:"9px",color:"#fff",fontWeight:"var(--fw-heavy)",cursor:nBusy?"wait":"pointer",opacity:nBusy?0.6:1}}>{nBusy?"Checking...":"Unlock"}</button>
               </div>
             </div>
           )}
@@ -4031,13 +4044,11 @@ export default function ChemBaseBUK() {
               <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,marginBottom:12,cursor:"pointer"}}>
                 <input type="checkbox" checked={nForm.pinned} onChange={e=>setNForm(p=>({...p,pinned:e.target.checked}))}/> 📌 Pin to the front
               </label>
-              <div style={lbl}>Notice PIN</div>
-              <input type="password" inputMode="numeric" autoComplete="off" placeholder="Notice PIN" value={nPin} onChange={e=>setNPin(e.target.value)} style={{...inp,textAlign:"center",letterSpacing:4}}/>
               <button onClick={postNotice} disabled={nBusy} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"12px",borderRadius:12,fontWeight:"var(--fw-heavy)",fontSize:14,cursor:nBusy?"wait":"pointer",opacity:nBusy?0.6:1}}>{nBusy?"Please wait...":"Post notice"}</button>
               {nMsg && <div style={{marginTop:10,fontSize:12.5,fontWeight:"var(--fw-heavy)",color:/Posted|Deleted/.test(nMsg)?C.green:"#c0392b"}}>{nMsg}</div>}
               {live.length>0 && (
                 <div style={{marginTop:16,borderTop:`1px solid ${C.border}`,paddingTop:12}}>
-                  <div style={{...lbl,marginBottom:8}}>Posted notices (delete needs the PIN above)</div>
+                  <div style={{...lbl,marginBottom:8}}>Posted notices</div>
                   {live.map(n=>(
                     <div key={n.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
                       <span style={{fontSize:16}}>{(NOTICE_THEME[n.kind]||NOTICE_THEME.Notice).icon}</span>
