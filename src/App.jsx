@@ -3110,7 +3110,7 @@ export default function ChemBaseBUK() {
                   </p>
                 </div>
               </div>
-              <div style={{textAlign:"center",fontSize:12,color:C.muted,margin:"4px 0 0",lineHeight:1.5}}>Developed by <b style={{color:C.green}}>Sadik Kassim</b></div>
+              <div onClick={()=>{setTab("legacy");window.scrollTo(0,document.body.scrollHeight);}} role="button" style={{textAlign:"center",fontSize:12,color:C.muted,margin:"4px 0 0",lineHeight:1.5,cursor:"pointer"}}>Developed by <b style={{color:C.green}}>Sadik Kassim</b> ›</div>
               <div style={{height:8}}/>
             </div>
           )}
@@ -4216,6 +4216,18 @@ export default function ChemBaseBUK() {
             })}
           </div>
           )}
+          <div className="cb-rise" style={{marginTop:30,position:"relative",overflow:"hidden",borderRadius:24,padding:"26px 20px 22px",textAlign:"center",background:`linear-gradient(160deg,${C.card} 40%,${C.greenLight} 130%)`,border:`1.5px solid ${C.border}`,boxShadow:"0 10px 28px rgba(14,122,60,0.14)"}}>
+            <div style={{position:"absolute",inset:0,backgroundImage:`radial-gradient(${C.green}22 1.2px, transparent 1.4px)`,backgroundSize:"16px 16px",opacity:0.55,pointerEvents:"none"}}/>
+            <div style={{position:"absolute",top:0,left:0,right:0,height:5,background:`linear-gradient(90deg,${C.greenDark},#22b05f)`}}/>
+            <div style={{position:"relative",display:"inline-block",background:C.green,color:"#fff",borderRadius:20,padding:"4px 14px",fontSize:10.5,fontWeight:"var(--fw-heavy)",letterSpacing:1.4,marginBottom:24}}>👨‍💻 DEVELOPER</div>
+            <div style={{position:"relative",display:"flex",justifyContent:"center"}}>
+              <ExcoPhoto src="/exco/senator-2026.jpg" name="Sadik Kassim" size={104} ring C={C}
+                onClick={()=>setZoomedExco({src:"/exco/senator-2026.jpg",name:"Sadik Kassim",role:"Developer of ChemBase BUK"})}/>
+            </div>
+            <div style={{position:"relative",marginTop:16,fontWeight:"var(--fw-xheavy)",fontSize:20,color:C.ink}}>Sadik Kassim</div>
+            <div style={{position:"relative",marginTop:4,fontSize:11.5,fontWeight:"var(--fw-heavy)",color:C.green,textTransform:"uppercase",letterSpacing:1}}>Developer of ChemBase BUK</div>
+            <div style={{position:"relative",margin:"12px auto 0",maxWidth:320,fontSize:12.5,lineHeight:1.6,color:C.muted}}>Chemical Engineering student and NSChE BUK Senator. Built this app for the students of our department.</div>
+          </div>
         </div>
       )}
 
