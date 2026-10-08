@@ -3110,7 +3110,7 @@ export default function ChemBaseBUK() {
                   </p>
                 </div>
               </div>
-              <div onClick={()=>{setTab("legacy");window.scrollTo(0,document.body.scrollHeight);}} role="button" style={{textAlign:"center",fontSize:12,color:C.muted,margin:"4px 0 0",lineHeight:1.5,cursor:"pointer"}}>Developed by <b style={{color:C.green}}>Sadik Kassim</b> ›</div>
+              
               <div style={{height:8}}/>
             </div>
           )}
@@ -4226,7 +4226,7 @@ export default function ChemBaseBUK() {
             </div>
             <div style={{position:"relative",marginTop:16,fontWeight:"var(--fw-xheavy)",fontSize:20,color:C.ink}}>Sadik Kassim</div>
             <div style={{position:"relative",marginTop:4,fontSize:11.5,fontWeight:"var(--fw-heavy)",color:C.green,textTransform:"uppercase",letterSpacing:1}}>Developer of ChemBase BUK</div>
-            <div style={{position:"relative",margin:"12px auto 0",maxWidth:320,fontSize:12.5,lineHeight:1.6,color:C.muted}}>Chemical Engineering student and NSChE BUK Senator. Built this app for the students of our department.</div>
+            <div style={{position:"relative",margin:"12px auto 0",maxWidth:320,fontSize:12.5,lineHeight:1.6,color:C.muted}}>Chemical Engineering student at Bayero University Kano. Built this app for the students of our department.</div>
           </div>
         </div>
       )}
