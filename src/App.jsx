@@ -4227,7 +4227,7 @@ export default function ChemBaseBUK() {
             <div style={{position:"relative",marginTop:18,fontWeight:"var(--fw-xheavy)",fontSize:21,color:C.ink}}>Sadik Kassim</div>
             <div style={{position:"relative",marginTop:4,fontSize:11.5,fontWeight:"var(--fw-heavy)",color:C.green,textTransform:"uppercase",letterSpacing:1.2}}>Developer of ChemBase BUK</div>
             <div style={{position:"relative",margin:"14px auto 0",width:40,height:3,borderRadius:2,background:`linear-gradient(90deg,${C.greenDark},#22b05f)`}}/>
-            <div style={{position:"relative",margin:"14px auto 0",maxWidth:330,fontSize:13,lineHeight:1.65,color:C.muted}}>Chemical Engineering student at Bayero University Kano. Built this app for the students of the Department of Chemical and Petroleum Engineering.</div>
+            <div style={{position:"relative",margin:"14px auto 0",maxWidth:330,fontSize:13,lineHeight:1.65,color:C.muted}}>Chemical Engineering student at Bayero University Kano. Built this app for the Chemical Engineering students of BUK.</div>
           </div>
         </div>
       )}
