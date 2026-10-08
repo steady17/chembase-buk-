@@ -4216,17 +4216,28 @@ export default function ChemBaseBUK() {
             })}
           </div>
           )}
-          <div className="cb-rise" style={{marginTop:30,position:"relative",overflow:"hidden",borderRadius:24,padding:"26px 20px 22px",textAlign:"center",background:`linear-gradient(160deg,${C.card} 40%,${C.greenLight} 130%)`,border:`1.5px solid ${C.border}`,boxShadow:"0 10px 28px rgba(14,122,60,0.14)"}}>
-            <div style={{position:"absolute",inset:0,backgroundImage:`radial-gradient(${C.green}22 1.2px, transparent 1.4px)`,backgroundSize:"16px 16px",opacity:0.55,pointerEvents:"none"}}/>
-            <div style={{position:"absolute",top:0,left:0,right:0,height:5,background:`linear-gradient(90deg,${C.greenDark},#22b05f)`}}/>
-            <div style={{position:"relative",display:"inline-block",background:C.green,color:"#fff",borderRadius:20,padding:"4px 14px",fontSize:10.5,fontWeight:"var(--fw-heavy)",letterSpacing:1.4,marginBottom:24}}>👨‍💻 DEVELOPER</div>
+          <div className="cb-rise" style={{marginTop:30,marginLeft:"auto",marginRight:"auto",maxWidth:560,position:"relative",overflow:"hidden",borderRadius:28,padding:"30px 22px 26px",textAlign:"center",background:"linear-gradient(155deg,#0b5a2c 0%,#073d1e 55%,#042813 100%)",border:"1.5px solid rgba(255,255,255,0.14)",boxShadow:"0 18px 44px rgba(7,61,30,0.38)"}}>
+            <style>{`@keyframes cbDevGlow{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:.95;transform:scale(1.08)}}@keyframes cbDevShine{0%{transform:translateX(-120%)}60%,100%{transform:translateX(220%)}}`}</style>
+            <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.10) 1.1px, transparent 1.3px)",backgroundSize:"18px 18px",pointerEvents:"none"}}/>
+            <div style={{position:"absolute",top:-70,left:"50%",marginLeft:-130,width:260,height:260,borderRadius:"50%",background:"radial-gradient(circle,rgba(74,222,128,0.45),transparent 68%)",animation:"cbDevGlow 4.5s ease-in-out infinite",pointerEvents:"none"}}/>
+            <div style={{position:"absolute",top:0,bottom:0,width:70,background:"linear-gradient(100deg,transparent,rgba(255,255,255,0.10),transparent)",animation:"cbDevShine 6s ease-in-out infinite",pointerEvents:"none"}}/>
+            <div style={{position:"relative",display:"inline-block",background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.28)",color:"#d9ffe6",borderRadius:20,padding:"5px 15px",fontSize:10.5,fontWeight:"var(--fw-heavy)",letterSpacing:2,marginBottom:24}}>👨‍💻 DEVELOPER</div>
             <div style={{position:"relative",display:"flex",justifyContent:"center"}}>
-              <ExcoPhoto src="/exco/senator-2026.jpg" name="Sadik Kassim" size={104} ring C={C}
-                onClick={()=>setZoomedExco({src:"/exco/senator-2026.jpg",name:"Sadik Kassim",role:"Developer of ChemBase BUK"})}/>
+              <div style={{padding:9,borderRadius:"50%",background:"linear-gradient(135deg,#86efac,#16a34a 50%,#fde68a)",boxShadow:"0 0 0 6px rgba(255,255,255,0.08),0 10px 30px rgba(0,0,0,0.35)"}}>
+                <ExcoPhoto src="/exco/senator-2026.jpg" name="Sadik Kassim" size={112} C={C}
+                  onClick={()=>setZoomedExco({src:"/exco/senator-2026.jpg",name:"Sadik Kassim",role:"Developer of ChemBase BUK"})}/>
+              </div>
             </div>
-            <div style={{position:"relative",marginTop:16,fontWeight:"var(--fw-xheavy)",fontSize:20,color:C.ink}}>Sadik Kassim</div>
-            <div style={{position:"relative",marginTop:4,fontSize:11.5,fontWeight:"var(--fw-heavy)",color:C.green,textTransform:"uppercase",letterSpacing:1}}>Developer of ChemBase BUK</div>
-            <div style={{position:"relative",margin:"12px auto 0",maxWidth:320,fontSize:12.5,lineHeight:1.6,color:C.muted}}>Chemical Engineering student at Bayero University Kano. Built this app for the students of our department.</div>
+            <div style={{position:"relative",marginTop:18,fontWeight:"var(--fw-xheavy)",fontSize:22,color:"#fff",letterSpacing:0.2}}>Sadik Kassim</div>
+            <div style={{position:"relative",marginTop:5,fontSize:11.5,fontWeight:"var(--fw-heavy)",color:"#86efac",textTransform:"uppercase",letterSpacing:1.6}}>Developer of ChemBase BUK</div>
+            <div style={{position:"relative",margin:"14px auto 0",width:42,height:2,borderRadius:2,background:"linear-gradient(90deg,transparent,#86efac,transparent)"}}/>
+            <div style={{position:"relative",margin:"14px auto 0",maxWidth:320,fontSize:13,lineHeight:1.65,color:"rgba(255,255,255,0.82)"}}>Chemical Engineering student at Bayero University Kano. Built this app for the students of our department.</div>
+            <div style={{position:"relative",display:"flex",flexWrap:"wrap",justifyContent:"center",gap:7,marginTop:18}}>
+              {["React","Supabase","Vercel","AI"].map(t=>(
+                <span key={t} style={{fontSize:10.5,fontWeight:"var(--fw-heavy)",letterSpacing:0.6,color:"#d9ffe6",background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.20)",borderRadius:14,padding:"4px 11px"}}>{t}</span>
+              ))}
+            </div>
+            <div style={{position:"relative",marginTop:18,fontSize:10.5,color:"rgba(255,255,255,0.55)",letterSpacing:0.4}}>Made with ❤️ in Kano, Nigeria</div>
           </div>
         </div>
       )}
