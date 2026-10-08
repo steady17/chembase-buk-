@@ -4216,26 +4216,18 @@ export default function ChemBaseBUK() {
             })}
           </div>
           )}
-          <div className="cb-rise" style={{marginTop:30,marginLeft:"auto",marginRight:"auto",width:"100%",boxSizing:"border-box",maxWidth:560,position:"relative",overflow:"hidden",borderRadius:28,padding:"34px 24px 34px",textAlign:"center",background:"linear-gradient(160deg,#0d6330 0%,#08421f 50%,#052b15 100%)",border:"1px solid rgba(253,230,138,0.35)",boxShadow:"0 18px 44px rgba(7,61,30,0.38)"}}>
-            <div style={{position:"absolute",inset:8,borderRadius:21,border:"1px solid rgba(255,255,255,0.10)",pointerEvents:"none"}}/>
-            <div style={{position:"absolute",top:-90,left:"50%",marginLeft:-170,width:340,height:340,borderRadius:"50%",background:"radial-gradient(circle,rgba(74,222,128,0.30),transparent 68%)",pointerEvents:"none"}}/>
-            <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:26}}>
-              <div style={{width:34,height:1,background:"linear-gradient(90deg,transparent,#fde68a)"}}/>
-              <div style={{fontSize:11,fontWeight:"var(--fw-heavy)",letterSpacing:4,color:"#fde68a"}}>DEVELOPER</div>
-              <div style={{width:34,height:1,background:"linear-gradient(270deg,transparent,#fde68a)"}}/>
-            </div>
+          <div className="cb-rise" style={{marginTop:30,marginLeft:"auto",marginRight:"auto",width:"100%",boxSizing:"border-box",maxWidth:560,position:"relative",overflow:"hidden",borderRadius:24,padding:"30px 22px 26px",textAlign:"center",background:`linear-gradient(160deg,${C.card} 40%,${C.greenLight} 130%)`,border:`1.5px solid ${C.border}`,boxShadow:"0 10px 28px rgba(14,122,60,0.14)"}}>
+            <div style={{position:"absolute",inset:0,backgroundImage:`radial-gradient(${C.green}22 1.2px, transparent 1.4px)`,backgroundSize:"16px 16px",opacity:0.55,pointerEvents:"none"}}/>
+            <div style={{position:"absolute",top:0,left:0,right:0,height:5,background:`linear-gradient(90deg,${C.greenDark},#22b05f)`}}/>
+            <div style={{position:"relative",display:"inline-block",background:C.green,color:"#fff",borderRadius:20,padding:"5px 16px",fontSize:10.5,fontWeight:"var(--fw-heavy)",letterSpacing:2.4,marginBottom:24}}>DEVELOPER</div>
             <div style={{position:"relative",display:"flex",justifyContent:"center"}}>
-              <div style={{padding:5,borderRadius:"50%",background:"linear-gradient(135deg,#fde68a,#4ade80 55%,#16a34a)",boxShadow:"0 0 0 9px rgba(253,230,138,0.12),0 14px 34px rgba(0,0,0,0.4)"}}>
-                <div style={{padding:6,borderRadius:"50%",background:"#06331a"}}>
-                  <ExcoPhoto src="/exco/senator-2026.jpg" name="Sadik Kassim" size={112} C={C}
-                    onClick={()=>setZoomedExco({src:"/exco/senator-2026.jpg",name:"Sadik Kassim",role:"Developer of ChemBase BUK"})}/>
-                </div>
-              </div>
+              <ExcoPhoto src="/exco/senator-2026.jpg" name="Sadik Kassim" size={112} ring C={C}
+                onClick={()=>setZoomedExco({src:"/exco/senator-2026.jpg",name:"Sadik Kassim",role:"Developer of ChemBase BUK"})}/>
             </div>
-            <div style={{position:"relative",marginTop:24,fontWeight:"var(--fw-xheavy)",fontSize:24,color:"#fff",letterSpacing:0.3}}>Sadik Kassim</div>
-            <div style={{position:"relative",marginTop:6,fontSize:11.5,fontWeight:"var(--fw-heavy)",color:"#86efac",textTransform:"uppercase",letterSpacing:2}}>Developer of ChemBase BUK</div>
-            <div style={{position:"relative",margin:"18px auto 0",width:46,height:2,borderRadius:2,background:"linear-gradient(90deg,transparent,#fde68a,transparent)"}}/>
-            <div style={{position:"relative",margin:"18px auto 0",maxWidth:330,fontSize:13.5,lineHeight:1.7,color:"rgba(255,255,255,0.84)"}}>Chemical Engineering student at Bayero University Kano. Built this app for the students of our department.</div>
+            <div style={{position:"relative",marginTop:18,fontWeight:"var(--fw-xheavy)",fontSize:21,color:C.ink}}>Sadik Kassim</div>
+            <div style={{position:"relative",marginTop:4,fontSize:11.5,fontWeight:"var(--fw-heavy)",color:C.green,textTransform:"uppercase",letterSpacing:1.2}}>Developer of ChemBase BUK</div>
+            <div style={{position:"relative",margin:"14px auto 0",width:40,height:3,borderRadius:2,background:`linear-gradient(90deg,${C.greenDark},#22b05f)`}}/>
+            <div style={{position:"relative",margin:"14px auto 0",maxWidth:330,fontSize:13,lineHeight:1.65,color:C.muted}}>Chemical Engineering student at Bayero University Kano. Built this app for the students of our department.</div>
           </div>
         </div>
       )}
