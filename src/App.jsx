@@ -2921,6 +2921,7 @@ export default function ChemBaseBUK() {
                   </p>
                 </div>
               </div>
+              <div style={{textAlign:"center",fontSize:12,color:C.muted,margin:"4px 0 0",lineHeight:1.5}}>Developed by <b style={{color:C.green}}>Sadik Kassim</b></div>
               <div style={{height:8}}/>
             </div>
           )}
