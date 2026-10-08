@@ -1666,6 +1666,58 @@ async function supabaseRequest(path, method="GET", body=null) {
   return method === "GET" ? res.json() : res;
 }
 
+// ── Notice board (Supabase: public.notices, posted through PIN-checked functions) ──
+const NOTICE_THEME = {
+  Notice:   { icon:"📢", label:"Notice",    bg:"linear-gradient(135deg,#0b6b35 0%,#1aa65a 100%)", glow:"rgba(14,122,60,0.30)",  solid:"#0e7a3c" },
+  Program:  { icon:"🎓", label:"Program",   bg:"linear-gradient(135deg,#4527a0 0%,#7e57c2 100%)", glow:"rgba(94,53,177,0.32)",  solid:"#5e35b1" },
+  Timetable:{ icon:"🗓️", label:"Timetable", bg:"linear-gradient(135deg,#0d47a1 0%,#1e88e5 100%)", glow:"rgba(21,101,192,0.32)", solid:"#1565c0" },
+  Urgent:   { icon:"⚠️", label:"Urgent",    bg:"linear-gradient(135deg,#b71c1c 0%,#f4511e 100%)", glow:"rgba(211,47,47,0.34)",  solid:"#d32f2f" },
+};
+function todayStr() { return new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10); }
+function daysUntil(dateStr) {
+  if(!dateStr) return null;
+  const a=Date.parse(dateStr+"T00:00:00Z"), b=Date.parse(todayStr()+"T00:00:00Z");
+  return Math.round((a-b)/86400000);
+}
+function noticeIsLive(n) {
+  const t=todayStr();
+  if(n.expires_on) return n.expires_on>=t;
+  if(n.event_date) return n.event_date>=t;
+  return true;
+}
+function noticeSort(list) {
+  const rank={Urgent:0,Notice:1,Program:1,Timetable:1};
+  return list.slice().sort((a,b)=>
+    (b.pinned?1:0)-(a.pinned?1:0) ||
+    (rank[a.kind]??1)-(rank[b.kind]??1) ||
+    (b.created_at||"").localeCompare(a.created_at||""));
+}
+async function noticeLoad() {
+  const r = await supabaseRequest("/notices?select=*&order=created_at.desc&limit=60");
+  return Array.isArray(r) ? r : [];
+}
+async function noticeRpc(fn, args) {
+  const res = await fetch(`${SUPA_URL}/rest/v1/rpc/${fn}`, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "apikey":SUPA_ANON, "Authorization":`Bearer ${SUPA_ANON}` },
+    body: JSON.stringify(args),
+  });
+  if(!res.ok) {
+    let m="Could not save. Try again.";
+    try{ const j=await res.json(); if(/wrong pin/i.test(j.message||"")) m="Wrong PIN"; }catch{}
+    throw new Error(m);
+  }
+}
+function linkifyText(text, color) {
+  return String(text||"").split(/(https?:\/\/[^\s]+)/g).map((p,i)=>
+    /^https?:\/\//.test(p)
+      ? <a key={i} href={p} target="_blank" rel="noopener noreferrer" style={{color,fontWeight:700,wordBreak:"break-all"}}>{p}</a>
+      : <span key={i}>{p}</span>);
+}
+function fmtDay(dateStr, opts) {
+  try{ return new Date(dateStr+"T12:00:00").toLocaleDateString("en-GB",opts); }catch{ return dateStr; }
+}
+
 function initialsOf(name) {
   return name.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
 }
@@ -2395,6 +2447,41 @@ export default function ChemBaseBUK() {
   const [answerDrafts, setAnswerDrafts]     = useState({});
   const [pendingAnsFile, setPendingAnsFile] = useState({});
 
+  // Notice board
+  const [notices, setNotices]       = useState([]);
+  const [noticeOpen, setNoticeOpen] = useState(null);
+  const blankNotice = {kind:"Notice",title:"",body:"",date:"",time:"",venue:"",pinned:false,expires:""};
+  const [nForm, setNForm]           = useState(blankNotice);
+  const [nPin, setNPin]             = useState("");
+  const [nBusy, setNBusy]           = useState(false);
+  const [nMsg, setNMsg]             = useState("");
+  const loadNotices = () => { noticeLoad().then(setNotices).catch(()=>{}); };
+  useEffect(()=>{ loadNotices(); },[]);
+  useEffect(()=>{ if(tab==="home"||tab==="help") loadNotices(); },[tab]);
+  const postNotice = async () => {
+    if(nBusy) return;
+    if(!nForm.title.trim()){ setNMsg("Add a title first."); return; }
+    if(!nPin){ setNMsg("Enter the notice PIN."); return; }
+    setNBusy(true); setNMsg("");
+    try{
+      await noticeRpc("notice_post",{
+        p_pin:nPin, p_kind:nForm.kind, p_title:nForm.title, p_body:nForm.body,
+        p_event_date:nForm.date||null, p_event_time:nForm.time, p_venue:nForm.venue,
+        p_pinned:nForm.pinned, p_expires_on:nForm.expires||null });
+      setNForm(blankNotice); setNMsg("Posted. It is now on the home page ✅"); loadNotices();
+    }catch(e){ setNMsg(e.message); }
+    setNBusy(false);
+  };
+  const removeNotice = async (id) => {
+    if(nBusy) return;
+    if(!nPin){ setNMsg("Enter the notice PIN to delete."); return; }
+    if(!window.confirm("Delete this notice?")) return;
+    setNBusy(true); setNMsg("");
+    try{ await noticeRpc("notice_delete",{p_pin:nPin,p_id:id}); setNMsg("Deleted."); loadNotices(); }
+    catch(e){ setNMsg(e.message); }
+    setNBusy(false);
+  };
+
   const C = dark ? DARK : LIGHT;
 
   useEffect(() => {
@@ -2848,6 +2935,55 @@ export default function ChemBaseBUK() {
 
           {!isGlobalSearch && (
             <div style={{padding:"16px 16px 0",maxWidth:600,margin:"0 auto"}}>
+              {(()=>{
+                const live=noticeSort(notices.filter(noticeIsLive));
+                if(!live.length) return null;
+                const one=live.length===1;
+                return (
+                <div style={{marginBottom:24}}>
+                  <style>{`.cb-nsl{scrollbar-width:none}.cb-nsl::-webkit-scrollbar{display:none}@keyframes cbUrg{0%,100%{box-shadow:0 12px 28px rgba(211,47,47,.34)}50%{box-shadow:0 12px 34px rgba(244,81,30,.62)}}`}</style>
+                  <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16,marginBottom:12}}>
+                    <span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Notice Board
+                    <span style={{background:C.green,color:"#fff",borderRadius:20,padding:"1px 9px",fontSize:11.5,fontWeight:"var(--fw-heavy)"}}>{live.length}</span>
+                    {!one && <span style={{marginLeft:"auto",fontSize:11.5,color:C.muted,fontWeight:500}}>More ›</span>}
+                  </div>
+                  <div className="cb-nsl" style={{display:"flex",gap:12,overflowX:one?"visible":"auto",scrollSnapType:"x mandatory",margin:"0 -16px",padding:"2px 16px 16px",WebkitOverflowScrolling:"touch"}}>
+                    {live.map((n,i)=>{
+                      const th=NOTICE_THEME[n.kind]||NOTICE_THEME.Notice;
+                      const du=daysUntil(n.event_date);
+                      const when=du===null?null:du===0?"Today":du===1?"Tomorrow":du>1&&du<=14?`In ${du} days`:null;
+                      return (
+                      <div key={n.id} role="button" className="cb-rise" onClick={()=>setNoticeOpen(n)}
+                        style={{flex:one?"1 1 100%":"0 0 min(86%,330px)",scrollSnapAlign:"center",boxSizing:"border-box",cursor:"pointer",position:"relative",overflow:"hidden",borderRadius:22,padding:"15px 16px 14px",color:"#fff",background:th.bg,boxShadow:`0 12px 28px ${th.glow}`,animation:n.kind==="Urgent"?"cbUrg 2.4s ease-in-out infinite":undefined,animationDelay:(i*70)+"ms",display:"flex",flexDirection:"column"}}>
+                        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
+                        <div aria-hidden="true" style={{position:"absolute",right:-10,bottom:-20,fontSize:104,lineHeight:1,opacity:0.15,transform:"rotate(-10deg)",pointerEvents:"none"}}>{th.icon}</div>
+                        <div style={{position:"relative",display:"flex",alignItems:"center",gap:8,marginBottom:11}}>
+                          <span style={{background:"rgba(255,255,255,0.2)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,textTransform:"uppercase"}}>{th.icon} {th.label}</span>
+                          {n.pinned && <span style={{fontSize:11,opacity:0.9}}>📌 Pinned</span>}
+                          {when && <span style={{marginLeft:"auto",background:"#ffd54f",color:"#3b2c00",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)"}}>{when}</span>}
+                        </div>
+                        <div style={{position:"relative",display:"flex",gap:12,alignItems:"flex-start"}}>
+                          {n.event_date && (
+                            <div style={{flexShrink:0,width:54,borderRadius:14,background:"#fff",color:th.solid,textAlign:"center",overflow:"hidden",boxShadow:"0 4px 12px rgba(0,0,0,0.22)"}}>
+                              <div style={{background:th.solid,color:"#fff",fontSize:10,letterSpacing:1.2,padding:"3px 0",fontWeight:"var(--fw-heavy)"}}>{fmtDay(n.event_date,{month:"short"}).toUpperCase()}</div>
+                              <div style={{fontSize:24,fontWeight:"var(--fw-xheavy)",lineHeight:"34px"}}>{fmtDay(n.event_date,{day:"numeric"})}</div>
+                            </div>
+                          )}
+                          <div style={{minWidth:0,flex:1}}>
+                            <div style={{fontSize:16.5,fontWeight:"var(--fw-xheavy)",lineHeight:1.3,textShadow:"0 1px 2px rgba(0,0,0,0.22)",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{n.title}</div>
+                            {n.body && <div style={{fontSize:12.5,lineHeight:1.5,opacity:0.92,marginTop:5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden",wordBreak:"break-word"}}>{n.body}</div>}
+                          </div>
+                        </div>
+                        <div style={{position:"relative",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:12}}>
+                          {n.event_time && <span style={{background:"rgba(0,0,0,0.18)",borderRadius:20,padding:"3px 10px",fontSize:11.5}}>⏰ {n.event_time}</span>}
+                          {n.venue && <span style={{background:"rgba(0,0,0,0.18)",borderRadius:20,padding:"3px 10px",fontSize:11.5,maxWidth:"60%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📍 {n.venue}</span>}
+                          <span style={{marginLeft:"auto",fontSize:12,fontWeight:"var(--fw-heavy)",opacity:0.95}}>Read ›</span>
+                        </div>
+                      </div>);
+                    })}
+                  </div>
+                </div>);
+              })()}
               <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16,marginBottom:14}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Quick Access</div>
               <div className="cb-qa" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[
@@ -2927,6 +3063,46 @@ export default function ChemBaseBUK() {
           )}
         </div>
       )}
+
+      {noticeOpen && (()=>{
+        const n=noticeOpen, th=NOTICE_THEME[n.kind]||NOTICE_THEME.Notice;
+        const shareN=async()=>{
+          const lines=[`${th.icon} ${n.title}`];
+          if(n.event_date) lines.push(`📅 ${fmtDay(n.event_date,{weekday:"long",day:"numeric",month:"long",year:"numeric"})}`);
+          if(n.event_time) lines.push(`⏰ ${n.event_time}`);
+          if(n.venue) lines.push(`📍 ${n.venue}`);
+          if(n.body) lines.push("", n.body);
+          lines.push("", "— ChemBase BUK");
+          const msg=lines.join("\n");
+          if(navigator.share){ try{ await navigator.share({text:msg}); }catch(e){} } else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");
+        };
+        return (
+        <div onClick={()=>setNoticeOpen(null)} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(3px)"}}>
+          <div onClick={e=>e.stopPropagation()} className="cb-rise" style={{width:"100%",maxWidth:460,maxHeight:"86vh",overflowY:"auto",borderRadius:24,background:C.card,color:C.ink,boxShadow:"0 24px 60px rgba(0,0,0,0.45)"}}>
+            <div style={{background:th.bg,color:"#fff",padding:"20px 20px 18px",position:"relative",overflow:"hidden"}}>
+              <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
+              <div aria-hidden="true" style={{position:"absolute",right:-8,bottom:-18,fontSize:96,lineHeight:1,opacity:0.16,transform:"rotate(-10deg)"}}>{th.icon}</div>
+              <button onClick={()=>setNoticeOpen(null)} aria-label="Close" style={{position:"absolute",top:12,right:12,width:32,height:32,borderRadius:"50%",border:"none",background:"rgba(255,255,255,0.22)",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1}}>✕</button>
+              <span style={{position:"relative",background:"rgba(255,255,255,0.2)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,textTransform:"uppercase"}}>{th.icon} {th.label}</span>
+              <div style={{position:"relative",fontSize:20,fontWeight:"var(--fw-xheavy)",lineHeight:1.3,marginTop:12,paddingRight:26}}>{n.title}</div>
+            </div>
+            <div style={{padding:"16px 20px 20px"}}>
+              {(n.event_date||n.event_time||n.venue) && (
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+                  {n.event_date && <div style={{display:"flex",gap:10,alignItems:"center",fontSize:14}}><span style={{width:30,height:30,borderRadius:10,background:C.greenLight,display:"flex",alignItems:"center",justifyContent:"center"}}>📅</span><span style={{fontWeight:"var(--fw-heavy)"}}>{fmtDay(n.event_date,{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</span></div>}
+                  {n.event_time && <div style={{display:"flex",gap:10,alignItems:"center",fontSize:14}}><span style={{width:30,height:30,borderRadius:10,background:C.greenLight,display:"flex",alignItems:"center",justifyContent:"center"}}>⏰</span><span style={{fontWeight:"var(--fw-heavy)"}}>{n.event_time}</span></div>}
+                  {n.venue && <div style={{display:"flex",gap:10,alignItems:"center",fontSize:14}}><span style={{width:30,height:30,borderRadius:10,background:C.greenLight,display:"flex",alignItems:"center",justifyContent:"center"}}>📍</span><span style={{fontWeight:"var(--fw-heavy)"}}>{n.venue}</span></div>}
+                </div>
+              )}
+              {n.body && <div style={{fontSize:14.5,lineHeight:1.7,whiteSpace:"pre-wrap",wordBreak:"break-word",color:C.ink}}>{linkifyText(n.body,th.solid)}</div>}
+              <div style={{display:"flex",alignItems:"center",gap:10,marginTop:18}}>
+                <button onClick={shareN} style={{background:th.solid,color:"#fff",border:"none",borderRadius:20,padding:"9px 20px",fontSize:13,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Share</button>
+                <span style={{marginLeft:"auto",fontSize:11.5,color:C.muted}}>Posted {n.created_at?fmtDay(n.created_at.slice(0,10),{day:"numeric",month:"short"}):""}</span>
+              </div>
+            </div>
+          </div>
+        </div>);
+      })()}
 
       {/* PAST QUESTIONS */}
       {tab==="pq" && (
@@ -3779,6 +3955,54 @@ export default function ChemBaseBUK() {
               </div>
             </div>
           )}
+
+          {adminMode && (()=>{
+            const inp={width:"100%",padding:"10px 12px",borderRadius:8,border:`1.5px solid ${C.border}`,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:10,background:C.bg,color:C.ink,fontFamily:"inherit"};
+            const lbl={fontSize:11.5,color:C.muted,marginBottom:4,fontWeight:"var(--fw-heavy)"};
+            const live=noticeSort(notices);
+            return (
+            <div style={{...card,padding:"16px",marginBottom:18,borderTop:`3px solid ${C.green}`}}>
+              <div style={{fontWeight:"var(--fw-heavy)",fontSize:15,marginBottom:2}}>📢 Notice Board</div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:12}}>What you post shows on the home page for every student.</div>
+              <div style={lbl}>Type</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+                {Object.keys(NOTICE_THEME).map(k=>(
+                  <button key={k} onClick={()=>setNForm(p=>({...p,kind:k}))} style={{padding:"6px 12px",borderRadius:20,border:`1.5px solid ${nForm.kind===k?NOTICE_THEME[k].solid:C.border}`,background:nForm.kind===k?NOTICE_THEME[k].solid:C.card,color:nForm.kind===k?"#fff":C.ink,fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>{NOTICE_THEME[k].icon} {k}</button>
+                ))}
+              </div>
+              <input placeholder="Title (e.g. Departmental Seminar)" maxLength={120} value={nForm.title} onChange={e=>setNForm(p=>({...p,title:e.target.value}))} style={inp}/>
+              <textarea placeholder="Details. You can paste a link (for a timetable PDF, for example)." rows={4} maxLength={1200} value={nForm.body} onChange={e=>setNForm(p=>({...p,body:e.target.value}))} style={{...inp,resize:"vertical"}}/>
+              <div style={{display:"flex",gap:10}}>
+                <div style={{flex:1,minWidth:0}}><div style={lbl}>Date (optional)</div><input type="date" value={nForm.date} onChange={e=>setNForm(p=>({...p,date:e.target.value}))} style={inp}/></div>
+                <div style={{flex:1,minWidth:0}}><div style={lbl}>Time (optional)</div><input placeholder="10:00 am" maxLength={40} value={nForm.time} onChange={e=>setNForm(p=>({...p,time:e.target.value}))} style={inp}/></div>
+              </div>
+              <input placeholder="Venue (optional)" maxLength={80} value={nForm.venue} onChange={e=>setNForm(p=>({...p,venue:e.target.value}))} style={inp}/>
+              <div style={lbl}>Remove from home page after (optional)</div>
+              <input type="date" value={nForm.expires} onChange={e=>setNForm(p=>({...p,expires:e.target.value}))} style={inp}/>
+              <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,marginBottom:12,cursor:"pointer"}}>
+                <input type="checkbox" checked={nForm.pinned} onChange={e=>setNForm(p=>({...p,pinned:e.target.checked}))}/> 📌 Pin to the front
+              </label>
+              <div style={lbl}>Notice PIN</div>
+              <input type="password" inputMode="numeric" autoComplete="off" placeholder="Notice PIN" value={nPin} onChange={e=>setNPin(e.target.value)} style={{...inp,textAlign:"center",letterSpacing:4}}/>
+              <button onClick={postNotice} disabled={nBusy} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"12px",borderRadius:12,fontWeight:"var(--fw-heavy)",fontSize:14,cursor:nBusy?"wait":"pointer",opacity:nBusy?0.6:1}}>{nBusy?"Please wait...":"Post notice"}</button>
+              {nMsg && <div style={{marginTop:10,fontSize:12.5,fontWeight:"var(--fw-heavy)",color:/Posted|Deleted/.test(nMsg)?C.green:"#c0392b"}}>{nMsg}</div>}
+              {live.length>0 && (
+                <div style={{marginTop:16,borderTop:`1px solid ${C.border}`,paddingTop:12}}>
+                  <div style={{...lbl,marginBottom:8}}>Posted notices (delete needs the PIN above)</div>
+                  {live.map(n=>(
+                    <div key={n.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+                      <span style={{fontSize:16}}>{(NOTICE_THEME[n.kind]||NOTICE_THEME.Notice).icon}</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:"var(--fw-heavy)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.title}</div>
+                        <div style={{fontSize:11,color:C.muted}}>{n.kind}{n.event_date?` · ${fmtDay(n.event_date,{day:"numeric",month:"short"})}`:""}{noticeIsLive(n)?"":" · expired"}</div>
+                      </div>
+                      <button onClick={()=>removeNotice(n.id)} style={{background:"#fee2e2",color:"#c0392b",border:"none",borderRadius:6,padding:"4px 9px",fontSize:11,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>🗑 Delete</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>);
+          })()}
 
           {!showAskForm
             ? <button onClick={()=>setShowAskForm(true)} style={{width:"100%",background:C.green,color:"#fff",border:"none",padding:"13px",borderRadius:12,fontWeight:"var(--fw-heavy)",fontSize:14,cursor:"pointer",marginBottom:18}}>+ Ask a Question</button>
