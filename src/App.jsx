@@ -1670,7 +1670,6 @@ async function supabaseRequest(path, method="GET", body=null) {
 const NOTICE_THEME = {
   Notice:   { icon:"📢", label:"Notice",  bg:"linear-gradient(135deg,#0b6b35 0%,#1aa65a 100%)", glow:"rgba(14,122,60,0.30)",  solid:"#0e7a3c" },
   Program:  { icon:"🎓", label:"Program", bg:"linear-gradient(135deg,#4527a0 0%,#7e57c2 100%)", glow:"rgba(94,53,177,0.32)",  solid:"#5e35b1" },
-  Flyer:    { icon:"🖼️", label:"Flyer",   bg:"linear-gradient(135deg,#c2410c 0%,#f59e0b 100%)", glow:"rgba(217,119,6,0.34)",  solid:"#d97706" },
 };
 function todayStr() { return new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10); }
 function daysUntil(dateStr) {
@@ -2488,18 +2487,19 @@ export default function ChemBaseBUK() {
     const f=e.target.files[0]; e.target.value=""; if(!f) return;
     if(!/^image\//.test(f.type)){ setNMsg("Please choose an image (photo or screenshot)."); return; }
     setNMsg("Preparing image...");
-    try{ const d=await compressImage(f); setNForm(p=>({...p,image:d,kind:p.kind==="Notice"?"Flyer":p.kind})); setNMsg(""); }
+    try{ const d=await compressImage(f); setNForm(p=>({...p,image:d})); setNMsg(""); }
     catch(err){ setNMsg(err.message); }
   };
   const postNotice = async () => {
     if(nBusy) return;
+    const isProg=nForm.kind==="Program";
     if(!nForm.title.trim()){ setNMsg("Add a title first."); return; }
     if(!nPin){ setNMsg("Please unlock Admin again."); return; }
     setNBusy(true); setNMsg("");
     try{
       await noticeRpc("notice_post",{
         p_pin:nPin, p_kind:nForm.kind, p_title:nForm.title, p_body:nForm.body,
-        p_event_date:nForm.date||null, p_event_time:nForm.time, p_venue:nForm.venue,
+        p_event_date:isProg?(nForm.date||null):null, p_event_time:isProg?nForm.time:"", p_venue:isProg?nForm.venue:"",
         p_pinned:nForm.pinned, p_expires_on:nForm.expires||null, p_image:nForm.image||null });
       setNForm(blankNotice); setNMsg("Posted. It is now on the home page ✅"); loadNotices();
     }catch(e){ setNMsg(e.message); }
@@ -4016,7 +4016,7 @@ export default function ChemBaseBUK() {
             return (
             <div style={{...card,padding:"16px",marginBottom:18,borderTop:`3px solid ${C.green}`}}>
               <div style={{fontWeight:"var(--fw-heavy)",fontSize:15,marginBottom:2}}>📢 Notice Board</div>
-              <div style={{fontSize:12,color:C.muted,marginBottom:12}}>What you post shows on the home page for every student.</div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:12}}>What you post shows on the home page for every student. Programs also get a date, time and venue.</div>
               <div style={lbl}>Type</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
                 {Object.keys(NOTICE_THEME).map(k=>(
@@ -4030,15 +4030,17 @@ export default function ChemBaseBUK() {
                   <button onClick={()=>setNForm(p=>({...p,image:""}))} style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.65)",color:"#fff",border:"none",borderRadius:20,padding:"4px 11px",fontSize:11.5,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Remove image</button>
                 </div>
               ) : (
-                <button onClick={()=>document.getElementById("nimg").click()} style={{width:"100%",background:C.greenLight,border:`1.5px dashed ${C.border}`,borderRadius:8,padding:"11px",fontSize:13,color:C.green,fontWeight:600,cursor:"pointer",marginBottom:10}}>🖼️ Upload a flyer or image (optional)</button>
+                <button onClick={()=>document.getElementById("nimg").click()} style={{width:"100%",background:C.greenLight,border:`1.5px dashed ${C.border}`,borderRadius:8,padding:"11px",fontSize:13,color:C.green,fontWeight:600,cursor:"pointer",marginBottom:10}}>🖼️ Add an image (optional)</button>
               )}
               <input placeholder="Title (e.g. Departmental Seminar)" maxLength={120} value={nForm.title} onChange={e=>setNForm(p=>({...p,title:e.target.value}))} style={inp}/>
-              <textarea placeholder="Details. You can paste a link (for a timetable PDF, for example)." rows={4} maxLength={1200} value={nForm.body} onChange={e=>setNForm(p=>({...p,body:e.target.value}))} style={{...inp,resize:"vertical"}}/>
+              <textarea placeholder="Write the details here..." rows={4} maxLength={1200} value={nForm.body} onChange={e=>setNForm(p=>({...p,body:e.target.value}))} style={{...inp,resize:"vertical"}}/>
+              {nForm.kind==="Program" && (<>
               <div style={{display:"flex",gap:10}}>
                 <div style={{flex:1,minWidth:0}}><div style={lbl}>Date (optional)</div><input type="date" value={nForm.date} onChange={e=>setNForm(p=>({...p,date:e.target.value}))} style={inp}/></div>
                 <div style={{flex:1,minWidth:0}}><div style={lbl}>Time (optional)</div><input placeholder="10:00 am" maxLength={40} value={nForm.time} onChange={e=>setNForm(p=>({...p,time:e.target.value}))} style={inp}/></div>
               </div>
               <input placeholder="Venue (optional)" maxLength={80} value={nForm.venue} onChange={e=>setNForm(p=>({...p,venue:e.target.value}))} style={inp}/>
+              </>)}
               <div style={lbl}>Remove from home page after (optional)</div>
               <input type="date" value={nForm.expires} onChange={e=>setNForm(p=>({...p,expires:e.target.value}))} style={inp}/>
               <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,marginBottom:12,cursor:"pointer"}}>
