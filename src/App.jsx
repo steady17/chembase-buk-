@@ -1668,10 +1668,9 @@ async function supabaseRequest(path, method="GET", body=null) {
 
 // ── Notice board (Supabase: public.notices, posted through PIN-checked functions) ──
 const NOTICE_THEME = {
-  Notice:   { icon:"📢", label:"Notice",    bg:"linear-gradient(135deg,#0b6b35 0%,#1aa65a 100%)", glow:"rgba(14,122,60,0.30)",  solid:"#0e7a3c" },
-  Program:  { icon:"🎓", label:"Program",   bg:"linear-gradient(135deg,#4527a0 0%,#7e57c2 100%)", glow:"rgba(94,53,177,0.32)",  solid:"#5e35b1" },
-  Timetable:{ icon:"🗓️", label:"Timetable", bg:"linear-gradient(135deg,#0d47a1 0%,#1e88e5 100%)", glow:"rgba(21,101,192,0.32)", solid:"#1565c0" },
-  Urgent:   { icon:"⚠️", label:"Urgent",    bg:"linear-gradient(135deg,#b71c1c 0%,#f4511e 100%)", glow:"rgba(211,47,47,0.34)",  solid:"#d32f2f" },
+  Notice:   { icon:"📢", label:"Notice",  bg:"linear-gradient(135deg,#0b6b35 0%,#1aa65a 100%)", glow:"rgba(14,122,60,0.30)",  solid:"#0e7a3c" },
+  Program:  { icon:"🎓", label:"Program", bg:"linear-gradient(135deg,#4527a0 0%,#7e57c2 100%)", glow:"rgba(94,53,177,0.32)",  solid:"#5e35b1" },
+  Flyer:    { icon:"🖼️", label:"Flyer",   bg:"linear-gradient(135deg,#c2410c 0%,#f59e0b 100%)", glow:"rgba(217,119,6,0.34)",  solid:"#d97706" },
 };
 function todayStr() { return new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10); }
 function daysUntil(dateStr) {
@@ -1686,14 +1685,12 @@ function noticeIsLive(n) {
   return true;
 }
 function noticeSort(list) {
-  const rank={Urgent:0,Notice:1,Program:1,Timetable:1};
   return list.slice().sort((a,b)=>
     (b.pinned?1:0)-(a.pinned?1:0) ||
-    (rank[a.kind]??1)-(rank[b.kind]??1) ||
     (b.created_at||"").localeCompare(a.created_at||""));
 }
 async function noticeLoad() {
-  const r = await supabaseRequest("/notices?select=*&order=created_at.desc&limit=60");
+  const r = await supabaseRequest("/notices?select=id,kind,title,body,event_date,event_time,venue,pinned,expires_on,has_image,created_at&order=created_at.desc&limit=60");
   return Array.isArray(r) ? r : [];
 }
 async function noticeRpc(fn, args) {
@@ -1707,6 +1704,36 @@ async function noticeRpc(fn, args) {
     try{ const j=await res.json(); if(/wrong pin/i.test(j.message||"")) m="Wrong PIN"; }catch{}
     throw new Error(m);
   }
+}
+const _nimg = new Map();
+function noticeImage(id) {
+  if(!_nimg.has(id)) {
+    _nimg.set(id, supabaseRequest(`/notices?id=eq.${id}&select=image`)
+      .then(r=>(r&&r[0]&&r[0].image)||"").catch(()=>{ _nimg.delete(id); return ""; }));
+  }
+  return _nimg.get(id);
+}
+function NoticePic({ id, style, fit }) {
+  const [src,setSrc]=useState("");
+  useEffect(()=>{ let on=true; noticeImage(id).then(v=>{ if(on) setSrc(v); }); return ()=>{on=false;}; },[id]);
+  if(!src) return <div style={{...style,background:"rgba(255,255,255,0.12)"}}/>;
+  return <img src={src} alt="" style={{...style,objectFit:fit||"cover",display:"block"}}/>;
+}
+function compressImage(file, maxSide=1100) {
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file); const img=new Image();
+    img.onload=()=>{
+      const k=Math.min(1,maxSide/Math.max(img.width,img.height));
+      const c=document.createElement("canvas"); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k);
+      const x=c.getContext("2d"); x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url);
+      let q=0.8, out=c.toDataURL("image/jpeg",q);
+      while(out.length>420000 && q>0.4){ q-=0.1; out=c.toDataURL("image/jpeg",q); }
+      if(out.length>440000) reject(new Error("Image is too large. Try a smaller one.")); else resolve(out);
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error("Could not read that image.")); };
+    img.src=url;
+  });
 }
 function linkifyText(text, color) {
   return String(text||"").split(/(https?:\/\/[^\s]+)/g).map((p,i)=>
@@ -2450,7 +2477,7 @@ export default function ChemBaseBUK() {
   // Notice board
   const [notices, setNotices]       = useState([]);
   const [noticeOpen, setNoticeOpen] = useState(null);
-  const blankNotice = {kind:"Notice",title:"",body:"",date:"",time:"",venue:"",pinned:false,expires:""};
+  const blankNotice = {kind:"Notice",title:"",body:"",date:"",time:"",venue:"",pinned:false,expires:"",image:""};
   const [nForm, setNForm]           = useState(blankNotice);
   const [nPin, setNPin]             = useState("");
   const [nBusy, setNBusy]           = useState(false);
@@ -2458,6 +2485,13 @@ export default function ChemBaseBUK() {
   const loadNotices = () => { noticeLoad().then(setNotices).catch(()=>{}); };
   useEffect(()=>{ loadNotices(); },[]);
   useEffect(()=>{ if(tab==="home"||tab==="help") loadNotices(); },[tab]);
+  const pickNoticeImage = async (e) => {
+    const f=e.target.files[0]; e.target.value=""; if(!f) return;
+    if(!/^image\//.test(f.type)){ setNMsg("Please choose an image (photo or screenshot)."); return; }
+    setNMsg("Preparing image...");
+    try{ const d=await compressImage(f); setNForm(p=>({...p,image:d,kind:p.kind==="Notice"?"Flyer":p.kind})); setNMsg(""); }
+    catch(err){ setNMsg(err.message); }
+  };
   const postNotice = async () => {
     if(nBusy) return;
     if(!nForm.title.trim()){ setNMsg("Add a title first."); return; }
@@ -2467,7 +2501,7 @@ export default function ChemBaseBUK() {
       await noticeRpc("notice_post",{
         p_pin:nPin, p_kind:nForm.kind, p_title:nForm.title, p_body:nForm.body,
         p_event_date:nForm.date||null, p_event_time:nForm.time, p_venue:nForm.venue,
-        p_pinned:nForm.pinned, p_expires_on:nForm.expires||null });
+        p_pinned:nForm.pinned, p_expires_on:nForm.expires||null, p_image:nForm.image||null });
       setNForm(blankNotice); setNMsg("Posted. It is now on the home page ✅"); loadNotices();
     }catch(e){ setNMsg(e.message); }
     setNBusy(false);
@@ -2941,7 +2975,7 @@ export default function ChemBaseBUK() {
                 const one=live.length===1;
                 return (
                 <div style={{marginBottom:24}}>
-                  <style>{`.cb-nsl{scrollbar-width:none}.cb-nsl::-webkit-scrollbar{display:none}@keyframes cbUrg{0%,100%{box-shadow:0 12px 28px rgba(211,47,47,.34)}50%{box-shadow:0 12px 34px rgba(244,81,30,.62)}}`}</style>
+                  <style>{`.cb-nsl{scrollbar-width:none}.cb-nsl::-webkit-scrollbar{display:none}`}</style>
                   <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16,marginBottom:12}}>
                     <span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Notice Board
                     <span style={{background:C.green,color:"#fff",borderRadius:20,padding:"1px 9px",fontSize:11.5,fontWeight:"var(--fw-heavy)"}}>{live.length}</span>
@@ -2954,15 +2988,20 @@ export default function ChemBaseBUK() {
                       const when=du===null?null:du===0?"Today":du===1?"Tomorrow":du>1&&du<=14?`In ${du} days`:null;
                       return (
                       <div key={n.id} role="button" className="cb-rise" onClick={()=>setNoticeOpen(n)}
-                        style={{flex:one?"1 1 100%":"0 0 min(86%,330px)",scrollSnapAlign:"center",boxSizing:"border-box",cursor:"pointer",position:"relative",overflow:"hidden",borderRadius:22,padding:"15px 16px 14px",color:"#fff",background:th.bg,boxShadow:`0 12px 28px ${th.glow}`,animation:n.kind==="Urgent"?"cbUrg 2.4s ease-in-out infinite":undefined,animationDelay:(i*70)+"ms",display:"flex",flexDirection:"column"}}>
-                        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
-                        <div aria-hidden="true" style={{position:"absolute",right:-10,bottom:-20,fontSize:104,lineHeight:1,opacity:0.15,transform:"rotate(-10deg)",pointerEvents:"none"}}>{th.icon}</div>
-                        <div style={{position:"relative",display:"flex",alignItems:"center",gap:8,marginBottom:11}}>
+                        style={{flex:one?"1 1 100%":"0 0 min(86%,330px)",scrollSnapAlign:"center",boxSizing:"border-box",cursor:"pointer",position:"relative",overflow:"hidden",borderRadius:22,padding:"15px 16px 14px",color:"#fff",background:th.bg,boxShadow:`0 12px 28px ${th.glow}`,animationDelay:(i*70)+"ms",display:"flex",flexDirection:"column",minHeight:n.has_image?320:undefined}}>
+                        {n.has_image ? (<>
+                          <NoticePic id={n.id} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
+                          <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,0.35) 0%,rgba(0,0,0,0.05) 32%,rgba(0,0,0,0.45) 62%,rgba(0,0,0,0.85) 100%)",pointerEvents:"none"}}/>
+                        </>) : (<>
+                          <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.12) 1.2px, transparent 1.4px)",backgroundSize:"16px 16px",opacity:0.5,pointerEvents:"none"}}/>
+                          <div aria-hidden="true" style={{position:"absolute",right:-10,bottom:-20,fontSize:104,lineHeight:1,opacity:0.15,transform:"rotate(-10deg)",pointerEvents:"none"}}>{th.icon}</div>
+                        </>)}
+                        <div style={{position:"relative",display:"flex",alignItems:"center",gap:8,marginBottom:n.has_image?"auto":11}}>
                           <span style={{background:"rgba(255,255,255,0.2)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)",letterSpacing:0.8,textTransform:"uppercase"}}>{th.icon} {th.label}</span>
                           {n.pinned && <span style={{fontSize:11,opacity:0.9}}>📌 Pinned</span>}
                           {when && <span style={{marginLeft:"auto",background:"#ffd54f",color:"#3b2c00",borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:"var(--fw-heavy)"}}>{when}</span>}
                         </div>
-                        <div style={{position:"relative",display:"flex",gap:12,alignItems:"flex-start"}}>
+                        <div style={{position:"relative",display:"flex",gap:12,alignItems:"flex-start",marginTop:n.has_image?16:0}}>
                           {n.event_date && (
                             <div style={{flexShrink:0,width:54,borderRadius:14,background:"#fff",color:th.solid,textAlign:"center",overflow:"hidden",boxShadow:"0 4px 12px rgba(0,0,0,0.22)"}}>
                               <div style={{background:th.solid,color:"#fff",fontSize:10,letterSpacing:1.2,padding:"3px 0",fontWeight:"var(--fw-heavy)"}}>{fmtDay(n.event_date,{month:"short"}).toUpperCase()}</div>
@@ -3087,6 +3126,7 @@ export default function ChemBaseBUK() {
               <div style={{position:"relative",fontSize:20,fontWeight:"var(--fw-xheavy)",lineHeight:1.3,marginTop:12,paddingRight:26}}>{n.title}</div>
             </div>
             <div style={{padding:"16px 20px 20px"}}>
+              {n.has_image && <div style={{margin:"-4px -4px 14px",borderRadius:14,overflow:"hidden",background:C.bg}}><NoticePic id={n.id} fit="contain" style={{width:"100%",maxHeight:"58vh",minHeight:180}}/></div>}
               {(n.event_date||n.event_time||n.venue) && (
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                   {n.event_date && <div style={{display:"flex",gap:10,alignItems:"center",fontSize:14}}><span style={{width:30,height:30,borderRadius:10,background:C.greenLight,display:"flex",alignItems:"center",justifyContent:"center"}}>📅</span><span style={{fontWeight:"var(--fw-heavy)"}}>{fmtDay(n.event_date,{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</span></div>}
@@ -3970,6 +4010,15 @@ export default function ChemBaseBUK() {
                   <button key={k} onClick={()=>setNForm(p=>({...p,kind:k}))} style={{padding:"6px 12px",borderRadius:20,border:`1.5px solid ${nForm.kind===k?NOTICE_THEME[k].solid:C.border}`,background:nForm.kind===k?NOTICE_THEME[k].solid:C.card,color:nForm.kind===k?"#fff":C.ink,fontSize:12.5,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>{NOTICE_THEME[k].icon} {k}</button>
                 ))}
               </div>
+              <input type="file" id="nimg" accept="image/*" style={{display:"none"}} onChange={pickNoticeImage}/>
+              {nForm.image ? (
+                <div style={{position:"relative",marginBottom:10,borderRadius:10,overflow:"hidden",border:`1.5px solid ${C.border}`}}>
+                  <img src={nForm.image} alt="" style={{width:"100%",maxHeight:220,objectFit:"contain",display:"block",background:C.bg}}/>
+                  <button onClick={()=>setNForm(p=>({...p,image:""}))} style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.65)",color:"#fff",border:"none",borderRadius:20,padding:"4px 11px",fontSize:11.5,fontWeight:"var(--fw-heavy)",cursor:"pointer"}}>Remove image</button>
+                </div>
+              ) : (
+                <button onClick={()=>document.getElementById("nimg").click()} style={{width:"100%",background:C.greenLight,border:`1.5px dashed ${C.border}`,borderRadius:8,padding:"11px",fontSize:13,color:C.green,fontWeight:600,cursor:"pointer",marginBottom:10}}>🖼️ Upload a flyer or image (optional)</button>
+              )}
               <input placeholder="Title (e.g. Departmental Seminar)" maxLength={120} value={nForm.title} onChange={e=>setNForm(p=>({...p,title:e.target.value}))} style={inp}/>
               <textarea placeholder="Details. You can paste a link (for a timetable PDF, for example)." rows={4} maxLength={1200} value={nForm.body} onChange={e=>setNForm(p=>({...p,body:e.target.value}))} style={{...inp,resize:"vertical"}}/>
               <div style={{display:"flex",gap:10}}>
