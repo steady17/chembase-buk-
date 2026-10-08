@@ -3230,6 +3230,7 @@ export default function ChemBaseBUK() {
                 </div>
               )}
             </div>
+            <div style={{textAlign:"center",fontSize:11,color:C.muted,marginTop:6,lineHeight:1.35}}>ChemBot can make mistakes. Please check important answers with your lecturers or textbooks.</div>
           </div>
         </div>
       )}
