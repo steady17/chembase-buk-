@@ -4216,7 +4216,7 @@ export default function ChemBaseBUK() {
             })}
           </div>
           )}
-          <div className="cb-rise" style={{marginTop:30,marginLeft:"auto",marginRight:"auto",maxWidth:560,position:"relative",overflow:"hidden",borderRadius:28,padding:"30px 22px 26px",textAlign:"center",background:"linear-gradient(155deg,#0b5a2c 0%,#073d1e 55%,#042813 100%)",border:"1.5px solid rgba(255,255,255,0.14)",boxShadow:"0 18px 44px rgba(7,61,30,0.38)"}}>
+          <div className="cb-rise" style={{marginTop:30,marginLeft:"auto",marginRight:"auto",maxWidth:560,position:"relative",overflow:"hidden",borderRadius:28,padding:"30px 22px 30px",textAlign:"center",background:"linear-gradient(155deg,#0b5a2c 0%,#073d1e 55%,#042813 100%)",border:"1.5px solid rgba(255,255,255,0.14)",boxShadow:"0 18px 44px rgba(7,61,30,0.38)"}}>
             <style>{`@keyframes cbDevGlow{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:.95;transform:scale(1.08)}}@keyframes cbDevShine{0%{transform:translateX(-120%)}60%,100%{transform:translateX(220%)}}`}</style>
             <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(255,255,255,0.10) 1.1px, transparent 1.3px)",backgroundSize:"18px 18px",pointerEvents:"none"}}/>
             <div style={{position:"absolute",top:-70,left:"50%",marginLeft:-130,width:260,height:260,borderRadius:"50%",background:"radial-gradient(circle,rgba(74,222,128,0.45),transparent 68%)",animation:"cbDevGlow 4.5s ease-in-out infinite",pointerEvents:"none"}}/>
@@ -4232,12 +4232,6 @@ export default function ChemBaseBUK() {
             <div style={{position:"relative",marginTop:5,fontSize:11.5,fontWeight:"var(--fw-heavy)",color:"#86efac",textTransform:"uppercase",letterSpacing:1.6}}>Developer of ChemBase BUK</div>
             <div style={{position:"relative",margin:"14px auto 0",width:42,height:2,borderRadius:2,background:"linear-gradient(90deg,transparent,#86efac,transparent)"}}/>
             <div style={{position:"relative",margin:"14px auto 0",maxWidth:320,fontSize:13,lineHeight:1.65,color:"rgba(255,255,255,0.82)"}}>Chemical Engineering student at Bayero University Kano. Built this app for the students of our department.</div>
-            <div style={{position:"relative",display:"flex",flexWrap:"wrap",justifyContent:"center",gap:7,marginTop:18}}>
-              {["React","Supabase","Vercel","AI"].map(t=>(
-                <span key={t} style={{fontSize:10.5,fontWeight:"var(--fw-heavy)",letterSpacing:0.6,color:"#d9ffe6",background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.20)",borderRadius:14,padding:"4px 11px"}}>{t}</span>
-              ))}
-            </div>
-            <div style={{position:"relative",marginTop:18,fontSize:10.5,color:"rgba(255,255,255,0.55)",letterSpacing:0.4}}>Made with ❤️ in Kano, Nigeria</div>
           </div>
         </div>
       )}
