@@ -3325,6 +3325,7 @@ export default function ChemBaseBUK() {
                     <button key={q} onClick={()=>setChatInput(q)} style={{background:C.greenLight,border:`1.5px solid ${C.border}`,borderRadius:12,padding:"12px 16px",fontSize:14,cursor:"pointer",color:C.green,fontWeight:600,textAlign:"left",width:"100%"}}>{q}</button>
                   ))}
                 </div>
+                <div style={{textAlign:"center",fontSize:11.5,color:C.muted,marginTop:18,lineHeight:1.4,maxWidth:300}}>ChemBot can make mistakes. Please check important answers with your lecturers or textbooks.</div>
               </div>
             )}
             {chatHistory.map((m,i)=>(
@@ -3418,6 +3419,9 @@ export default function ChemBaseBUK() {
                 <div style={{padding:"10px 14px",background:C.greenLight,borderRadius:"16px 16px 16px 4px",color:C.muted,fontSize:14}}>Thinking...</div>
               </div>
             )}
+            {chatHistory.length>0 && !chatLoading && (
+              <div style={{textAlign:"center",fontSize:11,color:C.muted,lineHeight:1.4,padding:"2px 8px 6px"}}>ChemBot can make mistakes. Please check important answers with your lecturers or textbooks.</div>
+            )}
           </div>
           {chatViewer && <ImageZoomViewer src={chatViewer} onClose={()=>setChatViewer(null)}/>}
           {/* Fixed input bar */}
@@ -3460,7 +3464,6 @@ export default function ChemBaseBUK() {
                 </div>
               )}
             </div>
-            <div style={{textAlign:"center",fontSize:11,color:C.muted,marginTop:6,lineHeight:1.35}}>ChemBot can make mistakes. Please check important answers with your lecturers or textbooks.</div>
           </div>
         </div>
       )}
