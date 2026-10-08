@@ -2982,12 +2982,29 @@ export default function ChemBaseBUK() {
 
           {!isGlobalSearch && (
             <div style={{padding:"16px 16px 0",maxWidth:600,margin:"0 auto"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16,marginBottom:14}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Quick Access</div>
+              <div className="cb-qa" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                {[
+                  {icon:"📂",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
+                  {icon:"🤖",title:"ChemBot AI",desc:"AI study assistant",action:()=>setTab("ai"),color:dark?"#64b5f6":"#1565c0"},
+                  {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:dark?"#f0c040":"#b8860b"},
+                  {icon:"🧰",title:"ChemE Toolbox",desc:"Calculator, converters & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:dark?"#ce93d8":"#6a1b9a"},
+                ].map((c,i)=>(
+                  <div key={i} onClick={c.action} role="button" className="cb-rise" style={{...card,padding:"15px 14px 13px",cursor:"pointer",position:"relative",overflow:"hidden",borderRadius:18,display:"flex",flexDirection:"column",gap:2,boxShadow:`inset 0 3px 0 ${c.color}, 0 6px 18px ${c.color}22`,background:`linear-gradient(160deg,${C.card} 55%,${c.color}12 140%)`,animationDelay:(i*70)+"ms"}}>
+                    <div style={{width:44,height:44,borderRadius:14,background:`linear-gradient(135deg,${c.color}30,${c.color}12)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,marginBottom:9}}>{c.icon}</div>
+                    <div style={{fontWeight:"var(--fw-heavy)",fontSize:13.5,color:c.color}}>{c.title}</div>
+                    <div style={{fontSize:12,color:C.muted,paddingRight:14}}>{c.desc}</div>
+                    <span style={{position:"absolute",right:12,bottom:11,fontSize:16,color:c.color,opacity:0.7}}>›</span>
+                  </div>
+                ))}
+              </div>
+
               {(()=>{
                 const live=noticeSort(notices.filter(noticeIsLive));
                 if(!live.length) return null;
                 const one=live.length===1;
                 return (
-                <div style={{marginBottom:24}}>
+                <div style={{marginTop:22}}>
                   <style>{`.cb-nsl{scrollbar-width:none}.cb-nsl::-webkit-scrollbar{display:none}`}</style>
                   <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16,marginBottom:12}}>
                     <span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Notice Board
@@ -3036,22 +3053,6 @@ export default function ChemBaseBUK() {
                   </div>
                 </div>);
               })()}
-              <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:"var(--fw-heavy)",fontSize:16,marginBottom:14}}><span style={{width:4,height:18,borderRadius:2,background:`linear-gradient(${C.green},#22b05f)`}}/>Quick Access</div>
-              <div className="cb-qa" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                {[
-                  {icon:"📂",title:"Past Questions",desc:"100L to 300L courses",action:()=>setTab("pq"),color:C.green},
-                  {icon:"🤖",title:"ChemBot AI",desc:"AI study assistant",action:()=>setTab("ai"),color:dark?"#64b5f6":"#1565c0"},
-                  {icon:"🙋",title:"Academic Help",desc:"Ask & get solutions",action:()=>setTab("help"),color:dark?"#f0c040":"#b8860b"},
-                  {icon:"🧰",title:"ChemE Toolbox",desc:"Calculator, converters & more",action:()=>{setTab("toolbox");setToolboxView(null);},color:dark?"#ce93d8":"#6a1b9a"},
-                ].map((c,i)=>(
-                  <div key={i} onClick={c.action} role="button" className="cb-rise" style={{...card,padding:"15px 14px 13px",cursor:"pointer",position:"relative",overflow:"hidden",borderRadius:18,display:"flex",flexDirection:"column",gap:2,boxShadow:`inset 0 3px 0 ${c.color}, 0 6px 18px ${c.color}22`,background:`linear-gradient(160deg,${C.card} 55%,${c.color}12 140%)`,animationDelay:(i*70)+"ms"}}>
-                    <div style={{width:44,height:44,borderRadius:14,background:`linear-gradient(135deg,${c.color}30,${c.color}12)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,marginBottom:9}}>{c.icon}</div>
-                    <div style={{fontWeight:"var(--fw-heavy)",fontSize:13.5,color:c.color}}>{c.title}</div>
-                    <div style={{fontSize:12,color:C.muted,paddingRight:14}}>{c.desc}</div>
-                    <span style={{position:"absolute",right:12,bottom:11,fontSize:16,color:c.color,opacity:0.7}}>›</span>
-                  </div>
-                ))}
-              </div>
 
               {(()=>{
                 const day=Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/86400000);
