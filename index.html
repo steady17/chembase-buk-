@@ -51,6 +51,8 @@
         function check(){
           try{
             var last=+sessionStorage.getItem('cb_upd')||0; if(Date.now()-last<120000) return;
+            // Never refresh while someone is choosing or has just chosen a photo or file.
+            var pk=+sessionStorage.getItem('cb_pick')||0; if(Date.now()-pk<900000) return;
             fetch('/?_='+Date.now(),{cache:'no-store'}).then(function(r){return r.text();}).then(function(t){
               var m=t.match(/\/assets\/index-[^"']+\.js/);
               if(m && cur.indexOf(m[0])<0){
@@ -62,6 +64,8 @@
             }).catch(function(){});
           }catch(e){}
         }
+        document.addEventListener('click',function(e){ try{ var t=e.target; if(t && t.tagName==='INPUT' && t.type==='file') sessionStorage.setItem('cb_pick',String(Date.now())); }catch(x){} },true);
+        document.addEventListener('change',function(e){ try{ var t=e.target; if(t && t.tagName==='INPUT' && t.type==='file') sessionStorage.setItem('cb_pick',String(Date.now())); }catch(x){} },true);
         document.addEventListener('visibilitychange',function(){ if(!document.hidden) check(); });
         window.addEventListener('focus',check);
         setTimeout(check,4000); setInterval(check,300000);

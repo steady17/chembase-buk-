@@ -2060,7 +2060,9 @@ function formatMsg(text) {
 export default function ChemBaseBUK() {
   const [wide,setWide]=useState(()=>typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(min-width:900px)').matches);
   useEffect(()=>{const m=window.matchMedia('(min-width:900px)');const f=()=>setWide(m.matches);m.addEventListener?m.addEventListener('change',f):m.addListener(f);return()=>{m.removeEventListener?m.removeEventListener('change',f):m.removeListener(f);};},[]);
-  const [tab, setTab]               = useState("home");
+  // Remember where the student was for 30 minutes, so if the phone closes the app while
+  // they pick a photo (or they switch apps) they come back to the same screen.
+  const [tab, setTab]               = useState(()=>{ try{ const j=JSON.parse(localStorage.getItem("cb_resume")||"null"); if(j && j.tab && Date.now()-j.t<1800000) return j.tab; }catch{} return "home"; });
   const [dark, setDark]             = useState(false);
   const [level, setLevel]           = useState("300 Level");
   const [semester, setSemester]     = useState("First Semester");
@@ -2231,7 +2233,7 @@ export default function ChemBaseBUK() {
     setChatSessions(prev=>prev.filter(s=>s.id!==id));
     if(activeSessionId===id) setActiveSessionId(null);
   };
-  const [chatInput, setChatInput]     = useState("");
+  const [chatInput, setChatInput]     = useState(()=>{ try{ const j=JSON.parse(localStorage.getItem("cb_resume")||"null"); if(j && j.draft && Date.now()-j.t<1800000) return j.draft; }catch{} return ""; });
   const [chatLoading, setChatLoading] = useState(false);
   const [chatFile, setChatFile]       = useState(null);
   const [chatFileBusy, setChatFileBusy] = useState(false);
@@ -2544,6 +2546,10 @@ export default function ChemBaseBUK() {
       localStorage.setItem("chembot-sessions", json);
     } catch {}
   }, [chatSessions]);
+
+  useEffect(() => {
+    try { localStorage.setItem("cb_resume", JSON.stringify({ tab, draft: chatInput.slice(0, 4000), t: Date.now() })); } catch {}
+  }, [tab, chatInput]);
 
   useEffect(() => {
     try {
