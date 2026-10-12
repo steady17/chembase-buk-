@@ -2,6 +2,13 @@
 // configured, falls back to a list of free OpenRouter models, so
 // ChemBot keeps working even if Groq has a bad day.
 
+const FREE_BACKUPS = [
+  'openai/gpt-oss-120b:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'qwen/qwen3-next-80b-a3b-instruct:free',
+  'nvidia/nemotron-3-super-120b-a12b:free'
+];
+
 // Groq's free plan counts the room reserved for the answer (max_tokens) together with
 // the question, against 8000 tokens a minute. Shrink the answer room when the
 // question is long so one request never goes over.
@@ -95,6 +102,25 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // Health check: open /api/chat?test=chembase in a browser. It sends one tiny
+  // question to every model and shows which ones answer.
+  if (req.method === 'GET' && req.query && req.query.test === 'chembase') {
+    const tinyAsk = [{ role: 'user', content: 'Reply with the single word OK.' }];
+    const checks = [];
+    if (process.env.GROQ_API_KEY) checks.push(['Groq openai/gpt-oss-120b', () => callGroq(tinyAsk, process.env.GROQ_API_KEY, 'openai/gpt-oss-120b', 300)]);
+    else checks.push(['Groq', async () => { throw new Error('GROQ_API_KEY is not set'); }]);
+    if (process.env.OPENROUTER_API_KEY) {
+      for (const model of FREE_BACKUPS) checks.push([`OpenRouter ${model}`, () => callOpenRouter(tinyAsk, process.env.OPENROUTER_API_KEY, model, 300)]);
+    } else checks.push(['OpenRouter', async () => { throw new Error('OPENROUTER_API_KEY is not set'); }]);
+    const results = await Promise.all(checks.map(async ([label, run]) => {
+      const t = Date.now();
+      try { const r = await run(); return { model: label, ok: true, ms: Date.now() - t, reply: r.content.slice(0, 40) }; }
+      catch (e) { return { model: label, ok: false, ms: Date.now() - t, error: String(e.message).slice(0, 200) }; }
+    }));
+    return res.status(200).json(results);
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const groqKey = process.env.GROQ_API_KEY;
@@ -124,13 +150,7 @@ export default async function handler(req, res) {
     if (openRouterKey) {
       // Free backups, best first. Free model names on OpenRouter change now and then,
       // so there are several; if one is gone the next one takes over.
-      const freeBackups = [
-        'openai/gpt-oss-120b:free',
-        'meta-llama/llama-3.3-70b-instruct:free',
-        'qwen/qwen3-next-80b-a3b-instruct:free',
-        'nvidia/nemotron-3-super-120b-a12b:free'
-      ];
-      for (const model of freeBackups) {
+      for (const model of FREE_BACKUPS) {
         attempts.push({ label: `OpenRouter ${model}`, run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, model), messages, startedAt) });
       }
     }
