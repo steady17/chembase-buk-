@@ -1,5 +1,5 @@
 // Tries Groq first (fast, primary). If Groq errors out, times out, or isn't
-// configured, falls back to OpenRouter — first DeepSeek, then Llama — so
+// configured, falls back to a list of free OpenRouter models, so
 // ChemBot keeps working even if Groq has a bad day.
 
 async function callGroq(messages, groqKey, model = 'openai/gpt-oss-120b', maxTokens = 3500) {
@@ -107,8 +107,17 @@ export default async function handler(req, res) {
       attempts.push({ label: 'Groq', run: () => finishAnswer((m) => callGroq(m, groqKey), messages, startedAt) });
     }
     if (openRouterKey) {
-      attempts.push({ label: 'OpenRouter DeepSeek', run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, 'deepseek/deepseek-chat:free'), messages, startedAt) });
-      attempts.push({ label: 'OpenRouter Llama', run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, 'meta-llama/llama-3.3-70b-instruct:free'), messages, startedAt) });
+      // Free backups, best first. Free model names on OpenRouter change now and then,
+      // so there are several; if one is gone the next one takes over.
+      const freeBackups = [
+        'openai/gpt-oss-120b:free',
+        'meta-llama/llama-3.3-70b-instruct:free',
+        'qwen/qwen3-next-80b-a3b-instruct:free',
+        'nvidia/nemotron-3-super-120b-a12b:free'
+      ];
+      for (const model of freeBackups) {
+        attempts.push({ label: `OpenRouter ${model}`, run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, model), messages, startedAt) });
+      }
     }
   }
 
