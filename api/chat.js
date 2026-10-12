@@ -2,7 +2,22 @@
 // configured, falls back to a list of free OpenRouter models, so
 // ChemBot keeps working even if Groq has a bad day.
 
+// Groq's free plan counts the room reserved for the answer (max_tokens) together with
+// the question, against 8000 tokens a minute. Shrink the answer room when the
+// question is long so one request never goes over.
+function roomForAnswer(messages, wanted) {
+  let chars = 0;
+  for (const m of messages) {
+    if (Array.isArray(m.content)) {
+      for (const p of m.content) chars += p && p.type === 'text' ? (p.text || '').length : 1500;
+    } else chars += String(m.content || '').length;
+  }
+  const inputTokens = Math.ceil(chars / 3);
+  return Math.max(700, Math.min(wanted, 7400 - inputTokens));
+}
+
 async function callGroq(messages, groqKey, model = 'openai/gpt-oss-120b', maxTokens = 3500) {
+  maxTokens = roomForAnswer(messages, maxTokens);
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {

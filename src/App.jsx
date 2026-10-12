@@ -1575,6 +1575,12 @@ Rules:
     })
   ];
 
+  // Keep the request small enough for the free AI limits: drop the oldest messages
+  // until the chat fits, but always keep the newest one and the instructions.
+  const sizeOf = (m) => Array.isArray(m.content) ? 3000 : String(m.content||"").length;
+  while (messages.length > 2 && messages.slice(1).reduce((n,m)=>n+sizeOf(m),0) > 9000) messages.splice(1,1);
+  while (messages.length > 2 && messages[1].role === "assistant") messages.splice(1,1);
+
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
