@@ -39,6 +39,27 @@ async function freeModels(orKey) {
   return list;
 }
 
+// Same idea for questions with a picture: ask OpenRouter which free models can see images.
+let visionCache = { at: 0, list: null };
+async function freeVisionModels(orKey) {
+  if (visionCache.list && Date.now() - visionCache.at < 3600 * 1000) return visionCache.list;
+  let list = [];
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/models', { headers: { Authorization: `Bearer ${orKey}` } });
+    const d = await r.json();
+    list = (d.data || []).filter(m =>
+      /:free$/.test(m.id) && !/thinkingmachines|safety|guard|embed|lyria/i.test(m.id) &&
+      Number(m.pricing?.prompt) === 0 && Number(m.pricing?.completion) === 0 &&
+      (m.architecture?.input_modalities || []).includes('image') &&
+      (m.architecture?.output_modalities || ['text']).join() === 'text')
+      .sort((x, y) => (y.context_length || 0) - (x.context_length || 0))
+      .slice(0, 4).map(m => m.id);
+  } catch (e) { /* use the fallback below */ }
+  if (!list.length) list = ['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free'];
+  visionCache = { at: Date.now(), list };
+  return list;
+}
+
 // Extra Groq models have their own separate limits, so they are a good first backup.
 const GROQ_EXTRA = ['openai/gpt-oss-20b'];
 
@@ -147,6 +168,10 @@ export default async function handler(req, res) {
     if (process.env.OPENROUTER_API_KEY) {
       for (const model of await freeModels(process.env.OPENROUTER_API_KEY)) checks.push([`OpenRouter ${model}`, () => callOpenRouter(tinyAsk, process.env.OPENROUTER_API_KEY, model, 300)]);
     } else checks.push(['OpenRouter', async () => { throw new Error('OPENROUTER_API_KEY is not set'); }]);
+    const dot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const imgAsk = [{ role: 'user', content: [{ type: 'text', text: 'Reply with the single word OK.' }, { type: 'image_url', image_url: { url: dot } }] }];
+    if (process.env.GROQ_API_KEY) { const vm = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b'; checks.push([`IMAGE Groq ${vm}`, () => callGroq(imgAsk, process.env.GROQ_API_KEY, vm, 300)]); }
+    if (process.env.OPENROUTER_API_KEY) for (const model of await freeVisionModels(process.env.OPENROUTER_API_KEY)) checks.push([`IMAGE OpenRouter ${model}`, () => callOpenRouter(imgAsk, process.env.OPENROUTER_API_KEY, model, 300)]);
     const results = await Promise.all(checks.map(async ([label, run]) => {
       const t = Date.now();
       try { const r = await run(); return { model: label, ok: true, ms: Date.now() - t, reply: r.content.slice(0, 40) }; }
@@ -170,12 +195,14 @@ export default async function handler(req, res) {
   if (hasImages(messages)) {
     // Image questions need a vision model. The default text model cannot see pictures.
     const visionModel = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
-    const orVision = process.env.OPENROUTER_VISION_MODEL || 'google/gemma-3-27b-it:free';
     if (groqKey) {
       attempts.push({ label: 'Groq vision', run: () => finishAnswer((m) => callGroq(m, groqKey, visionModel, 3500), messages, startedAt) });
     }
     if (openRouterKey) {
-      attempts.push({ label: 'OpenRouter vision', run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, orVision, 3500), messages, startedAt) });
+      const orModels = process.env.OPENROUTER_VISION_MODEL ? [process.env.OPENROUTER_VISION_MODEL] : await freeVisionModels(openRouterKey);
+      for (const model of orModels) {
+        attempts.push({ label: `OpenRouter vision ${model}`, run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, model, 3500), messages, startedAt) });
+      }
     }
   } else {
     if (groqKey) {
