@@ -13,7 +13,7 @@ const PREFERRED_FREE = [
   'meta-llama/llama-3.3-70b-instruct:free',
   'openai/gpt-oss-120b:free'
 ];
-const SKIP_FREE = /safety|guard|embed|lyria|-vl|vision|omni|dolphin|coder|lfm|3b-instruct/i;
+const SKIP_FREE = /thinkingmachines|safety|guard|embed|lyria|-vl|vision|omni|dolphin|coder|lfm|3b-instruct/i;
 let freeCache = { at: 0, list: null };
 
 async function freeModels(orKey) {
@@ -40,7 +40,7 @@ async function freeModels(orKey) {
 }
 
 // Extra Groq models have their own separate limits, so they are a good first backup.
-const GROQ_EXTRA = ['llama-3.3-70b-versatile', 'openai/gpt-oss-20b'];
+const GROQ_EXTRA = ['openai/gpt-oss-20b'];
 
 // Groq's free plan counts the room reserved for the answer (max_tokens) together with
 // the question, against 8000 tokens a minute. Shrink the answer room when the
