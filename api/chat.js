@@ -168,7 +168,7 @@ export default async function handler(req, res) {
     if (process.env.OPENROUTER_API_KEY) {
       for (const model of await freeModels(process.env.OPENROUTER_API_KEY)) checks.push([`OpenRouter ${model}`, () => callOpenRouter(tinyAsk, process.env.OPENROUTER_API_KEY, model, 300)]);
     } else checks.push(['OpenRouter', async () => { throw new Error('OPENROUTER_API_KEY is not set'); }]);
-    const dot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const dot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAYElEQVR4nO3PQQ0AIBDAMMC/50MEj4ZkVbDtmVk/OzrgVQNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgPaBXKqA31N0fbGAAAAAElFTkSuQmCC';
     const imgAsk = [{ role: 'user', content: [{ type: 'text', text: 'Reply with the single word OK.' }, { type: 'image_url', image_url: { url: dot } }] }];
     if (process.env.GROQ_API_KEY) { const vm = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b'; checks.push([`IMAGE Groq ${vm}`, () => callGroq(imgAsk, process.env.GROQ_API_KEY, vm, 300)]); }
     if (process.env.OPENROUTER_API_KEY) for (const model of await freeVisionModels(process.env.OPENROUTER_API_KEY)) checks.push([`IMAGE OpenRouter ${model}`, () => callOpenRouter(imgAsk, process.env.OPENROUTER_API_KEY, model, 300)]);
