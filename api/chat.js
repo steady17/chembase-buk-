@@ -2,12 +2,45 @@
 // configured, falls back to a list of free OpenRouter models, so
 // ChemBot keeps working even if Groq has a bad day.
 
-const FREE_BACKUPS = [
-  'openai/gpt-oss-120b:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
+// Free model names on OpenRouter come and go, so a fixed list breaks. Instead we ask
+// OpenRouter which free text models exist right now (cached for an hour), put the
+// ones we like first, and finish with its own free auto-picker as the last resort.
+const PREFERRED_FREE = [
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'google/gemma-4-31b-it:free',
   'qwen/qwen3-next-80b-a3b-instruct:free',
-  'nvidia/nemotron-3-super-120b-a12b:free'
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'openai/gpt-oss-120b:free'
 ];
+const SKIP_FREE = /safety|guard|embed|lyria|-vl|vision|omni|dolphin|coder|lfm|3b-instruct/i;
+let freeCache = { at: 0, list: null };
+
+async function freeModels(orKey) {
+  if (freeCache.list && Date.now() - freeCache.at < 3600 * 1000) return freeCache.list;
+  let list;
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/models', { headers: { Authorization: `Bearer ${orKey}` } });
+    const d = await r.json();
+    const live = (d.data || []).filter(m =>
+      /:free$/.test(m.id) && !SKIP_FREE.test(m.id) &&
+      Number(m.pricing?.prompt) === 0 && Number(m.pricing?.completion) === 0 &&
+      (m.context_length || 0) >= 32000 &&
+      (m.architecture?.output_modalities || ['text']).join() === 'text');
+    const rank = (id) => { const i = PREFERRED_FREE.indexOf(id); return i === -1 ? 999 : i; };
+    live.sort((x, y) => rank(x.id) - rank(y.id) || (y.context_length || 0) - (x.context_length || 0));
+    list = live.slice(0, 5).map(m => m.id);
+  } catch (e) {
+    list = [];
+  }
+  if (!list.length) list = PREFERRED_FREE.slice(0, 3);
+  list.push('openrouter/free');
+  freeCache = { at: Date.now(), list };
+  return list;
+}
+
+// Extra Groq models have their own separate limits, so they are a good first backup.
+const GROQ_EXTRA = ['llama-3.3-70b-versatile', 'openai/gpt-oss-20b'];
 
 // Groq's free plan counts the room reserved for the answer (max_tokens) together with
 // the question, against 8000 tokens a minute. Shrink the answer room when the
@@ -110,8 +143,9 @@ export default async function handler(req, res) {
     const checks = [];
     if (process.env.GROQ_API_KEY) checks.push(['Groq openai/gpt-oss-120b', () => callGroq(tinyAsk, process.env.GROQ_API_KEY, 'openai/gpt-oss-120b', 300)]);
     else checks.push(['Groq', async () => { throw new Error('GROQ_API_KEY is not set'); }]);
+    if (process.env.GROQ_API_KEY) for (const model of GROQ_EXTRA) checks.push([`Groq ${model}`, () => callGroq(tinyAsk, process.env.GROQ_API_KEY, model, 300)]);
     if (process.env.OPENROUTER_API_KEY) {
-      for (const model of FREE_BACKUPS) checks.push([`OpenRouter ${model}`, () => callOpenRouter(tinyAsk, process.env.OPENROUTER_API_KEY, model, 300)]);
+      for (const model of await freeModels(process.env.OPENROUTER_API_KEY)) checks.push([`OpenRouter ${model}`, () => callOpenRouter(tinyAsk, process.env.OPENROUTER_API_KEY, model, 300)]);
     } else checks.push(['OpenRouter', async () => { throw new Error('OPENROUTER_API_KEY is not set'); }]);
     const results = await Promise.all(checks.map(async ([label, run]) => {
       const t = Date.now();
@@ -147,10 +181,15 @@ export default async function handler(req, res) {
     if (groqKey) {
       attempts.push({ label: 'Groq', run: () => finishAnswer((m) => callGroq(m, groqKey), messages, startedAt) });
     }
+    if (groqKey) {
+      for (const model of GROQ_EXTRA) {
+        attempts.push({ label: `Groq ${model}`, run: () => finishAnswer((m) => callGroq(m, groqKey, model), messages, startedAt) });
+      }
+    }
     if (openRouterKey) {
       // Free backups, best first. Free model names on OpenRouter change now and then,
       // so there are several; if one is gone the next one takes over.
-      for (const model of FREE_BACKUPS) {
+      for (const model of await freeModels(openRouterKey)) {
         attempts.push({ label: `OpenRouter ${model}`, run: () => finishAnswer((m) => callOpenRouter(m, openRouterKey, model), messages, startedAt) });
       }
     }
